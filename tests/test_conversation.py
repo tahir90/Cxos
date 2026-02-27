@@ -257,7 +257,11 @@ class TestCoFounderAgent:
         ))
         briefing = agent.morning_briefing()
         assert len(briefing.critical_alerts) > 0
-        assert "critical" in briefing.summary.lower() or "overdue" in briefing.summary.lower() or briefing.summary
+        has_keyword = (
+            "critical" in briefing.summary.lower()
+            or "overdue" in briefing.summary.lower()
+        )
+        assert has_keyword or briefing.summary
 
     def test_briefing_format(self):
         agent = self._make_agent()

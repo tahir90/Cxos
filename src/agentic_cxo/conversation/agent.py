@@ -20,6 +20,7 @@ from typing import Any
 from openai import OpenAI
 
 from agentic_cxo.config import settings
+from agentic_cxo.conversation.context import ContextAssembler, TokenBudget
 from agentic_cxo.conversation.memory import (
     BusinessProfileStore,
     ConversationMemory,
@@ -93,7 +94,19 @@ class CoFounderAgent:
     )
     reminder_store: ReminderStore = field(default_factory=ReminderStore)
     router: IntentRouter = field(default_factory=IntentRouter)
+    context_assembler: ContextAssembler | None = field(
+        default=None, init=False
+    )
     _client: OpenAI | None = field(default=None, init=False, repr=False)
+
+    def __post_init__(self) -> None:
+        self.context_assembler = ContextAssembler(
+            vault=self.vault,
+            memory=self.memory,
+            profile_store=self.profile_store,
+            reminder_store=self.reminder_store,
+            budget=TokenBudget.for_model(settings.llm.model),
+        )
 
     def _get_client(self) -> OpenAI:
         if self._client is None:
@@ -350,36 +363,29 @@ class CoFounderAgent:
         role_enum: MessageRole,
     ) -> ChatMessage:
         client = self._get_client()
-        profile = self.profile_store.profile
-        ctx_text = "\n".join(
-            f"- [{h.get('metadata', {}).get('source', '?')}] {h['content']}"
-            for h in context[:8]
+        assembled = self.context_assembler.assemble(
+            user_message=message,
+            agent_role=agent_role,
+            agent_instruction=CXO_SYSTEM_PROMPTS.get(agent_role, ""),
         )
-        recent = "\n".join(
-            f"{m.role.value}: {m.content[:100]}"
-            for m in self.memory.recent(6)
+        logger.info(
+            "LLM call for %s: %d context tokens",
+            agent_role, assembled.token_count,
         )
         resp = client.chat.completions.create(
             model=settings.llm.model,
             temperature=settings.llm.temperature,
             max_tokens=settings.llm.max_tokens,
-            messages=[
-                {"role": "system", "content": (
-                    CXO_SYSTEM_PROMPTS.get(agent_role, "") +
-                    f"\n\nBusiness context: {profile.summary()}"
-                    f"\n\nRelevant data:\n{ctx_text}"
-                )},
-                {"role": "user", "content": (
-                    f"Recent conversation:\n{recent}\n\n"
-                    f"Founder's request: {message}"
-                )},
-            ],
+            messages=assembled.to_messages(),
         )
         body = (resp.choices[0].message.content or "").strip()
         return ChatMessage(
             role=role_enum,
             content=body,
-            metadata={"agent": agent_role, "context_used": len(context)},
+            metadata={
+                "agent": agent_role,
+                "context_tokens": assembled.token_count,
+            },
         )
 
     def _smart_agent_response(
