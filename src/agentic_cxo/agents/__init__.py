@@ -2,8 +2,18 @@
 
 from agentic_cxo.agents.base import BaseAgent
 from agentic_cxo.agents.cfo import AgentCFO
+from agentic_cxo.agents.chro import AgentCHRO
 from agentic_cxo.agents.clo import AgentCLO
 from agentic_cxo.agents.cmo import AgentCMO
 from agentic_cxo.agents.coo import AgentCOO
+from agentic_cxo.agents.cso import AgentCSO
 
-__all__ = ["BaseAgent", "AgentCFO", "AgentCOO", "AgentCMO", "AgentCLO"]
+__all__ = [
+    "BaseAgent",
+    "AgentCFO",
+    "AgentCOO",
+    "AgentCMO",
+    "AgentCLO",
+    "AgentCHRO",
+    "AgentCSO",
+]

@@ -2,13 +2,16 @@
 FastAPI server — REST interface to the Agentic CXO Cockpit.
 
 Endpoints:
-  POST /ingest          — push documents into the Context Vault
-  POST /objective       — dispatch a business objective
-  GET  /status          — system health and agent status
-  GET  /approvals       — pending human-in-the-loop approvals
-  POST /approve/{id}    — approve a pending action
-  POST /reject/{id}     — reject a pending action
-  POST /query           — query the Context Vault directly
+  POST /ingest              — push documents into the Context Vault
+  POST /objective           — dispatch a business objective
+  GET  /status              — system health and agent status
+  GET  /approvals           — pending human-in-the-loop approvals
+  POST /approve/{id}        — approve a pending action
+  POST /reject/{id}         — reject a pending action
+  POST /query               — query the Context Vault directly
+  GET  /scenarios            — list all available scenarios
+  POST /scenarios/{id}/run  — execute a scenario
+  GET  /scenarios/history   — past scenario execution results
 """
 
 from __future__ import annotations
@@ -23,7 +26,7 @@ from agentic_cxo.orchestrator import Cockpit
 app = FastAPI(
     title="Agentic CXO",
     description="AI-driven C-suite agents with modular context management",
-    version="0.1.0",
+    version="0.2.0",
 )
 
 cockpit = Cockpit()
@@ -45,14 +48,6 @@ class QueryRequest(BaseModel):
     query: str
     top_k: int = 5
     filters: dict[str, str] = {}
-
-
-class ApprovalResponse(BaseModel):
-    action_id: str
-    approved: bool | None
-    description: str
-    risk: str
-    result: str | None
 
 
 @app.get("/status")
@@ -139,7 +134,9 @@ async def pending_approvals() -> list[dict[str, Any]]:
 async def approve(action_id: str, approver: str = "pilot") -> dict[str, Any]:
     action = cockpit.approve_action(action_id, approver)
     if action is None:
-        raise HTTPException(404, f"Action {action_id} not found in pending queue")
+        raise HTTPException(
+            404, f"Action {action_id} not found in pending queue"
+        )
     return {
         "action_id": action.action_id,
         "approved": action.approved,
@@ -151,9 +148,46 @@ async def approve(action_id: str, approver: str = "pilot") -> dict[str, Any]:
 async def reject(action_id: str, reason: str = "") -> dict[str, Any]:
     action = cockpit.reject_action(action_id, reason)
     if action is None:
-        raise HTTPException(404, f"Action {action_id} not found in pending queue")
+        raise HTTPException(
+            404, f"Action {action_id} not found in pending queue"
+        )
     return {
         "action_id": action.action_id,
         "approved": action.approved,
         "result": action.result,
     }
+
+
+# ── Scenario endpoints ──────────────────────────────────────────
+
+@app.get("/scenarios")
+async def scenarios(category: str | None = None) -> list[dict[str, Any]]:
+    return cockpit.list_scenarios(category)
+
+
+@app.post("/scenarios/{scenario_id}/run")
+async def run_scenario(scenario_id: str) -> dict[str, Any]:
+    result = cockpit.run_scenario(scenario_id)
+    if result is None:
+        raise HTTPException(404, f"Scenario '{scenario_id}' not found")
+    return {
+        "scenario": result.scenario_name,
+        "status": result.status,
+        "summary": result.summary(),
+        "steps": [
+            {
+                "step_id": sr.step_id,
+                "status": sr.status.value,
+                "action": sr.action.description[:200],
+                "risk": sr.action.risk.value,
+                "approved": sr.action.approved,
+                "citations": sr.action.citations,
+            }
+            for sr in result.step_results
+        ],
+    }
+
+
+@app.get("/scenarios/history")
+async def scenario_history() -> list[dict[str, Any]]:
+    return [r.summary() for r in cockpit.scenario_history]

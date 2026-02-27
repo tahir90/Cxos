@@ -2,11 +2,13 @@
 CLI — command-line interface for the Agentic CXO system.
 
 Usage:
-  cxo ingest <file>              Ingest a document into the Context Vault
-  cxo objective <title> <desc>   Dispatch an objective to CXO agents
-  cxo query <text>               Query the Context Vault
-  cxo status                     Show system status
-  cxo serve                      Start the REST API server
+  cxo ingest <file>                    Ingest a document into the Context Vault
+  cxo objective <title> <desc>         Dispatch an objective to CXO agents
+  cxo query <text>                     Query the Context Vault
+  cxo scenarios                        List all available scenarios
+  cxo run <scenario-id>                Execute a scenario
+  cxo status                           Show system status
+  cxo serve                            Start the REST API server
 """
 
 from __future__ import annotations
@@ -28,6 +30,7 @@ console = Console()
 
 def _cockpit():
     from agentic_cxo.orchestrator import Cockpit
+
     return Cockpit()
 
 
@@ -56,7 +59,9 @@ def ingest(
 def objective(
     title: str = typer.Argument(..., help="Objective title"),
     description: str = typer.Argument(..., help="Objective description"),
-    assigned_to: Optional[str] = typer.Option(None, help="Assign to specific agent role"),
+    assigned_to: Optional[str] = typer.Option(
+        None, help="Assign to specific agent role"
+    ),
     constraint: Optional[list[str]] = typer.Option(None, help="Constraints"),
 ):
     """Dispatch a business objective to CXO agents."""
@@ -81,7 +86,7 @@ def objective(
         table.add_column("Citations")
 
         for a in actions:
-            status = (
+            status_str = (
                 "[green]Approved[/green]" if a.approved
                 else "[yellow]Pending[/yellow]" if a.approved is None
                 else "[red]Rejected[/red]"
@@ -95,7 +100,7 @@ def objective(
                 a.action_id,
                 a.description[:80],
                 f"[{risk_style}]{a.risk.value}[/{risk_style}]",
-                status,
+                status_str,
                 ", ".join(a.citations[:3]) or "—",
             )
         console.print(table)
@@ -111,7 +116,9 @@ def query(
     hits = cockpit.vault.query(text, top_k=top_k)
 
     if not hits:
-        console.print("[yellow]No results found. Ingest some documents first.[/yellow]")
+        console.print(
+            "[yellow]No results found. Ingest some documents first.[/yellow]"
+        )
         return
 
     for i, hit in enumerate(hits, 1):
@@ -123,6 +130,98 @@ def query(
             f"Distance: {hit.get('distance', '?'):.4f}[/dim]",
             title=f"Result {i}",
         ))
+
+
+@app.command()
+def scenarios(
+    category: Optional[str] = typer.Option(
+        None, help="Filter by category: finance, marketing, people, legal, sales"
+    ),
+):
+    """List all available scenarios."""
+    cockpit = _cockpit()
+    items = cockpit.list_scenarios(category)
+
+    if not items:
+        console.print("[yellow]No scenarios found.[/yellow]")
+        return
+
+    table = Table(title="Available Scenarios")
+    table.add_column("ID", style="dim")
+    table.add_column("Name", style="bold")
+    table.add_column("Agent", justify="center")
+    table.add_column("Category", justify="center")
+    table.add_column("Steps", justify="center")
+    table.add_column("Description", max_width=50)
+
+    for s in items:
+        table.add_row(
+            s["id"],
+            s["name"],
+            s["agent"],
+            s["category"],
+            str(s["steps"]),
+            s["description"][:50] + "...",
+        )
+    console.print(table)
+
+
+@app.command()
+def run(
+    scenario_id: str = typer.Argument(..., help="Scenario ID to execute"),
+):
+    """Execute a scenario by ID."""
+    cockpit = _cockpit()
+    result = cockpit.run_scenario(scenario_id)
+
+    if result is None:
+        console.print(f"[red]Scenario '{scenario_id}' not found.[/red]")
+        raise typer.Exit(1)
+
+    console.print(Panel(
+        f"[bold]{result.scenario_name}[/bold]\n"
+        f"Status: {result.status}",
+        title="Scenario Execution",
+        border_style="blue",
+    ))
+
+    table = Table(title="Steps")
+    table.add_column("Step", style="dim")
+    table.add_column("Title")
+    table.add_column("Risk", justify="center")
+    table.add_column("Status", justify="center")
+    table.add_column("Citations")
+
+    for sr in result.step_results:
+        status_str = {
+            "completed": "[green]Completed[/green]",
+            "blocked": "[yellow]Awaiting Approval[/yellow]",
+            "pending": "[dim]Pending[/dim]",
+            "running": "[blue]Running[/blue]",
+            "failed": "[red]Failed[/red]",
+        }.get(sr.status.value, sr.status.value)
+
+        risk_colors = {
+            "low": "green", "medium": "yellow",
+            "high": "red", "critical": "bold red",
+        }
+        risk_style = risk_colors.get(sr.action.risk.value, "white")
+
+        table.add_row(
+            sr.step_id,
+            sr.action.description[:60],
+            f"[{risk_style}]{sr.action.risk.value}[/{risk_style}]",
+            status_str,
+            ", ".join(sr.action.citations[:2]) or "—",
+        )
+    console.print(table)
+
+    summary = result.summary()
+    console.print(f"\n  Completed: {summary['completed']}/{summary['total_steps']}")
+    if summary["pending_approvals"] > 0:
+        console.print(
+            f"  [yellow]Pending approvals: {summary['pending_approvals']}[/yellow]"
+        )
 
 
 @app.command()
@@ -145,8 +244,13 @@ def serve(
 ):
     """Start the REST API server."""
     import uvicorn
-    console.print(f"[bold green]Starting Agentic CXO API on {host}:{port}[/bold green]")
-    uvicorn.run("agentic_cxo.api.server:app", host=host, port=port, reload=True)
+
+    console.print(
+        f"[bold green]Starting Agentic CXO API on {host}:{port}[/bold green]"
+    )
+    uvicorn.run(
+        "agentic_cxo.api.server:app", host=host, port=port, reload=True
+    )
 
 
 if __name__ == "__main__":
