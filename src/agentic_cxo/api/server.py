@@ -28,18 +28,21 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 from agentic_cxo.orchestrator import Cockpit
+from agentic_cxo.scenarios.analyst import ScenarioAnalyst
+from agentic_cxo.scenarios.registry import get_scenario as _get_scenario_obj
 
 STATIC_DIR = Path(__file__).parent / "static"
 
 app = FastAPI(
     title="Agentic CXO",
     description="AI-driven C-suite agents with modular context management",
-    version="0.3.0",
+    version="0.4.0",
 )
 
 app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 
 cockpit = Cockpit(use_llm=False)
+analyst = ScenarioAnalyst(vault=cockpit.vault, use_llm=False)
 
 AGENT_DESCRIPTIONS: dict[str, dict[str, str]] = {
     "CFO": {
@@ -336,10 +339,17 @@ async def run_scenario(scenario_id: str) -> dict[str, Any]:
     result = cockpit.run_scenario(scenario_id)
     if result is None:
         raise HTTPException(404, f"Scenario '{scenario_id}' not found")
+
+    scenario_obj = _get_scenario_obj(scenario_id)
+    analysis = {}
+    if scenario_obj:
+        analysis = analyst.analyze(scenario_obj, result)
+
     return {
         "scenario": result.scenario_name,
         "status": result.status,
         "summary": result.summary(),
+        "analysis": analysis,
         "steps": [
             {
                 "step_id": sr.step_id,
