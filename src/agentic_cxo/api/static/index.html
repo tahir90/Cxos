@@ -1,335 +1,322 @@
 <!DOCTYPE html>
-<html lang="en" class="dark">
+<html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Agentic CXO — Your AI C-Suite</title>
+  <title>Agentic CXO — Your AI Co-Founder</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
-  <script>tailwind.config={darkMode:'class'}</script>
   <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
-    * { font-family: 'Inter', system-ui, sans-serif; }
-    .fade-in { animation: fadeIn .35s ease-out; }
-    @keyframes fadeIn { from{opacity:0;transform:translateY(12px)} to{opacity:1;transform:translateY(0)} }
-    .spinner { border:3px solid rgba(255,255,255,.15); border-top-color:#818cf8; border-radius:50%; width:24px; height:24px; animation:spin .6s linear infinite; display:inline-block; }
-    @keyframes spin { to{transform:rotate(360deg)} }
-    .report-content h2 { font-size:1.25rem; font-weight:700; color:#e2e8f0; margin:1.5rem 0 .75rem; }
-    .report-content h3 { font-size:1rem; font-weight:600; color:#cbd5e1; margin:1.25rem 0 .5rem; }
-    .report-content p { color:#94a3b8; line-height:1.7; margin:.5rem 0; }
-    .report-content strong { color:#e2e8f0; }
-    .report-content table { width:100%; border-collapse:collapse; margin:1rem 0; font-size:.85rem; }
-    .report-content th { text-align:left; padding:.5rem .75rem; background:#1e293b; color:#94a3b8; font-weight:600; border-bottom:1px solid #334155; font-size:.75rem; text-transform:uppercase; letter-spacing:.05em; }
-    .report-content td { padding:.5rem .75rem; border-bottom:1px solid #1e293b; color:#cbd5e1; }
-    .report-content tr:hover td { background:#1e293b40; }
-    .report-content blockquote { border-left:3px solid #6366f1; padding:.75rem 1rem; margin:1rem 0; background:#1e293b80; border-radius:0 .5rem .5rem 0; color:#94a3b8; font-style:italic; }
-    .report-content ul, .report-content ol { padding-left:1.5rem; color:#94a3b8; }
-    .report-content li { margin:.25rem 0; line-height:1.6; }
-    .report-content code { background:#1e293b; padding:.15rem .4rem; border-radius:.25rem; font-size:.85em; color:#a5b4fc; }
-    .report-content hr { border-color:#334155; margin:1.5rem 0; }
-    .glow { box-shadow: 0 0 40px -10px rgba(99,102,241,.3); }
+    *{font-family:'Inter',system-ui,sans-serif;} body{background:#0a0e1a;}
+    .fade-in{animation:fadeIn .3s ease-out}
+    @keyframes fadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+    .spinner{border:2px solid rgba(255,255,255,.1);border-top-color:#818cf8;border-radius:50%;width:18px;height:18px;animation:spin .5s linear infinite;display:inline-block}
+    @keyframes spin{to{transform:rotate(360deg)}}
+    .msg-content h2{font-size:1.1rem;font-weight:700;color:#e2e8f0;margin:1rem 0 .5rem}
+    .msg-content h3{font-size:.95rem;font-weight:600;color:#cbd5e1;margin:.75rem 0 .4rem}
+    .msg-content p{color:#94a3b8;line-height:1.65;margin:.4rem 0}
+    .msg-content strong{color:#e2e8f0}
+    .msg-content table{width:100%;border-collapse:collapse;margin:.75rem 0;font-size:.8rem}
+    .msg-content th{text-align:left;padding:.4rem .6rem;background:#1e293b;color:#64748b;font-weight:600;font-size:.7rem;text-transform:uppercase;letter-spacing:.04em;border-bottom:1px solid #334155}
+    .msg-content td{padding:.4rem .6rem;border-bottom:1px solid #1e293b;color:#cbd5e1}
+    .msg-content blockquote{border-left:3px solid #6366f1;padding:.5rem .75rem;margin:.75rem 0;background:#1e293b60;border-radius:0 .4rem .4rem 0;color:#94a3b8;font-style:italic}
+    .msg-content ul,.msg-content ol{padding-left:1.25rem;color:#94a3b8}
+    .msg-content li{margin:.2rem 0;line-height:1.5}
+    .msg-content code{background:#1e293b;padding:.1rem .3rem;border-radius:.2rem;font-size:.8em;color:#a5b4fc}
+    #chat-area{scrollbar-width:thin;scrollbar-color:#1e293b transparent}
+    #chat-area::-webkit-scrollbar{width:6px}
+    #chat-area::-webkit-scrollbar-thumb{background:#1e293b;border-radius:3px}
   </style>
 </head>
-<body class="bg-[#0b0f1a] text-gray-300 min-h-screen">
+<body class="text-gray-300 h-screen flex flex-col overflow-hidden">
 
   <!-- Header -->
-  <header class="border-b border-gray-800/50 bg-[#0f1420]/80 backdrop-blur-xl sticky top-0 z-50">
-    <div class="max-w-6xl mx-auto px-6 py-4 flex items-center justify-between">
-      <div class="flex items-center gap-3">
-        <div class="w-10 h-10 bg-gradient-to-br from-indigo-500 to-violet-600 rounded-xl flex items-center justify-center text-white font-bold text-sm shadow-lg shadow-indigo-500/20">CXO</div>
-        <div>
-          <h1 class="text-lg font-bold text-white tracking-tight">Agentic CXO</h1>
-          <p class="text-[11px] text-gray-500 tracking-wide">YOUR AI C-SUITE</p>
-        </div>
+  <header class="border-b border-gray-800/40 bg-[#0c1021]/90 backdrop-blur-xl px-5 py-3 flex items-center justify-between shrink-0 z-50">
+    <div class="flex items-center gap-3">
+      <div class="w-9 h-9 bg-gradient-to-br from-indigo-500 to-violet-600 rounded-xl flex items-center justify-center text-white font-bold text-xs shadow-lg shadow-indigo-500/20">CXO</div>
+      <div>
+        <h1 class="text-sm font-bold text-white tracking-tight">Agentic CXO</h1>
+        <p class="text-[10px] text-gray-500 tracking-wider">YOUR AI CO-FOUNDER</p>
       </div>
-      <div class="flex items-center gap-3">
-        <span id="vault-badge" class="px-2.5 py-1 bg-gray-800/80 rounded-lg text-xs text-gray-400 border border-gray-700/50">Vault: —</span>
-        <button onclick="seedAndRefresh()" id="seed-btn" class="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-medium rounded-lg transition shadow-lg shadow-indigo-500/20">Load Demo Data</button>
-      </div>
+    </div>
+    <div class="flex items-center gap-2">
+      <button onclick="getBriefing()" class="px-3 py-1.5 bg-gray-800/60 hover:bg-gray-700/60 text-gray-300 text-xs rounded-lg transition border border-gray-700/30" title="Morning Briefing">Morning Briefing</button>
+      <span id="reminder-badge" class="hidden px-2 py-1 bg-red-500/20 text-red-400 text-[11px] font-semibold rounded-lg border border-red-500/30 cursor-pointer" onclick="getBriefing()"></span>
+      <button onclick="seedData()" id="seed-btn" class="px-3 py-1.5 bg-indigo-600/80 hover:bg-indigo-500/80 text-white text-xs rounded-lg transition font-medium">Load Demo</button>
     </div>
   </header>
 
-  <main class="max-w-6xl mx-auto px-6 py-8">
+  <!-- Main layout -->
+  <div class="flex flex-1 overflow-hidden">
 
-    <!-- Hero -->
-    <section id="hero" class="mb-10 fade-in">
-      <div class="text-center mb-8">
-        <h2 class="text-3xl font-extrabold text-white mb-3 tracking-tight">Six AI Officers. Zero Management Overhead.</h2>
-        <p class="text-gray-400 max-w-2xl mx-auto">Feed your business data. Pick a scenario. Watch your AI C-suite analyze, plan, and act — with every decision cited and every risk flagged.</p>
+    <!-- Chat area -->
+    <div class="flex-1 flex flex-col">
+      <div id="chat-area" class="flex-1 overflow-y-auto px-5 py-4 space-y-4">
+        <!-- Welcome message injected by JS -->
       </div>
-      <div id="agent-grid" class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 mb-6"></div>
-    </section>
 
-    <!-- Scenarios -->
-    <section class="mb-10">
-      <div class="flex items-center justify-between mb-5">
-        <h2 class="text-xl font-bold text-white">Run a Scenario</h2>
-        <div class="flex gap-1.5 flex-wrap">
-          <button onclick="filterCat(null)" class="cat-btn px-3 py-1 text-xs rounded-full bg-gray-800 hover:bg-gray-700 text-gray-300 transition border border-gray-700/50">All</button>
-          <button onclick="filterCat('finance')" class="cat-btn px-3 py-1 text-xs rounded-full bg-gray-800 hover:bg-gray-700 text-gray-300 transition border border-gray-700/50">Finance</button>
-          <button onclick="filterCat('marketing')" class="cat-btn px-3 py-1 text-xs rounded-full bg-gray-800 hover:bg-gray-700 text-gray-300 transition border border-gray-700/50">Marketing</button>
-          <button onclick="filterCat('people')" class="cat-btn px-3 py-1 text-xs rounded-full bg-gray-800 hover:bg-gray-700 text-gray-300 transition border border-gray-700/50">People</button>
-          <button onclick="filterCat('legal')" class="cat-btn px-3 py-1 text-xs rounded-full bg-gray-800 hover:bg-gray-700 text-gray-300 transition border border-gray-700/50">Legal</button>
-          <button onclick="filterCat('sales')" class="cat-btn px-3 py-1 text-xs rounded-full bg-gray-800 hover:bg-gray-700 text-gray-300 transition border border-gray-700/50">Sales</button>
-        </div>
-      </div>
-      <div id="scenario-grid" class="grid grid-cols-1 md:grid-cols-2 gap-3"></div>
-    </section>
-
-    <!-- Report Output -->
-    <section id="report-section" class="hidden mb-10">
-      <div id="report-container" class="bg-[#111827] border border-gray-800/50 rounded-2xl overflow-hidden glow fade-in">
-        <div id="report-header" class="px-6 py-4 border-b border-gray-800/50 flex items-center justify-between bg-[#0f1420]">
-          <div>
-            <h3 id="report-title" class="text-lg font-bold text-white"></h3>
-            <p id="report-meta" class="text-sm text-gray-500 mt-0.5"></p>
+      <!-- Input -->
+      <div class="border-t border-gray-800/40 bg-[#0c1021]/80 backdrop-blur px-5 py-3">
+        <div class="max-w-3xl mx-auto flex gap-2 items-end">
+          <label class="cursor-pointer shrink-0 w-9 h-9 flex items-center justify-center bg-gray-800/60 hover:bg-gray-700/60 rounded-xl transition border border-gray-700/30" title="Upload document">
+            <input type="file" class="hidden" id="file-input" onchange="uploadFile(this)">
+            <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"/></svg>
+          </label>
+          <div class="flex-1 relative">
+            <textarea id="msg-input" rows="1" class="w-full bg-gray-800/40 border border-gray-700/40 rounded-xl px-4 py-2.5 text-white placeholder-gray-600 focus:ring-2 focus:ring-indigo-500/40 focus:border-indigo-500/40 outline-none text-sm resize-none" placeholder="Talk to your AI co-founder..." onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendMsg()}" oninput="autoResize(this)"></textarea>
           </div>
-          <button onclick="document.getElementById('report-section').classList.add('hidden')" class="text-gray-500 hover:text-gray-300 transition text-xl">&times;</button>
+          <button onclick="sendMsg()" class="shrink-0 w-9 h-9 flex items-center justify-center bg-indigo-600 hover:bg-indigo-500 rounded-xl transition shadow-lg shadow-indigo-500/20">
+            <svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"/></svg>
+          </button>
         </div>
-        <div id="report-body" class="px-6 py-5 report-content"></div>
-        <div id="report-sources" class="px-6 py-3 border-t border-gray-800/50 bg-[#0f1420]"></div>
-      </div>
-    </section>
-
-    <!-- Objective Dispatch -->
-    <section class="mb-10">
-      <h2 class="text-xl font-bold text-white mb-5">Ask Your C-Suite</h2>
-      <div class="bg-[#111827] border border-gray-800/50 rounded-2xl p-5">
-        <div class="flex gap-3">
-          <input id="obj-input" class="flex-1 bg-[#0b0f1a] border border-gray-700/50 rounded-xl px-4 py-3 text-white placeholder-gray-600 focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500/50 outline-none text-sm" placeholder="Describe a business problem... e.g. 'Our burn rate spiked 12%, find savings'" onkeydown="if(event.key==='Enter')askCsuite()">
-          <button onclick="askCsuite()" class="bg-indigo-600 hover:bg-indigo-500 text-white font-medium rounded-xl px-5 py-3 transition text-sm whitespace-nowrap shadow-lg shadow-indigo-500/20">Send</button>
-        </div>
-        <div class="flex gap-2 mt-3 flex-wrap">
-          <button onclick="fillQ('Our burn rate spiked 12%. Find at least $100k in savings without cutting engineering.')" class="text-xs px-3 py-1.5 bg-gray-800/60 hover:bg-gray-700/60 rounded-lg text-gray-400 hover:text-gray-200 transition border border-gray-700/30">Burn rate spiked 12%</button>
-          <button onclick="fillQ('Pause all ad campaigns with ROI below 1.0x and reallocate budget to top performers.')" class="text-xs px-3 py-1.5 bg-gray-800/60 hover:bg-gray-700/60 rounded-lg text-gray-400 hover:text-gray-200 transition border border-gray-700/30">Kill bad ads</button>
-          <button onclick="fillQ('Scan all vendor contracts for auto-renewal clauses and liability exposure.')" class="text-xs px-3 py-1.5 bg-gray-800/60 hover:bg-gray-700/60 rounded-lg text-gray-400 hover:text-gray-200 transition border border-gray-700/30">Audit contracts</button>
-          <button onclick="fillQ('Our Fortune 500 deal stalled for 14 days. Research the prospect and draft a follow-up.')" class="text-xs px-3 py-1.5 bg-gray-800/60 hover:bg-gray-700/60 rounded-lg text-gray-400 hover:text-gray-200 transition border border-gray-700/30">Recover stalled deal</button>
-          <button onclick="fillQ('Find a Lead Rust Engineer with ZK-proof experience from open-source contributors.')" class="text-xs px-3 py-1.5 bg-gray-800/60 hover:bg-gray-700/60 rounded-lg text-gray-400 hover:text-gray-200 transition border border-gray-700/30">Recruit Rust engineer</button>
+        <div class="max-w-3xl mx-auto mt-2 flex gap-1.5 flex-wrap">
+          <button onclick="quickSend('What should I focus on today?')" class="text-[11px] px-2.5 py-1 bg-gray-800/40 hover:bg-gray-700/40 rounded-lg text-gray-500 hover:text-gray-300 transition border border-gray-700/20">Today's priorities</button>
+          <button onclick="quickSend('Our burn rate spiked 12%. Where can we cut $100k?')" class="text-[11px] px-2.5 py-1 bg-gray-800/40 hover:bg-gray-700/40 rounded-lg text-gray-500 hover:text-gray-300 transition border border-gray-700/20">Cut costs</button>
+          <button onclick="quickSend('Review our vendor contracts for any risky clauses')" class="text-[11px] px-2.5 py-1 bg-gray-800/40 hover:bg-gray-700/40 rounded-lg text-gray-500 hover:text-gray-300 transition border border-gray-700/20">Audit contracts</button>
+          <button onclick="quickSend('Which stalled deals should we follow up on today?')" class="text-[11px] px-2.5 py-1 bg-gray-800/40 hover:bg-gray-700/40 rounded-lg text-gray-500 hover:text-gray-300 transition border border-gray-700/20">Recover deals</button>
+          <button onclick="quickSend('Remind me to review the Q4 budget by Friday')" class="text-[11px] px-2.5 py-1 bg-gray-800/40 hover:bg-gray-700/40 rounded-lg text-gray-500 hover:text-gray-300 transition border border-gray-700/20">Set reminder</button>
         </div>
       </div>
-      <div id="obj-result" class="mt-4"></div>
-    </section>
+    </div>
 
-    <!-- Vault Search -->
-    <section class="mb-10">
-      <h2 class="text-xl font-bold text-white mb-5">Search the Knowledge Vault</h2>
-      <div class="flex gap-3 max-w-2xl">
-        <input id="q-input" class="flex-1 bg-[#111827] border border-gray-700/50 rounded-xl px-4 py-2.5 text-white placeholder-gray-600 focus:ring-2 focus:ring-indigo-500/50 outline-none text-sm" placeholder="e.g. vendor contracts, marketing ROI, overdue invoices..." onkeydown="if(event.key==='Enter')searchVault()">
-        <button onclick="searchVault()" class="bg-gray-800 hover:bg-gray-700 text-gray-200 font-medium rounded-xl px-5 py-2.5 transition text-sm border border-gray-700/50">Search</button>
+    <!-- Sidebar -->
+    <div id="sidebar" class="w-72 border-l border-gray-800/40 bg-[#0b0f1a] overflow-y-auto hidden lg:block">
+      <div class="p-4">
+        <!-- Profile -->
+        <div id="profile-section" class="mb-5">
+          <h3 class="text-[11px] font-semibold text-gray-500 uppercase tracking-wider mb-2">Business Profile</h3>
+          <div id="profile-body" class="text-xs text-gray-400 space-y-1"></div>
+        </div>
+
+        <!-- Critical reminders -->
+        <div id="critical-section" class="mb-5 hidden">
+          <h3 class="text-[11px] font-semibold text-red-400 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+            <span class="w-2 h-2 bg-red-500 rounded-full animate-pulse"></span> Critical
+          </h3>
+          <div id="critical-body" class="space-y-1.5"></div>
+        </div>
+
+        <!-- Upcoming -->
+        <div id="upcoming-section" class="mb-5 hidden">
+          <h3 class="text-[11px] font-semibold text-amber-400 uppercase tracking-wider mb-2">Upcoming</h3>
+          <div id="upcoming-body" class="space-y-1.5"></div>
+        </div>
+
+        <!-- Agents -->
+        <div class="mb-5">
+          <h3 class="text-[11px] font-semibold text-gray-500 uppercase tracking-wider mb-2">Your C-Suite</h3>
+          <div class="space-y-1">
+            <div class="flex items-center gap-2 text-xs"><span class="w-2 h-2 rounded-full bg-emerald-500"></span><span class="text-gray-400">CFO</span><span class="text-gray-600">Finance</span></div>
+            <div class="flex items-center gap-2 text-xs"><span class="w-2 h-2 rounded-full bg-blue-500"></span><span class="text-gray-400">COO</span><span class="text-gray-600">Operations</span></div>
+            <div class="flex items-center gap-2 text-xs"><span class="w-2 h-2 rounded-full bg-pink-500"></span><span class="text-gray-400">CMO</span><span class="text-gray-600">Marketing</span></div>
+            <div class="flex items-center gap-2 text-xs"><span class="w-2 h-2 rounded-full bg-amber-500"></span><span class="text-gray-400">CLO</span><span class="text-gray-600">Legal</span></div>
+            <div class="flex items-center gap-2 text-xs"><span class="w-2 h-2 rounded-full bg-cyan-500"></span><span class="text-gray-400">CHRO</span><span class="text-gray-600">People</span></div>
+            <div class="flex items-center gap-2 text-xs"><span class="w-2 h-2 rounded-full bg-violet-500"></span><span class="text-gray-400">CSO</span><span class="text-gray-600">Sales</span></div>
+          </div>
+        </div>
+
+        <!-- Vault -->
+        <div>
+          <h3 class="text-[11px] font-semibold text-gray-500 uppercase tracking-wider mb-2">Vault</h3>
+          <p id="vault-stat" class="text-xs text-gray-600">0 chunks</p>
+        </div>
       </div>
-      <div id="q-result" class="mt-4 space-y-2 max-w-2xl"></div>
-    </section>
-
-    <!-- Pending Approvals -->
-    <section id="approvals-section" class="mb-10 hidden">
-      <h2 class="text-xl font-bold text-white mb-5">Pending Approvals <span id="approval-count" class="text-sm font-normal text-amber-400"></span></h2>
-      <div id="approvals-list" class="space-y-2"></div>
-    </section>
-
-  </main>
+    </div>
+  </div>
 
 <script>
-const API = '';
-const COLORS = { CFO:'emerald', COO:'blue', CMO:'pink', CLO:'amber', CHRO:'cyan', CSO:'violet' };
-const ICONS = { CFO:'$', COO:'\u2699', CMO:'\u26A1', CLO:'\u2696', CHRO:'\u263A', CSO:'\u2191' };
-const TITLES = { CFO:'Finance & Risk', COO:'Operations', CMO:'Growth & Brand', CLO:'Legal & Compliance', CHRO:'People & Culture', CSO:'Sales & Revenue' };
+const API='';
+const ROLE_COLORS={agent:'indigo',cfo:'emerald',coo:'blue',cmo:'pink',clo:'amber',chro:'cyan',cso:'violet',system:'gray',user:'gray'};
+const ROLE_LABELS={agent:'Co-Founder',cfo:'CFO',coo:'COO',cmo:'CMO',clo:'CLO',chro:'CHRO',cso:'CSO',system:'System'};
 
-function riskBadge(r) {
-  const c = {low:'bg-emerald-500/10 text-emerald-400 border-emerald-500/20',medium:'bg-amber-500/10 text-amber-400 border-amber-500/20',high:'bg-red-500/10 text-red-400 border-red-500/20',critical:'bg-red-500/20 text-red-300 border-red-500/30'};
-  return `<span class="px-2 py-0.5 rounded-md text-[11px] font-medium border ${c[r]||c.low}">${r}</span>`;
+function autoResize(el){el.style.height='auto';el.style.height=Math.min(el.scrollHeight,120)+'px';}
+function scrollBottom(){const a=document.getElementById('chat-area');setTimeout(()=>a.scrollTop=a.scrollHeight,50);}
+
+function addMessage(role, content, actions){
+  const area=document.getElementById('chat-area');
+  const isUser=role==='user';
+  const c=ROLE_COLORS[role]||'gray';
+  const label=ROLE_LABELS[role]||role.toUpperCase();
+
+  let actionsHtml='';
+  if(actions&&actions.length){
+    actionsHtml=actions.map(a=>{
+      const icon=a.status==='completed'?'&#10003;':a.status==='pending_approval'?'&#9888;':'&#10007;';
+      const col=a.status==='completed'?'emerald':a.status==='pending_approval'?'amber':'red';
+      return `<div class="flex items-start gap-2 mt-2 px-3 py-2 bg-${col}-500/5 border border-${col}-500/10 rounded-lg">
+        <span class="text-${col}-400 text-xs mt-0.5">${icon}</span>
+        <div><p class="text-xs text-${col}-300 font-medium">${a.action_type.replace(/_/g,' ')}</p><p class="text-[11px] text-gray-500">${a.description}</p></div>
+      </div>`;
+    }).join('');
+  }
+
+  const html=isUser
+    ? `<div class="flex justify-end fade-in"><div class="max-w-xl">
+        <div class="bg-indigo-600/20 border border-indigo-500/20 rounded-2xl rounded-br-md px-4 py-2.5">
+          <p class="text-sm text-gray-200">${escHtml(content)}</p>
+        </div></div></div>`
+    : `<div class="flex gap-3 fade-in max-w-3xl">
+        <div class="shrink-0 w-7 h-7 rounded-lg bg-${c}-500/15 flex items-center justify-center mt-1">
+          <span class="text-${c}-400 text-[10px] font-bold">${label.slice(0,2)}</span>
+        </div>
+        <div class="flex-1 min-w-0">
+          <p class="text-[11px] text-${c}-400 font-semibold mb-1">${label}</p>
+          <div class="bg-[#111827] border border-gray-800/40 rounded-2xl rounded-tl-md px-4 py-3">
+            <div class="msg-content text-sm">${marked.parse(content)}</div>
+            ${actionsHtml}
+          </div>
+        </div></div>`;
+
+  area.insertAdjacentHTML('beforeend',html);
+  scrollBottom();
+}
+
+function escHtml(s){return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+
+async function sendMsg(){
+  const el=document.getElementById('msg-input');
+  const msg=el.value.trim();
+  if(!msg)return;
+  el.value='';el.style.height='auto';
+  addMessage('user',msg);
+  showTyping();
+  try{
+    const res=await fetch(API+'/chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({message:msg})});
+    const data=await res.json();
+    hideTyping();
+    for(const r of data.responses){addMessage(r.role,r.content,r.actions);}
+    refreshSidebar();
+  }catch(e){hideTyping();addMessage('system','Connection error: '+e.message);}
+}
+
+function quickSend(msg){document.getElementById('msg-input').value=msg;sendMsg();}
+
+async function uploadFile(input){
+  const file=input.files[0];if(!file)return;
+  addMessage('user',`Uploading: ${file.name}`);
+  showTyping();
+  const form=new FormData();form.append('file',file);
+  try{
+    const res=await fetch(API+'/upload',{method:'POST',body:form});
+    const data=await res.json();
+    hideTyping();
+    for(const r of data.responses){addMessage(r.role,r.content,r.actions);}
+    refreshSidebar();
+  }catch(e){hideTyping();addMessage('system','Upload error: '+e.message);}
+  input.value='';
+}
+
+async function getBriefing(){
+  showTyping();
+  try{
+    const res=await fetch(API+'/briefing');
+    const data=await res.json();
+    hideTyping();
+    addMessage('agent',data.formatted);
+    refreshSidebar();
+  }catch(e){hideTyping();addMessage('system','Error: '+e.message);}
+}
+
+async function seedData(){
+  const btn=document.getElementById('seed-btn');
+  btn.textContent='Loading...';btn.disabled=true;
+  try{
+    await fetch(API+'/seed',{method:'POST'});
+    btn.textContent='Loaded';btn.classList.replace('bg-indigo-600/80','bg-emerald-600/80');
+    addMessage('system','9 business documents loaded into the vault: financial reports, contracts, sales pipeline, engineering roadmap, invoices, and marketing data. Your C-suite is ready.');
+    refreshSidebar();
+  }catch(e){btn.textContent='Error';addMessage('system','Seed error: '+e.message);}
+}
+
+function showTyping(){
+  const area=document.getElementById('chat-area');
+  area.insertAdjacentHTML('beforeend','<div id="typing" class="flex gap-3 fade-in"><div class="shrink-0 w-7 h-7 rounded-lg bg-indigo-500/15 flex items-center justify-center"><span class="spinner"></span></div><div class="text-xs text-gray-600 mt-2">Thinking...</div></div>');
+  scrollBottom();
+}
+function hideTyping(){const el=document.getElementById('typing');if(el)el.remove();}
+
+async function refreshSidebar(){
+  try{
+    const [statusRes,profileRes,remindersRes]=await Promise.all([
+      fetch(API+'/status'),fetch(API+'/profile'),fetch(API+'/reminders')
+    ]);
+    const status=await statusRes.json();
+    const profile=await profileRes.json();
+    const reminders=await remindersRes.json();
+
+    document.getElementById('vault-stat').textContent=status.vault_chunks+' chunks indexed';
+
+    // Profile
+    const pb=document.getElementById('profile-body');
+    if(profile.company_name){
+      let lines=[];
+      if(profile.company_name)lines.push(`<strong class="text-gray-200">${profile.company_name}</strong>`);
+      if(profile.industry)lines.push(profile.industry);
+      if(profile.arr)lines.push('Revenue: '+profile.arr);
+      if(profile.team_size)lines.push('Team: '+profile.team_size);
+      if(profile.main_product)lines.push(profile.main_product);
+      pb.innerHTML=lines.map(l=>'<p>'+l+'</p>').join('');
+    } else {
+      const pct=Math.round(profile.completeness*100);
+      pb.innerHTML=`<p>Profile: ${pct}% complete</p><p class="text-gray-600">Chat to teach me about your business</p>`;
+    }
+
+    // Critical reminders
+    const cs=document.getElementById('critical-section');
+    const cb=document.getElementById('critical-body');
+    const badge=document.getElementById('reminder-badge');
+    const criticals=[...reminders.overdue,...reminders.critical];
+    if(criticals.length){
+      cs.classList.remove('hidden');
+      cb.innerHTML=criticals.map(r=>
+        `<div class="bg-red-500/5 border border-red-500/10 rounded-lg px-3 py-2">
+          <p class="text-xs text-red-300 font-medium">${r.title}</p>
+          <p class="text-[10px] text-gray-600">${r.source_detail||r.source||''}</p>
+        </div>`
+      ).join('');
+      badge.textContent=criticals.length+' critical';
+      badge.classList.remove('hidden');
+    } else {
+      cs.classList.add('hidden');
+      badge.classList.add('hidden');
+    }
+
+    // Upcoming
+    const us=document.getElementById('upcoming-section');
+    const ub=document.getElementById('upcoming-body');
+    const upcoming=reminders.active.filter(r=>!criticals.find(c=>c.reminder_id===r.reminder_id));
+    if(upcoming.length){
+      us.classList.remove('hidden');
+      ub.innerHTML=upcoming.slice(0,5).map(r=>
+        `<div class="bg-gray-800/30 border border-gray-700/20 rounded-lg px-3 py-2">
+          <p class="text-xs text-gray-300">${r.title}</p>
+          <p class="text-[10px] text-gray-600">${new Date(r.due_date).toLocaleDateString()}</p>
+        </div>`
+      ).join('');
+    } else {us.classList.add('hidden');}
+
+  }catch(e){console.error(e);}
 }
 
 // ── Boot ──
-async function boot() {
-  const [statusRes, scenRes] = await Promise.all([fetch(API+'/status'), fetch(API+'/scenarios')]);
-  const status = await statusRes.json();
-  const scenarios = await scenRes.json();
-  renderAgents(status.agents || []);
-  renderScenarios(scenarios);
-  document.getElementById('vault-badge').textContent = 'Vault: '+(status.vault_chunks||0)+' chunks';
-  if (status.vault_chunks === 0) document.getElementById('seed-btn').classList.add('animate-pulse');
-  loadApprovals();
-}
-
-function renderAgents(agents) {
-  const el = document.getElementById('agent-grid');
-  el.innerHTML = agents.map(r => {
-    const c = COLORS[r]||'gray';
-    return `<div class="bg-[#111827] border border-gray-800/50 rounded-xl p-4 text-center hover:border-${c}-500/30 transition group cursor-default">
-      <div class="w-10 h-10 mx-auto mb-2 rounded-xl bg-${c}-500/10 flex items-center justify-center text-lg group-hover:bg-${c}-500/20 transition">${ICONS[r]||'?'}</div>
-      <p class="font-semibold text-white text-sm">${r}</p>
-      <p class="text-[11px] text-gray-500">${TITLES[r]||''}</p>
-    </div>`;
-  }).join('');
-}
-
-let allScenarios = [];
-function renderScenarios(list) {
-  allScenarios = list;
-  _render(list);
-}
-function filterCat(cat) {
-  _render(cat ? allScenarios.filter(s=>s.category===cat) : allScenarios);
-}
-function _render(list) {
-  const el = document.getElementById('scenario-grid');
-  el.innerHTML = list.map(s => {
-    const c = COLORS[s.agent]||'gray';
-    return `<div class="bg-[#111827] border border-gray-800/50 rounded-xl p-5 hover:border-${c}-500/20 transition group">
-      <div class="flex items-start justify-between mb-3">
-        <div>
-          <div class="flex items-center gap-2 mb-1">
-            <span class="px-2 py-0.5 rounded-md text-[11px] font-semibold bg-${c}-500/10 text-${c}-400 border border-${c}-500/20">${s.agent}</span>
-            <span class="text-[11px] text-gray-600">${s.steps} steps</span>
-          </div>
-          <h3 class="font-bold text-white text-[15px] leading-snug">${s.name}</h3>
-        </div>
-        <button onclick="runScenario('${s.id}','${s.name.replace(/'/g,"\\'")}')" class="opacity-60 group-hover:opacity-100 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-medium rounded-lg px-3.5 py-2 transition shadow-lg shadow-indigo-500/10 whitespace-nowrap">Run</button>
-      </div>
-      <p class="text-sm text-gray-500 leading-relaxed">${s.description}</p>
-    </div>`;
-  }).join('');
-}
-
-// ── Run Scenario ──
-async function runScenario(id, name) {
-  const sec = document.getElementById('report-section');
-  sec.classList.remove('hidden');
-  sec.scrollIntoView({behavior:'smooth', block:'start'});
-  document.getElementById('report-title').textContent = name;
-  document.getElementById('report-meta').textContent = 'Analyzing...';
-  document.getElementById('report-body').innerHTML = '<div class="flex items-center justify-center py-16"><div class="spinner"></div><span class="ml-3 text-gray-500">Your AI C-suite is working on this...</span></div>';
-  document.getElementById('report-sources').innerHTML = '';
-
-  const res = await fetch(API+'/scenarios/'+id+'/run', {method:'POST'});
-  const data = await res.json();
-
-  const summary = data.summary || {};
-  document.getElementById('report-meta').textContent =
-    `${summary.completed||0}/${summary.total_steps||0} steps completed` +
-    (summary.blocked > 0 ? ` · ${summary.blocked} awaiting your approval` : '') +
-    ` · ${data.status}`;
-
-  if (data.analysis && data.analysis.report) {
-    document.getElementById('report-body').innerHTML = '<div class="fade-in">' + marked.parse(data.analysis.report) + '</div>';
-    const srcs = data.analysis.sources || [];
-    if (srcs.length) {
-      document.getElementById('report-sources').innerHTML =
-        '<p class="text-xs text-gray-600">Sources: ' + srcs.map(s=>'<span class="text-gray-500">'+s+'</span>').join(' · ') + '</p>';
-    }
+async function boot(){
+  const res=await fetch(API+'/history');
+  const msgs=await res.json();
+  if(msgs.length){
+    for(const m of msgs){addMessage(m.role,m.content,m.actions);}
   } else {
-    document.getElementById('report-body').innerHTML = '<p class="text-gray-500 py-8 text-center">No analysis generated. Try loading demo data first.</p>';
+    addMessage('agent',
+      "Hey! I'm your AI co-founder. I have six specialists on my team — **CFO**, **COO**, **CMO**, **CLO**, **CHRO**, and **CSO**.\n\n"+
+      "Before I can help, I need to learn about your business. We can start two ways:\n\n"+
+      "1. **Tell me about your company** and I'll ask follow-up questions\n"+
+      "2. **Drop some documents** (financials, contracts, reports) and I'll get up to speed fast\n\n"+
+      "Or click **Load Demo** above to try it with sample data right away.\n\n"+
+      "What would you like to do?"
+    );
   }
-  loadApprovals();
-  fetch(API+'/status').then(r=>r.json()).then(s=>{
-    document.getElementById('vault-badge').textContent='Vault: '+(s.vault_chunks||0)+' chunks';
-  });
+  refreshSidebar();
 }
-
-// ── Ask C-Suite ──
-function fillQ(t) { document.getElementById('obj-input').value = t; }
-async function askCsuite() {
-  const text = document.getElementById('obj-input').value.trim();
-  if (!text) return;
-  const el = document.getElementById('obj-result');
-  el.innerHTML = '<div class="flex items-center gap-2 text-gray-500 py-4"><div class="spinner"></div> Routing to the right agent...</div>';
-
-  const words = text.split(/\s+/);
-  const title = words.slice(0, 6).join(' ') + (words.length > 6 ? '...' : '');
-
-  const res = await fetch(API+'/objective', {
-    method:'POST', headers:{'Content-Type':'application/json'},
-    body: JSON.stringify({title, description: text})
-  });
-  const data = await res.json();
-
-  let html = '';
-  for (const [role, actions] of Object.entries(data)) {
-    const c = COLORS[role]||'gray';
-    html += `<div class="bg-[#111827] border border-gray-800/50 rounded-xl overflow-hidden mb-3 fade-in">
-      <div class="px-4 py-3 border-b border-gray-800/30 flex items-center gap-2 bg-[#0f1420]">
-        <span class="px-2 py-0.5 rounded-md text-[11px] font-semibold bg-${c}-500/10 text-${c}-400 border border-${c}-500/20">${role}</span>
-        <span class="text-xs text-gray-500">${TITLES[role]||''}</span>
-      </div>`;
-    actions.forEach(a => {
-      const st = a.approved === true ? '<span class="text-emerald-400 text-xs">Approved</span>' : a.approved === null ? '<span class="text-amber-400 text-xs">Needs approval</span>' : '<span class="text-red-400 text-xs">Rejected</span>';
-      html += `<div class="px-4 py-3 border-t border-gray-800/20 flex items-start justify-between gap-4">
-        <div class="flex-1"><p class="text-sm text-gray-200">${a.description}</p>
-        ${a.citations.length ? '<p class="text-[11px] text-gray-600 mt-1">Sources: '+a.citations.join(', ')+'</p>' : ''}</div>
-        <div class="flex items-center gap-2 shrink-0">${riskBadge(a.risk)} ${st}</div>
-      </div>`;
-    });
-    html += '</div>';
-  }
-  el.innerHTML = html;
-  loadApprovals();
-}
-
-// ── Vault Search ──
-async function searchVault() {
-  const q = document.getElementById('q-input').value.trim();
-  if (!q) return;
-  const el = document.getElementById('q-result');
-  el.innerHTML = '<div class="spinner"></div>';
-  const res = await fetch(API+'/query', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({query:q,top_k:5})});
-  const data = await res.json();
-  if (!data.length) { el.innerHTML = '<p class="text-gray-600 text-sm py-4">No results. Load demo data first.</p>'; return; }
-  el.innerHTML = data.map((h,i) => {
-    const m = h.metadata||{};
-    return `<div class="bg-[#111827] border border-gray-800/50 rounded-xl p-4 fade-in">
-      <p class="text-sm text-gray-200 mb-2">${h.content}</p>
-      <div class="flex gap-2 text-[11px] text-gray-600">
-        <span class="px-2 py-0.5 bg-gray-800/80 rounded">${m.source||'?'}</span>
-        <span class="px-2 py-0.5 bg-gray-800/80 rounded">${m.urgency||'?'}</span>
-        ${m.domain ? '<span class="px-2 py-0.5 bg-gray-800/80 rounded">'+m.domain+'</span>' : ''}
-        <span class="px-2 py-0.5 bg-gray-800/80 rounded">dist: ${h.distance!=null?h.distance.toFixed(3):'?'}</span>
-      </div>
-    </div>`;
-  }).join('');
-}
-
-// ── Approvals ──
-async function loadApprovals() {
-  const res = await fetch(API+'/approvals');
-  const data = await res.json();
-  const sec = document.getElementById('approvals-section');
-  const el = document.getElementById('approvals-list');
-  if (!data.length) { sec.classList.add('hidden'); return; }
-  sec.classList.remove('hidden');
-  document.getElementById('approval-count').textContent = `(${data.length} pending)`;
-  el.innerHTML = data.map(a => {
-    const c = COLORS[a.agent_role]||'gray';
-    return `<div class="bg-[#111827] border border-gray-800/50 rounded-xl p-4 flex items-start justify-between gap-4 fade-in">
-      <div class="flex-1">
-        <div class="flex items-center gap-2 mb-1">
-          <span class="px-2 py-0.5 rounded-md text-[11px] font-semibold bg-${c}-500/10 text-${c}-400 border border-${c}-500/20">${a.agent_role}</span>
-          ${riskBadge(a.risk)}
-        </div>
-        <p class="text-sm text-gray-300">${a.description}</p>
-      </div>
-      <div class="flex gap-2 shrink-0">
-        <button onclick="doApprove('${a.action_id}')" class="bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-medium rounded-lg px-3 py-1.5 transition">Approve</button>
-        <button onclick="doReject('${a.action_id}')" class="bg-gray-700 hover:bg-gray-600 text-gray-300 text-xs font-medium rounded-lg px-3 py-1.5 transition">Reject</button>
-      </div>
-    </div>`;
-  }).join('');
-}
-async function doApprove(id) { await fetch(API+'/approve/'+id,{method:'POST'}); loadApprovals(); }
-async function doReject(id) { await fetch(API+'/reject/'+id+'?reason=rejected+by+pilot',{method:'POST'}); loadApprovals(); }
-
-// ── Seed ──
-async function seedAndRefresh() {
-  const btn = document.getElementById('seed-btn');
-  btn.textContent = 'Loading...';
-  btn.disabled = true;
-  btn.classList.remove('animate-pulse');
-  await fetch(API+'/seed', {method:'POST'});
-  btn.textContent = 'Data Loaded';
-  btn.classList.replace('bg-indigo-600','bg-emerald-600');
-  const s = await (await fetch(API+'/status')).json();
-  document.getElementById('vault-badge').textContent = 'Vault: '+(s.vault_chunks||0)+' chunks';
-}
-
 boot();
 </script>
 </body>
