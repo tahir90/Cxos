@@ -1,0 +1,551 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Agentic CXO — AI C-Suite Dashboard</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            brand: { 50:'#eef2ff',100:'#e0e7ff',200:'#c7d2fe',500:'#6366f1',600:'#4f46e5',700:'#4338ca',900:'#312e81' },
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+    body { font-family: 'Inter', sans-serif; }
+    .fade-in { animation: fadeIn 0.3s ease-in; }
+    @keyframes fadeIn { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:translateY(0)} }
+    .spinner { border:3px solid rgba(255,255,255,0.2); border-top-color:#6366f1; border-radius:50%; width:20px; height:20px; animation:spin 0.6s linear infinite; display:inline-block; }
+    @keyframes spin { to{transform:rotate(360deg)} }
+    .tab-active { border-bottom: 2px solid #6366f1; color: #6366f1; }
+    pre { white-space: pre-wrap; word-break: break-word; }
+  </style>
+</head>
+<body class="bg-gray-950 text-gray-100 min-h-screen">
+
+  <!-- Header -->
+  <header class="border-b border-gray-800 bg-gray-900/80 backdrop-blur sticky top-0 z-50">
+    <div class="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
+      <div class="flex items-center gap-3">
+        <div class="w-9 h-9 bg-brand-600 rounded-lg flex items-center justify-center text-white font-bold text-sm">CX</div>
+        <div>
+          <h1 class="text-lg font-semibold text-white">Agentic CXO</h1>
+          <p class="text-xs text-gray-400">AI C-Suite Dashboard</p>
+        </div>
+      </div>
+      <div id="header-status" class="flex items-center gap-4 text-sm text-gray-400">
+        <span id="vault-badge" class="px-2 py-1 bg-gray-800 rounded text-xs">Vault: --</span>
+        <span id="approval-badge" class="px-2 py-1 bg-gray-800 rounded text-xs">Approvals: --</span>
+      </div>
+    </div>
+  </header>
+
+  <!-- Nav Tabs -->
+  <nav class="border-b border-gray-800 bg-gray-900/50">
+    <div class="max-w-7xl mx-auto px-6 flex gap-1 overflow-x-auto">
+      <button onclick="showTab('dashboard')" class="tab-btn tab-active px-4 py-3 text-sm font-medium hover:text-brand-500 transition" data-tab="dashboard">Dashboard</button>
+      <button onclick="showTab('scenarios')" class="tab-btn px-4 py-3 text-sm font-medium text-gray-400 hover:text-brand-500 transition" data-tab="scenarios">Scenarios</button>
+      <button onclick="showTab('objective')" class="tab-btn px-4 py-3 text-sm font-medium text-gray-400 hover:text-brand-500 transition" data-tab="objective">Objectives</button>
+      <button onclick="showTab('ingest')" class="tab-btn px-4 py-3 text-sm font-medium text-gray-400 hover:text-brand-500 transition" data-tab="ingest">Ingest</button>
+      <button onclick="showTab('vault')" class="tab-btn px-4 py-3 text-sm font-medium text-gray-400 hover:text-brand-500 transition" data-tab="vault">Vault Query</button>
+      <button onclick="showTab('approvals')" class="tab-btn px-4 py-3 text-sm font-medium text-gray-400 hover:text-brand-500 transition" data-tab="approvals">Approvals</button>
+    </div>
+  </nav>
+
+  <main class="max-w-7xl mx-auto px-6 py-8">
+
+    <!-- ═══ DASHBOARD TAB ═══ -->
+    <section id="tab-dashboard" class="tab-content fade-in">
+      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+        <div class="bg-gray-900 border border-gray-800 rounded-xl p-5">
+          <p class="text-xs text-gray-500 uppercase tracking-wide mb-1">Active Agents</p>
+          <p id="stat-agents" class="text-3xl font-bold text-white">--</p>
+        </div>
+        <div class="bg-gray-900 border border-gray-800 rounded-xl p-5">
+          <p class="text-xs text-gray-500 uppercase tracking-wide mb-1">Vault Chunks</p>
+          <p id="stat-vault" class="text-3xl font-bold text-white">--</p>
+        </div>
+        <div class="bg-gray-900 border border-gray-800 rounded-xl p-5">
+          <p class="text-xs text-gray-500 uppercase tracking-wide mb-1">Pending Approvals</p>
+          <p id="stat-approvals" class="text-3xl font-bold text-amber-400">--</p>
+        </div>
+        <div class="bg-gray-900 border border-gray-800 rounded-xl p-5">
+          <p class="text-xs text-gray-500 uppercase tracking-wide mb-1">Scenarios Run</p>
+          <p id="stat-scenarios" class="text-3xl font-bold text-white">--</p>
+        </div>
+      </div>
+
+      <h3 class="text-lg font-semibold mb-4">Agent Roster</h3>
+      <div id="agent-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-8"></div>
+
+      <div class="flex items-center justify-between mb-4">
+        <h3 class="text-lg font-semibold">Quick Actions</h3>
+      </div>
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <button onclick="seedData()" class="bg-brand-600 hover:bg-brand-700 text-white rounded-xl p-4 text-left transition">
+          <p class="font-semibold">Seed Sample Data</p>
+          <p class="text-sm text-brand-200 mt-1">Load 9 business documents into the Vault</p>
+        </button>
+        <button onclick="showTab('scenarios')" class="bg-gray-800 hover:bg-gray-700 text-white rounded-xl p-4 text-left transition">
+          <p class="font-semibold">Run a Scenario</p>
+          <p class="text-sm text-gray-400 mt-1">Execute one of 14 pre-built business workflows</p>
+        </button>
+        <button onclick="showTab('objective')" class="bg-gray-800 hover:bg-gray-700 text-white rounded-xl p-4 text-left transition">
+          <p class="font-semibold">Dispatch an Objective</p>
+          <p class="text-sm text-gray-400 mt-1">Send a goal to the right CXO agent</p>
+        </button>
+      </div>
+    </section>
+
+    <!-- ═══ SCENARIOS TAB ═══ -->
+    <section id="tab-scenarios" class="tab-content hidden fade-in">
+      <div class="flex items-center justify-between mb-6">
+        <h2 class="text-xl font-semibold">Business Scenarios</h2>
+        <div class="flex gap-2">
+          <button onclick="filterScenarios(null)" class="cat-btn px-3 py-1.5 text-xs rounded-full bg-gray-800 hover:bg-gray-700 transition">All</button>
+          <button onclick="filterScenarios('finance')" class="cat-btn px-3 py-1.5 text-xs rounded-full bg-gray-800 hover:bg-gray-700 transition">Finance</button>
+          <button onclick="filterScenarios('marketing')" class="cat-btn px-3 py-1.5 text-xs rounded-full bg-gray-800 hover:bg-gray-700 transition">Marketing</button>
+          <button onclick="filterScenarios('people')" class="cat-btn px-3 py-1.5 text-xs rounded-full bg-gray-800 hover:bg-gray-700 transition">People</button>
+          <button onclick="filterScenarios('legal')" class="cat-btn px-3 py-1.5 text-xs rounded-full bg-gray-800 hover:bg-gray-700 transition">Legal</button>
+          <button onclick="filterScenarios('sales')" class="cat-btn px-3 py-1.5 text-xs rounded-full bg-gray-800 hover:bg-gray-700 transition">Sales</button>
+        </div>
+      </div>
+      <div id="scenario-list" class="space-y-3"></div>
+      <div id="scenario-result" class="mt-6 hidden"></div>
+    </section>
+
+    <!-- ═══ OBJECTIVE TAB ═══ -->
+    <section id="tab-objective" class="tab-content hidden fade-in">
+      <h2 class="text-xl font-semibold mb-6">Dispatch an Objective</h2>
+      <p class="text-gray-400 text-sm mb-6">Describe a business goal. The system automatically routes it to the right CXO agent(s).</p>
+      <div class="bg-gray-900 border border-gray-800 rounded-xl p-6 max-w-2xl">
+        <div class="space-y-4">
+          <div>
+            <label class="block text-sm font-medium text-gray-300 mb-1">Title</label>
+            <input id="obj-title" class="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-2.5 text-white placeholder-gray-500 focus:ring-2 focus:ring-brand-600 focus:border-transparent outline-none" placeholder="e.g. Budget optimization">
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-300 mb-1">Description</label>
+            <textarea id="obj-desc" rows="3" class="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-2.5 text-white placeholder-gray-500 focus:ring-2 focus:ring-brand-600 focus:border-transparent outline-none" placeholder="e.g. Our burn rate increased 12%. Find at least $100k in savings for Q4."></textarea>
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-300 mb-1">Assign to (optional)</label>
+            <select id="obj-agent" class="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-2.5 text-white focus:ring-2 focus:ring-brand-600 focus:border-transparent outline-none">
+              <option value="">Auto-route</option>
+              <option value="CFO">CFO</option><option value="COO">COO</option>
+              <option value="CMO">CMO</option><option value="CLO">CLO</option>
+              <option value="CHRO">CHRO</option><option value="CSO">CSO</option>
+            </select>
+          </div>
+          <button onclick="dispatchObjective()" class="bg-brand-600 hover:bg-brand-700 text-white font-medium rounded-lg px-6 py-2.5 transition">Dispatch</button>
+        </div>
+      </div>
+      <div id="obj-result" class="mt-6"></div>
+
+      <div class="mt-8">
+        <h3 class="text-md font-semibold text-gray-300 mb-3">Try these examples:</h3>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <button onclick="fillObjective('Budget optimization','Our burn rate increased 12%. Find $100k in savings for Q4 without cutting engineering.')" class="text-left bg-gray-900 border border-gray-800 hover:border-gray-600 rounded-lg p-3 transition">
+            <p class="text-sm font-medium text-green-400">CFO</p>
+            <p class="text-sm text-gray-300">Budget optimization</p>
+          </button>
+          <button onclick="fillObjective('Vendor risk assessment','Vietnam supplier is 2 weeks behind. Find 3 alternatives and negotiate a 5% discount.')" class="text-left bg-gray-900 border border-gray-800 hover:border-gray-600 rounded-lg p-3 transition">
+            <p class="text-sm font-medium text-blue-400">COO</p>
+            <p class="text-sm text-gray-300">Vendor risk assessment</p>
+          </button>
+          <button onclick="fillObjective('Kill underperforming ads','Pause all campaigns with ROI below 1.0x and reallocate budget to top performers.')" class="text-left bg-gray-900 border border-gray-800 hover:border-gray-600 rounded-lg p-3 transition">
+            <p class="text-sm font-medium text-pink-400">CMO</p>
+            <p class="text-sm text-gray-300">Kill underperforming ads</p>
+          </button>
+          <button onclick="fillObjective('Contract compliance audit','Scan all vendor contracts for auto-renewal clauses and liability shifts.')" class="text-left bg-gray-900 border border-gray-800 hover:border-gray-600 rounded-lg p-3 transition">
+            <p class="text-sm font-medium text-yellow-400">CLO</p>
+            <p class="text-sm text-gray-300">Contract compliance audit</p>
+          </button>
+          <button onclick="fillObjective('Recruit Rust engineer','Find a Lead Rust Engineer with ZK-proof experience from open-source contributors.')" class="text-left bg-gray-900 border border-gray-800 hover:border-gray-600 rounded-lg p-3 transition">
+            <p class="text-sm font-medium text-cyan-400">CHRO</p>
+            <p class="text-sm text-gray-300">Recruit Rust engineer</p>
+          </button>
+          <button onclick="fillObjective('Recover stalled deals','Fortune 500 deal stalled for 14 days. Research prospect news and draft follow-up.')" class="text-left bg-gray-900 border border-gray-800 hover:border-gray-600 rounded-lg p-3 transition">
+            <p class="text-sm font-medium text-indigo-400">CSO</p>
+            <p class="text-sm text-gray-300">Recover stalled deals</p>
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ═══ INGEST TAB ═══ -->
+    <section id="tab-ingest" class="tab-content hidden fade-in">
+      <h2 class="text-xl font-semibold mb-6">Ingest Documents</h2>
+      <p class="text-gray-400 text-sm mb-6">Feed business data into the Context Vault. The pipeline will chunk it semantically, enrich with metadata, and build a summarization pyramid.</p>
+      <div class="bg-gray-900 border border-gray-800 rounded-xl p-6 max-w-2xl">
+        <div class="space-y-4">
+          <div>
+            <label class="block text-sm font-medium text-gray-300 mb-1">Source Name</label>
+            <input id="ingest-source" class="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-2.5 text-white placeholder-gray-500 focus:ring-2 focus:ring-brand-600 focus:border-transparent outline-none" placeholder="e.g. quarterly_report.pdf" value="manual_input.txt">
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-300 mb-1">Content</label>
+            <textarea id="ingest-text" rows="6" class="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-2.5 text-white placeholder-gray-500 focus:ring-2 focus:ring-brand-600 focus:border-transparent outline-none" placeholder="Paste your document text here..."></textarea>
+          </div>
+          <button onclick="ingestText()" class="bg-brand-600 hover:bg-brand-700 text-white font-medium rounded-lg px-6 py-2.5 transition">Ingest</button>
+        </div>
+      </div>
+      <div id="ingest-result" class="mt-6"></div>
+    </section>
+
+    <!-- ═══ VAULT QUERY TAB ═══ -->
+    <section id="tab-vault" class="tab-content hidden fade-in">
+      <h2 class="text-xl font-semibold mb-6">Query the Context Vault</h2>
+      <p class="text-gray-400 text-sm mb-6">Semantic search across all ingested knowledge. This is what the CXO agents see when they reason about objectives.</p>
+      <div class="bg-gray-900 border border-gray-800 rounded-xl p-6 max-w-2xl">
+        <div class="flex gap-3">
+          <input id="query-text" class="flex-1 bg-gray-800 border border-gray-700 rounded-lg px-4 py-2.5 text-white placeholder-gray-500 focus:ring-2 focus:ring-brand-600 focus:border-transparent outline-none" placeholder="e.g. What are our vendor contracts?" onkeydown="if(event.key==='Enter')queryVault()">
+          <button onclick="queryVault()" class="bg-brand-600 hover:bg-brand-700 text-white font-medium rounded-lg px-6 py-2.5 transition whitespace-nowrap">Search</button>
+        </div>
+      </div>
+      <div id="query-result" class="mt-6 space-y-3"></div>
+    </section>
+
+    <!-- ═══ APPROVALS TAB ═══ -->
+    <section id="tab-approvals" class="tab-content hidden fade-in">
+      <h2 class="text-xl font-semibold mb-6">Pending Approvals</h2>
+      <p class="text-gray-400 text-sm mb-6">High-risk actions require human pilot approval before execution. You are the pilot.</p>
+      <div id="approvals-list" class="space-y-3"></div>
+      <div id="approvals-empty" class="hidden text-gray-500 text-center py-12 bg-gray-900 border border-gray-800 rounded-xl">
+        <p class="text-4xl mb-3">&#10003;</p>
+        <p>No pending approvals. All clear.</p>
+      </div>
+    </section>
+
+  </main>
+
+<script>
+const API = '';
+
+const AGENT_META = {
+  CFO:  { color: 'green',  icon: '$',  title: 'Chief Financial Officer', desc: 'Expenses, tax, cash flow, collections' },
+  COO:  { color: 'blue',   icon: '\u2699', title: 'Chief Operating Officer', desc: 'Supply chain, vendors, logistics' },
+  CMO:  { color: 'pink',   icon: '\u2764', title: 'Chief Marketing Officer', desc: 'Campaigns, churn, localization' },
+  CLO:  { color: 'yellow', icon: '\u2696', title: 'Chief Legal Officer', desc: 'Contracts, IP, compliance' },
+  CHRO: { color: 'cyan',   icon: '\u263A', title: 'Chief HR Officer', desc: 'Recruiting, culture, onboarding' },
+  CSO:  { color: 'indigo', icon: '\u2191', title: 'Chief Sales Officer', desc: 'Pipeline, deals, re-engagement' },
+};
+
+const CAT_COLORS = { finance:'green', marketing:'pink', people:'cyan', legal:'yellow', sales:'indigo' };
+
+function riskBadge(risk) {
+  const colors = { low:'bg-green-900 text-green-300', medium:'bg-yellow-900 text-yellow-300', high:'bg-red-900 text-red-300', critical:'bg-red-800 text-red-200' };
+  return `<span class="px-2 py-0.5 rounded-full text-xs font-medium ${colors[risk]||'bg-gray-800 text-gray-300'}">${risk}</span>`;
+}
+
+function statusBadge(status) {
+  if (status === true || status === 'completed') return '<span class="px-2 py-0.5 rounded-full text-xs font-medium bg-green-900 text-green-300">Completed</span>';
+  if (status === false) return '<span class="px-2 py-0.5 rounded-full text-xs font-medium bg-red-900 text-red-300">Rejected</span>';
+  if (status === null || status === 'blocked') return '<span class="px-2 py-0.5 rounded-full text-xs font-medium bg-amber-900 text-amber-300">Awaiting Approval</span>';
+  return `<span class="px-2 py-0.5 rounded-full text-xs font-medium bg-gray-800 text-gray-300">${status}</span>`;
+}
+
+// ── Tab Navigation ──
+function showTab(name) {
+  document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
+  document.querySelectorAll('.tab-btn').forEach(el => { el.classList.remove('tab-active'); el.classList.add('text-gray-400'); });
+  const tab = document.getElementById('tab-' + name);
+  if (tab) { tab.classList.remove('hidden'); tab.classList.add('fade-in'); }
+  const btn = document.querySelector(`[data-tab="${name}"]`);
+  if (btn) { btn.classList.add('tab-active'); btn.classList.remove('text-gray-400'); }
+  if (name === 'scenarios') loadScenarios();
+  if (name === 'approvals') loadApprovals();
+  if (name === 'dashboard') loadDashboard();
+}
+
+// ── Dashboard ──
+async function loadDashboard() {
+  try {
+    const res = await fetch(API + '/status');
+    const data = await res.json();
+    document.getElementById('stat-agents').textContent = data.agents ? data.agents.length : '--';
+    document.getElementById('stat-vault').textContent = data.vault_chunks ?? '--';
+    document.getElementById('stat-approvals').textContent = data.pending_approvals ?? '--';
+    document.getElementById('stat-scenarios').textContent = data.scenarios_executed ?? '--';
+    document.getElementById('vault-badge').textContent = 'Vault: ' + (data.vault_chunks ?? 0);
+    document.getElementById('approval-badge').textContent = 'Approvals: ' + (data.pending_approvals ?? 0);
+
+    const grid = document.getElementById('agent-grid');
+    grid.innerHTML = '';
+    (data.agents || []).forEach(role => {
+      const m = AGENT_META[role] || { color:'gray', icon:'?', title:role, desc:'' };
+      grid.innerHTML += `
+        <div class="bg-gray-900 border border-gray-800 rounded-xl p-5 hover:border-${m.color}-500/30 transition">
+          <div class="flex items-center gap-3 mb-2">
+            <div class="w-10 h-10 rounded-lg bg-${m.color}-500/20 flex items-center justify-center text-lg">${m.icon}</div>
+            <div>
+              <p class="font-semibold text-white">${role}</p>
+              <p class="text-xs text-gray-400">${m.title}</p>
+            </div>
+          </div>
+          <p class="text-sm text-gray-500">${m.desc}</p>
+        </div>`;
+    });
+  } catch(e) { console.error(e); }
+}
+
+// ── Scenarios ──
+let allScenarios = [];
+async function loadScenarios(category) {
+  const url = category ? API + '/scenarios?category=' + category : API + '/scenarios';
+  const res = await fetch(url);
+  allScenarios = await res.json();
+  renderScenarios(allScenarios);
+}
+function filterScenarios(cat) { loadScenarios(cat); }
+function renderScenarios(list) {
+  const el = document.getElementById('scenario-list');
+  el.innerHTML = '';
+  list.forEach(s => {
+    const cc = CAT_COLORS[s.category] || 'gray';
+    el.innerHTML += `
+      <div class="bg-gray-900 border border-gray-800 rounded-xl p-5 hover:border-gray-700 transition">
+        <div class="flex items-start justify-between">
+          <div class="flex-1">
+            <div class="flex items-center gap-2 mb-1">
+              <span class="px-2 py-0.5 rounded-full text-xs font-medium bg-${cc}-500/20 text-${cc}-300">${s.agent}</span>
+              <span class="text-xs text-gray-500">${s.category}</span>
+              <span class="text-xs text-gray-600">${s.steps} steps</span>
+            </div>
+            <h3 class="font-semibold text-white">${s.name}</h3>
+            <p class="text-sm text-gray-400 mt-1">${s.description}</p>
+            <div class="flex gap-1 mt-2">${(s.tags||[]).map(t=>'<span class="px-2 py-0.5 bg-gray-800 rounded text-xs text-gray-500">'+t+'</span>').join('')}</div>
+          </div>
+          <button onclick="runScenario('${s.id}')" class="ml-4 bg-brand-600 hover:bg-brand-700 text-white text-sm font-medium rounded-lg px-4 py-2 transition whitespace-nowrap">Run</button>
+        </div>
+      </div>`;
+  });
+}
+async function runScenario(id) {
+  const resultEl = document.getElementById('scenario-result');
+  resultEl.classList.remove('hidden');
+  resultEl.innerHTML = '<div class="bg-gray-900 border border-gray-800 rounded-xl p-6 text-center"><div class="spinner"></div><p class="mt-3 text-gray-400">Executing scenario...</p></div>';
+  try {
+    const res = await fetch(API + '/scenarios/' + id + '/run', { method: 'POST' });
+    const data = await res.json();
+    let stepsHtml = data.steps.map(step => `
+      <tr class="border-t border-gray-800">
+        <td class="py-3 px-4 text-xs text-gray-500 font-mono">${step.step_id}</td>
+        <td class="py-3 px-4 text-sm text-gray-200">${step.action}</td>
+        <td class="py-3 px-4">${riskBadge(step.risk)}</td>
+        <td class="py-3 px-4">${statusBadge(step.status)}</td>
+      </tr>`).join('');
+    resultEl.innerHTML = `
+      <div class="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden fade-in">
+        <div class="px-6 py-4 border-b border-gray-800 flex items-center justify-between">
+          <div>
+            <h3 class="font-semibold text-white text-lg">${data.scenario}</h3>
+            <p class="text-sm text-gray-400 mt-1">
+              ${data.summary.completed}/${data.summary.total_steps} steps completed
+              ${data.summary.blocked > 0 ? ' &middot; <span class="text-amber-400">' + data.summary.blocked + ' awaiting approval</span>' : ''}
+            </p>
+          </div>
+          ${statusBadge(data.status === 'completed' ? true : data.status)}
+        </div>
+        <table class="w-full text-left">
+          <thead><tr class="text-xs text-gray-500 uppercase">
+            <th class="px-4 py-2 w-24">Step</th><th class="px-4 py-2">Action</th><th class="px-4 py-2 w-24">Risk</th><th class="px-4 py-2 w-36">Status</th>
+          </tr></thead>
+          <tbody>${stepsHtml}</tbody>
+        </table>
+      </div>`;
+    loadDashboard();
+  } catch(e) {
+    resultEl.innerHTML = `<div class="bg-red-900/30 border border-red-800 rounded-xl p-4 text-red-300">Error: ${e.message}</div>`;
+  }
+}
+
+// ── Objectives ──
+function fillObjective(title, desc) {
+  document.getElementById('obj-title').value = title;
+  document.getElementById('obj-desc').value = desc;
+}
+async function dispatchObjective() {
+  const title = document.getElementById('obj-title').value.trim();
+  const desc = document.getElementById('obj-desc').value.trim();
+  const agent = document.getElementById('obj-agent').value || null;
+  if (!title || !desc) return alert('Please fill in both title and description.');
+  const el = document.getElementById('obj-result');
+  el.innerHTML = '<div class="spinner"></div> <span class="text-gray-400 ml-2">Routing and planning...</span>';
+  try {
+    const res = await fetch(API + '/objective', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ title, description: desc, assigned_to: agent })
+    });
+    const data = await res.json();
+    let html = '';
+    for (const [role, actions] of Object.entries(data)) {
+      const m = AGENT_META[role] || { color:'gray', title:role };
+      html += `<div class="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden mb-4 fade-in">
+        <div class="px-5 py-3 border-b border-gray-800 flex items-center gap-2">
+          <span class="px-2 py-0.5 rounded-full text-xs font-medium bg-${m.color}-500/20 text-${m.color}-300">${role}</span>
+          <span class="text-sm text-gray-400">${actions.length} action(s)</span>
+        </div>`;
+      actions.forEach(a => {
+        html += `<div class="px-5 py-3 border-t border-gray-800/50 flex items-start justify-between">
+          <div class="flex-1">
+            <p class="text-sm text-gray-200">${a.description}</p>
+            ${a.citations.length ? '<p class="text-xs text-gray-500 mt-1">Citations: '+a.citations.join(', ')+'</p>' : ''}
+          </div>
+          <div class="flex items-center gap-2 ml-4">
+            ${riskBadge(a.risk)}
+            ${statusBadge(a.approved)}
+          </div>
+        </div>`;
+      });
+      html += '</div>';
+    }
+    el.innerHTML = html;
+    loadDashboard();
+  } catch(e) {
+    el.innerHTML = `<div class="bg-red-900/30 border border-red-800 rounded-xl p-4 text-red-300">Error: ${e.message}</div>`;
+  }
+}
+
+// ── Ingest ──
+async function ingestText() {
+  const source = document.getElementById('ingest-source').value.trim() || 'manual';
+  const text = document.getElementById('ingest-text').value.trim();
+  if (!text) return alert('Please enter some text to ingest.');
+  const el = document.getElementById('ingest-result');
+  el.innerHTML = '<div class="spinner"></div> <span class="text-gray-400 ml-2">Processing through the Context Refinery...</span>';
+  try {
+    const res = await fetch(API + '/ingest', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ text, source })
+    });
+    const data = await res.json();
+    el.innerHTML = `
+      <div class="bg-gray-900 border border-gray-800 rounded-xl p-5 fade-in">
+        <div class="flex gap-6 mb-4">
+          <div><p class="text-xs text-gray-500 uppercase">Chunks</p><p class="text-2xl font-bold text-white">${data.chunks}</p></div>
+          <div><p class="text-xs text-gray-500 uppercase">Tokens</p><p class="text-2xl font-bold text-white">${data.tokens.toLocaleString()}</p></div>
+        </div>
+        <div><p class="text-xs text-gray-500 uppercase mb-1">Executive Summary</p><p class="text-sm text-gray-300">${data.executive_summary || 'N/A'}</p></div>
+      </div>`;
+    document.getElementById('ingest-text').value = '';
+    loadDashboard();
+  } catch(e) {
+    el.innerHTML = `<div class="bg-red-900/30 border border-red-800 rounded-xl p-4 text-red-300">Error: ${e.message}</div>`;
+  }
+}
+
+// ── Vault Query ──
+async function queryVault() {
+  const q = document.getElementById('query-text').value.trim();
+  if (!q) return alert('Please enter a query.');
+  const el = document.getElementById('query-result');
+  el.innerHTML = '<div class="spinner"></div> <span class="text-gray-400 ml-2">Searching vault...</span>';
+  try {
+    const res = await fetch(API + '/query', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ query: q, top_k: 5 })
+    });
+    const data = await res.json();
+    if (!data.length) {
+      el.innerHTML = '<div class="bg-gray-900 border border-gray-800 rounded-xl p-6 text-center text-gray-500">No results found. Ingest some documents first.</div>';
+      return;
+    }
+    el.innerHTML = data.map((hit, i) => {
+      const meta = hit.metadata || {};
+      const dist = hit.distance != null ? hit.distance.toFixed(4) : '?';
+      return `<div class="bg-gray-900 border border-gray-800 rounded-xl p-5 fade-in">
+        <div class="flex items-center justify-between mb-2">
+          <span class="text-xs font-medium text-brand-500">Result ${i+1}</span>
+          <span class="text-xs text-gray-500">distance: ${dist}</span>
+        </div>
+        <p class="text-sm text-gray-200 mb-3">${hit.content}</p>
+        <div class="flex flex-wrap gap-2 text-xs text-gray-500">
+          <span class="px-2 py-0.5 bg-gray-800 rounded">Source: ${meta.source||'?'}</span>
+          <span class="px-2 py-0.5 bg-gray-800 rounded">Urgency: ${meta.urgency||'?'}</span>
+          ${meta.domain ? '<span class="px-2 py-0.5 bg-gray-800 rounded">Domain: '+meta.domain+'</span>' : ''}
+        </div>
+      </div>`;
+    }).join('');
+  } catch(e) {
+    el.innerHTML = `<div class="bg-red-900/30 border border-red-800 rounded-xl p-4 text-red-300">Error: ${e.message}</div>`;
+  }
+}
+
+// ── Approvals ──
+async function loadApprovals() {
+  try {
+    const res = await fetch(API + '/approvals');
+    const data = await res.json();
+    const listEl = document.getElementById('approvals-list');
+    const emptyEl = document.getElementById('approvals-empty');
+    if (!data.length) {
+      listEl.innerHTML = '';
+      emptyEl.classList.remove('hidden');
+      return;
+    }
+    emptyEl.classList.add('hidden');
+    listEl.innerHTML = data.map(a => `
+      <div class="bg-gray-900 border border-gray-800 rounded-xl p-5 fade-in">
+        <div class="flex items-start justify-between">
+          <div class="flex-1">
+            <div class="flex items-center gap-2 mb-1">
+              <span class="font-medium text-white">${a.agent_role}</span>
+              ${riskBadge(a.risk)}
+            </div>
+            <p class="text-sm text-gray-300">${a.description}</p>
+            <p class="text-xs text-gray-600 mt-1 font-mono">${a.action_id}</p>
+          </div>
+          <div class="flex gap-2 ml-4">
+            <button onclick="approveAction('${a.action_id}')" class="bg-green-600 hover:bg-green-700 text-white text-sm font-medium rounded-lg px-4 py-2 transition">Approve</button>
+            <button onclick="rejectAction('${a.action_id}')" class="bg-red-600 hover:bg-red-700 text-white text-sm font-medium rounded-lg px-4 py-2 transition">Reject</button>
+          </div>
+        </div>
+      </div>`).join('');
+    loadDashboard();
+  } catch(e) { console.error(e); }
+}
+async function approveAction(id) {
+  await fetch(API + '/approve/' + id, { method:'POST' });
+  loadApprovals();
+  loadDashboard();
+}
+async function rejectAction(id) {
+  const reason = prompt('Rejection reason (optional):') || '';
+  await fetch(API + '/reject/' + id + '?reason=' + encodeURIComponent(reason), { method:'POST' });
+  loadApprovals();
+  loadDashboard();
+}
+
+// ── Seed Data ──
+async function seedData() {
+  const docs = [
+    { source:'quarterly_report.pdf', text:'Q3 2025 revenue was $12.5 million, up 22% year-over-year. Operating expenses rose to $4.1 million. Burn rate increased 12% due to new SaaS tools ($45k/mo) and contractor fees ($80k). Net profit margin improved to 18.3%. Cash reserves: $8.2M. Marketing budget: $500k/quarter. Payroll: $2.1M/month.' },
+    { source:'vendor_contracts.pdf', text:'Contract #VC-2025-089 with Vendor ABC Corp. Term: 24 months, auto-renewal clause with 60-day opt-out. Penalty: $50k. Volume discount: 5% above $100k. Payment: Net 30. Non-compete clause: 12 months post-termination. Liability cap: $500k. Indemnification: mutual.' },
+    { source:'sales_pipeline.csv', text:'Deal: Acme Corp (Fortune 500), Stage: Negotiation, Last activity: 18 days ago, Value: $450k. Deal: GlobalTech, Stage: Closed-Lost, Reason: Missing SSO feature. Deal: MegaCorp, Stage: Closed-Lost, Reason: No Rust SDK. Deal: DataFlow Inc, Stage: Closed-Lost, Reason: Missing webhook API.' },
+    { source:'engineering_roadmap.md', text:'Q1 2026: SSO integration (shipped). Q2 2026: Rust SDK (in progress). Q3 2026: Webhook API v2 (planned). Q4 2026: ZK-proof module. Hiring: Lead Rust Engineer needed for ZK work.' },
+    { source:'marketing_campaigns.csv', text:'Campaign Alpha: 2.1M impressions, $8.5k spend, ROI 3.2x. Campaign Beta: 800K impressions, $15k spend, ROI 0.8x. Campaign Gamma: 5.4M impressions, $22k spend, ROI 5.1x. Competitor XYZ had a 4-hour outage trending on Reddit.' },
+    { source:'hr_slack_summary.txt', text:'Sentiment analysis of 30 days of Slack: 62% positive, 28% neutral, 10% negative. Top friction: CI/CD pipeline slowness (mentioned 47 times). Secondary: unclear sprint priorities. Sales Playbook last updated Feb 2026.' },
+    { source:'invoices_ar.csv', text:'Invoice #1042: Client Apex ($25,000), 22 days overdue, VIP client. Invoice #1055: Client Beta ($8,000), 18 days overdue, standard. Invoice #1061: Client Gamma ($45,000), 16 days overdue, VIP client.' },
+    { source:'ip_registry.txt', text:"Trademark 'AgenticCXO' registered US #12345678. Logo assets version 3.1. Partner DB: PartnerAlpha (licensed), PartnerBeta (licensed). App Store listing 'CXO-Fake' detected, publisher: UnknownDev LLC -- not in partner database." },
+    { source:'ca_ai_act.txt', text:'California AI Transparency Act 2026: all automated decision systems that affect consumer rights must disclose AI involvement. Human-in-the-loop required for: credit decisions, hiring, insurance underwriting. Penalty: $10k per violation. Deadline: June 1, 2026.' }
+  ];
+  for (const doc of docs) {
+    await fetch(API + '/ingest', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(doc) });
+  }
+  alert('9 documents ingested successfully!');
+  loadDashboard();
+}
+
+// Boot
+loadDashboard();
+</script>
+</body>
+</html>

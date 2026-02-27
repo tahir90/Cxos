@@ -101,16 +101,31 @@ Each scenario is a multi-step workflow with dependency resolution, context threa
 pip install -e ".[dev]"
 ```
 
-### Run the full 14-scenario demo (no API key needed)
+### Launch the Web Dashboard (recommended)
+
+The fastest way to explore everything:
 
 ```bash
-python examples/scenarios_demo.py
+cxo serve
+# Open http://localhost:8000 in your browser
 ```
 
-### Run the basic quickstart
+This gives you a full interactive dashboard where you can:
+- **See all 6 agents** and their status on the Dashboard
+- **Seed sample data** with one click (9 business documents)
+- **Run any of the 14 scenarios** and watch steps execute with risk badges
+- **Dispatch custom objectives** (try the example prompts)
+- **Ingest your own documents** into the Context Vault
+- **Query the Vault** with semantic search
+- **Approve or reject** high-risk actions in the Approvals tab
+
+The Swagger API docs are also available at `http://localhost:8000/docs`.
+
+### Run the terminal demos (no browser needed)
 
 ```bash
-python examples/quickstart.py
+python examples/scenarios_demo.py   # All 14 scenarios
+python examples/quickstart.py       # Basic quickstart
 ```
 
 ### Run with OpenAI (full LLM mode)
@@ -118,7 +133,7 @@ python examples/quickstart.py
 ```bash
 cp .env.example .env
 # Edit .env with your OPENAI_API_KEY
-python examples/scenarios_demo.py
+cxo serve
 ```
 
 ### CLI
@@ -183,7 +198,7 @@ curl -X POST http://localhost:8000/reject/ACTION_ID?reason=too+risky
 ## Testing
 
 ```bash
-pytest tests/ -v    # 78 tests covering all components
+pytest tests/ -v    # 91 tests covering all components
 ```
 
 ## Project Structure
