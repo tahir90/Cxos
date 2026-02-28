@@ -17,10 +17,8 @@ from typing import Any
 
 from agentic_cxo.integrations.live.ads_clients import GoogleAdsClient, MetaAdsClient
 from agentic_cxo.integrations.live.analytics_clients import (
-    AmplitudeClient,
     AvalaraClient,
     IntercomClient,
-    MixpanelClient,
     WebhooksClient,
     ZendeskClient,
 )
@@ -51,6 +49,15 @@ from agentic_cxo.integrations.live.cmo_clients import (
     TwitterClient,
     TypeformClient,
     WordPressClient,
+)
+from agentic_cxo.integrations.live.cmo_write_clients import (
+    AmplitudeRealClient,
+    DalleClient,
+    MailchimpWriteClient,
+    MetaAdsWriteClient,
+    MixpanelRealClient,
+    NanoBananaClient,
+    TwitterWriteClient,
 )
 from agentic_cxo.integrations.live.drive_client import (
     GoogleDriveClient,
@@ -89,8 +96,7 @@ LIVE_CLIENTS: dict[str, BaseConnectorClient] = {
     "notion": NotionClient(),
     "shopify": ShopifyClient(),
     "chargebee": ChargebeeClient(),
-    "mixpanel": MixpanelClient(),
-    "amplitude": AmplitudeClient(),
+    # mixpanel and amplitude replaced by real clients below
     "zendesk": ZendeskClient(),
     "intercom": IntercomClient(),
     "avalara": AvalaraClient(),
@@ -119,6 +125,14 @@ LIVE_CLIENTS: dict[str, BaseConnectorClient] = {
     "twitter_x": TwitterClient(),
     "customer_io": CustomerIOClient(),
     "cloudinary": CloudinaryClient(),
+    # CMO Write + Execute
+    "dalle": DalleClient(),
+    "nano_banana": NanoBananaClient(),
+    "mailchimp_write": MailchimpWriteClient(),
+    "twitter_write": TwitterWriteClient(),
+    "meta_ads_write": MetaAdsWriteClient(),
+    "mixpanel": MixpanelRealClient(),
+    "amplitude": AmplitudeRealClient(),
 }
 
 

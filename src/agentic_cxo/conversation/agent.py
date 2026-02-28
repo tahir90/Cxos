@@ -60,6 +60,7 @@ from agentic_cxo.memory.vault import ContextVault
 from agentic_cxo.pipeline.refinery import ContextRefinery
 from agentic_cxo.tools.cost_analyzer import CostAnalyzerTool
 from agentic_cxo.tools.framework import ToolExecutor, ToolRegistry
+from agentic_cxo.tools.image_generator import ImageGeneratorTool
 from agentic_cxo.tools.travel_analyzer import TravelAnalyzerTool
 from agentic_cxo.tools.vendor_diligence import VendorDueDiligenceTool
 from agentic_cxo.tools.web_search import WebSearchTool
@@ -159,6 +160,7 @@ class CoFounderAgent:
         )
         self._tool_registry.register(VendorDueDiligenceTool(vault=self.vault))
         self._tool_registry.register(TravelAnalyzerTool(vault=self.vault))
+        self._tool_registry.register(ImageGeneratorTool())
         self._tool_executor = ToolExecutor(
             registry=self._tool_registry, use_llm=self.use_llm
         )
