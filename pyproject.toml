@@ -71,6 +71,7 @@ select = ["E", "F", "I", "W"]
 "src/agentic_cxo/integrations/live/coo_clients.py" = ["E501"]
 "src/agentic_cxo/integrations/live/clo_clients.py" = ["E501"]
 "src/agentic_cxo/integrations/live/chro_clients.py" = ["E501"]
+"src/agentic_cxo/integrations/live/shopify_client.py" = ["E501", "E701"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
