@@ -238,22 +238,154 @@ class CoFounderAgent:
                     metadata={"type": "tool_result", "tool": tr.tool_name},
                 ))
 
-        if route.intent == "onboarding" or (
-            not self.profile_store.profile.onboarding_complete
-            and self.memory.message_count <= 2
-        ):
-            responses.append(self._onboarding_response())
-        elif route.agents:
-            for agent_role in route.agents:
-                resp = self._agent_response(agent_role, message, route)
-                responses.append(resp)
+        is_first_message = self.memory.message_count <= 1
+
+        if is_first_message and not attachments:
+            responses.append(self._welcome_message())
         else:
-            responses.append(self._general_response(message, route))
+            main_response = self._respond_naturally(message, route)
+            responses.append(main_response)
+
+            if (
+                not self.profile_store.profile.onboarding_complete
+                and self.profile_store.profile.completeness < 0.5
+                and self.memory.message_count % 4 == 0
+            ):
+                nudge = self._onboarding_nudge()
+                if nudge:
+                    responses.append(nudge)
 
         for r in responses:
             self.memory.add(r)
 
         return responses
+
+    # ── Core response logic ───────────────────────────────────
+
+    def _welcome_message(self) -> ChatMessage:
+        """First message only — friendly, brief, not robotic."""
+        return ChatMessage(
+            role=MessageRole.AGENT,
+            content=(
+                "Hey! I'm your AI co-founder. I have six specialists on my "
+                "team:\n\n"
+                "- **CFO** — watches your money, catches overspending, "
+                "optimizes cash flow\n"
+                "- **COO** — manages vendors, supply chain, operations\n"
+                "- **CMO** — runs campaigns, kills bad ads, prevents churn\n"
+                "- **CLO** — scans contracts, catches legal risks, "
+                "compliance\n"
+                "- **CHRO** — recruits talent, monitors team health, "
+                "onboards hires\n"
+                "- **CSO** — recovers stalled deals, optimizes your "
+                "pipeline\n\n"
+                "You can ask me anything — I'll figure out which specialist "
+                "to bring in. Drop documents and I'll analyze them. "
+                "Or just tell me what's on your mind.\n\n"
+                "The more I know about your business, the better I get. "
+                "What are you working on?"
+            ),
+        )
+
+    def _respond_naturally(
+        self, message: str, route: RoutingResult
+    ) -> ChatMessage:
+        """Always respond to what the user actually said."""
+        if self.use_llm and settings.llm.api_key:
+            return self._llm_natural_response(message, route)
+
+        if route.agents:
+            return self._agent_response(
+                route.agents[0], message, route
+            )
+        return self._general_response(message, route)
+
+    def _llm_natural_response(
+        self, message: str, route: RoutingResult
+    ) -> ChatMessage:
+        """Use LLM to give a natural, helpful response."""
+        try:
+            client = self._get_client()
+            assembled = self.context_assembler.assemble(
+                user_message=message,
+                agent_role=route.agents[0] if route.agents else "Co-Founder",
+                agent_instruction=self._build_agent_instruction(route),
+            )
+            resp = client.chat.completions.create(
+                model=settings.llm.model,
+                temperature=settings.llm.temperature,
+                max_tokens=settings.llm.max_tokens,
+                messages=assembled.to_messages(),
+            )
+            body = (resp.choices[0].message.content or "").strip()
+            role = (
+                MessageRole(route.agents[0].lower())
+                if route.agents
+                else MessageRole.AGENT
+            )
+            return ChatMessage(
+                role=role,
+                content=body,
+                metadata={
+                    "agent": route.agents[0] if route.agents else "agent",
+                    "context_tokens": assembled.token_count,
+                },
+            )
+        except Exception:
+            logger.warning("LLM response failed, using fallback", exc_info=True)
+            if route.agents:
+                return self._agent_response(
+                    route.agents[0], message, route
+                )
+            return self._general_response(message, route)
+
+    def _build_agent_instruction(self, route: RoutingResult) -> str:
+        """Build instruction based on which agents are involved."""
+        if not route.agents:
+            return (
+                "You are a helpful AI co-founder. Answer the user's question "
+                "directly and naturally. Be conversational, not robotic. "
+                "If you don't know something, say so. "
+                "If you need more info about their business to help better, "
+                "ask naturally within your response — don't redirect to a "
+                "rigid onboarding script."
+            )
+        instructions = []
+        for role in route.agents[:2]:
+            if role in CXO_SYSTEM_PROMPTS:
+                instructions.append(CXO_SYSTEM_PROMPTS[role])
+        return " ".join(instructions) + (
+            "\n\nIMPORTANT: Answer the user's actual question. "
+            "Be conversational and natural. Never ignore what they said. "
+            "If you need more context about their business, weave the "
+            "question into your response naturally."
+        )
+
+    def _onboarding_nudge(self) -> ChatMessage | None:
+        """Gentle nudge to learn more — never overrides the conversation."""
+        profile = self.profile_store.profile
+        missing: list[str] = []
+        if not profile.company_name:
+            missing.append("your company name")
+        if not profile.industry:
+            missing.append("what industry you're in")
+        if not profile.main_product:
+            missing.append("what your product/service is")
+        if not profile.arr:
+            missing.append("your approximate revenue")
+
+        if not missing:
+            return None
+
+        nudge = missing[0]
+        return ChatMessage(
+            role=MessageRole.AGENT,
+            content=(
+                f"By the way, to give you better recommendations, "
+                f"it would help if I knew **{nudge}**. "
+                f"Feel free to share whenever."
+            ),
+        )
 
     # ── Document handling ───────────────────────────────────────
 
