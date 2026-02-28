@@ -19,6 +19,10 @@ from typing import Any
 
 from openai import OpenAI
 
+from agentic_cxo.actions.decision_log import DecisionLog
+from agentic_cxo.actions.executor import ActionQueue
+from agentic_cxo.actions.goal_tracker import GoalTracker
+from agentic_cxo.actions.scheduler import JobScheduler
 from agentic_cxo.config import settings
 from agentic_cxo.conversation.context import ContextAssembler, TokenBudget
 from agentic_cxo.conversation.long_term_memory import (
@@ -114,6 +118,10 @@ class CoFounderAgent:
     )
     event_store: EventStore = field(default_factory=EventStore)
     event_extractor: EventExtractor = field(default_factory=EventExtractor)
+    action_queue: ActionQueue = field(default_factory=ActionQueue)
+    decision_log: DecisionLog = field(default_factory=DecisionLog)
+    goal_tracker: GoalTracker = field(default_factory=GoalTracker)
+    job_scheduler: JobScheduler = field(default_factory=JobScheduler)
     alert_engine: ProactiveAlertEngine | None = field(
         default=None, init=False
     )

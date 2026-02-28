@@ -240,8 +240,16 @@ async def status() -> dict[str, Any]:
     return {
         "vault_chunks": vault.count(),
         "messages": agent.memory.message_count,
+        "memories": agent.ltm.count,
+        "events": agent.event_store.count,
         "reminders_active": len(agent.reminder_store.active),
         "reminders_critical": len(agent.reminder_store.critical),
+        "actions_pending": len(agent.action_queue.pending),
+        "actions_completed": len(agent.action_queue.completed),
+        "decisions": agent.decision_log.count,
+        "goals_active": len(agent.goal_tracker.active_goals),
+        "goals_at_risk": len(agent.goal_tracker.at_risk),
+        "jobs_due": len(agent.job_scheduler.due_jobs),
         "profile_completeness": agent.profile_store.profile.completeness,
         "scenarios_available": len(SCENARIO_REGISTRY),
     }
@@ -309,8 +317,83 @@ async def reset() -> dict[str, Any]:
     agent.memory.clear()
     agent.profile_store.clear()
     agent.reminder_store.clear()
+    agent.action_queue.clear()
+    agent.decision_log.clear()
+    agent.goal_tracker.clear()
     try:
         vault.clear()
     except Exception:
         pass
     return {"status": "reset"}
+
+
+# ── Actions ──────────────────────────────────────────────────────
+
+@app.get("/actions")
+async def actions_list() -> dict[str, Any]:
+    return {
+        "pending": [a.to_dict() for a in agent.action_queue.pending],
+        "completed": [a.to_dict() for a in agent.action_queue.completed[-20:]],
+        "total": len(agent.action_queue.all_actions),
+    }
+
+
+@app.post("/actions/{action_id}/approve")
+async def approve_action(action_id: str) -> dict[str, Any]:
+    result = agent.action_queue.approve(action_id)
+    if not result:
+        raise HTTPException(404, "Action not found")
+    return result.to_dict()
+
+
+@app.post("/actions/{action_id}/reject")
+async def reject_action(action_id: str, reason: str = "") -> dict[str, Any]:
+    result = agent.action_queue.reject(action_id, reason)
+    if not result:
+        raise HTTPException(404, "Action not found")
+    return result.to_dict()
+
+
+# ── Decision Log ─────────────────────────────────────────────────
+
+@app.get("/decisions")
+async def decisions() -> dict[str, Any]:
+    return {
+        "decisions": [d.to_dict() for d in agent.decision_log.all_decisions],
+        "open": len(agent.decision_log.open_decisions),
+        "total": agent.decision_log.count,
+    }
+
+
+# ── Goals ────────────────────────────────────────────────────────
+
+@app.get("/goals")
+async def goals() -> dict[str, Any]:
+    return {
+        "active": [g.to_dict() for g in agent.goal_tracker.active_goals],
+        "at_risk": [g.to_dict() for g in agent.goal_tracker.at_risk],
+        "total": len(agent.goal_tracker.all_goals),
+        "formatted": agent.goal_tracker.format_status(),
+    }
+
+
+# ── Scheduled Jobs ───────────────────────────────────────────────
+
+@app.get("/jobs")
+async def jobs_list() -> list[dict[str, Any]]:
+    return agent.job_scheduler.get_status()
+
+
+@app.post("/jobs/run-due")
+async def run_due_jobs() -> dict[str, Any]:
+    due = agent.job_scheduler.due_jobs
+    results: list[dict[str, str]] = []
+    for job in due:
+        responses = agent.chat(job.action_template)
+        agent.job_scheduler.mark_run(job.job_id)
+        results.append({
+            "job": job.name,
+            "agent": job.agent_role,
+            "responses": len(responses),
+        })
+    return {"jobs_run": len(results), "results": results}
