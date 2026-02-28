@@ -49,7 +49,13 @@ from agentic_cxo.conversation.pattern_engine import (
     EventStore,
     ProactiveAlertEngine,
 )
+from agentic_cxo.conversation.product_knowledge import (
+    ProductKnowledgeBase,
+    QueryClassifier,
+    QueryType,
+)
 from agentic_cxo.conversation.router import IntentRouter, RoutingResult
+from agentic_cxo.conversation.sessions import SessionManager
 from agentic_cxo.memory.vault import ContextVault
 from agentic_cxo.pipeline.refinery import ContextRefinery
 from agentic_cxo.tools.cost_analyzer import CostAnalyzerTool
@@ -118,6 +124,15 @@ class CoFounderAgent:
     )
     event_store: EventStore = field(default_factory=EventStore)
     event_extractor: EventExtractor = field(default_factory=EventExtractor)
+    product_kb: ProductKnowledgeBase = field(
+        default_factory=ProductKnowledgeBase
+    )
+    query_classifier: QueryClassifier = field(
+        default_factory=QueryClassifier
+    )
+    session_manager: SessionManager = field(
+        default_factory=SessionManager
+    )
     action_queue: ActionQueue = field(default_factory=ActionQueue)
     decision_log: DecisionLog = field(default_factory=DecisionLog)
     goal_tracker: GoalTracker = field(default_factory=GoalTracker)
@@ -171,9 +186,16 @@ class CoFounderAgent:
         self,
         message: str,
         attachments: list[dict[str, Any]] | None = None,
+        session_id: str = "",
     ) -> list[ChatMessage]:
         """Process a user message and return agent response(s)."""
         has_attach = bool(attachments)
+
+        if session_id:
+            self.session_manager.switch(session_id)
+        active = self.session_manager.active_session
+        if active:
+            self.session_manager.update_activity(active.session_id)
 
         user_msg = ChatMessage(
             role=MessageRole.USER,
@@ -291,8 +313,15 @@ class CoFounderAgent:
         self, message: str, route: RoutingResult
     ) -> ChatMessage:
         """Always respond to what the user actually said."""
+        query_type = self.query_classifier.classify(message)
+
         if self.use_llm and settings.llm.api_key:
-            return self._llm_natural_response(message, route)
+            return self._llm_natural_response(
+                message, route, query_type
+            )
+
+        if query_type == QueryType.SELF:
+            return self._self_knowledge_response(message)
 
         if route.agents:
             return self._agent_response(
@@ -300,16 +329,47 @@ class CoFounderAgent:
             )
         return self._general_response(message, route)
 
+    def _self_knowledge_response(self, message: str) -> ChatMessage:
+        """Answer from product knowledge base (no LLM needed)."""
+        hits = self.product_kb.query(message, top_k=3)
+        if hits:
+            content = "\n\n".join(h["content"] for h in hits)
+            return ChatMessage(
+                role=MessageRole.AGENT,
+                content=content,
+                metadata={"type": "product_knowledge"},
+            )
+        return ChatMessage(
+            role=MessageRole.AGENT,
+            content=(
+                "I can help with that! Try asking about specific "
+                "capabilities like 'what can your CFO do?' or "
+                "'how do I connect Stripe?' or 'what scenarios "
+                "are available?'"
+            ),
+        )
+
     def _llm_natural_response(
-        self, message: str, route: RoutingResult
+        self, message: str, route: RoutingResult,
+        query_type: QueryType = QueryType.GENERAL,
     ) -> ChatMessage:
         """Use LLM to give a natural, helpful response."""
         try:
             client = self._get_client()
+
+            extra_context = ""
+            if query_type in (QueryType.SELF, QueryType.MIXED):
+                hits = self.product_kb.query(message, top_k=3)
+                extra_context = self.product_kb.format_for_prompt(hits)
+
+            instruction = self._build_agent_instruction(route)
+            if extra_context:
+                instruction = extra_context + "\n\n" + instruction
+
             assembled = self.context_assembler.assemble(
                 user_message=message,
                 agent_role=route.agents[0] if route.agents else "Co-Founder",
-                agent_instruction=self._build_agent_instruction(route),
+                agent_instruction=instruction,
             )
             resp = client.chat.completions.create(
                 model=settings.llm.model,

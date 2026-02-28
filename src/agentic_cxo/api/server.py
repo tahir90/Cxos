@@ -799,3 +799,58 @@ async def mark_all_read() -> dict[str, int]:
 @app.get("/usage")
 async def get_usage() -> dict[str, Any]:
     return usage_tracker.summary()
+
+
+# ── Sessions ─────────────────────────────────────────────────────
+
+@app.get("/sessions")
+async def list_sessions(user=Depends(get_current_user)) -> dict[str, Any]:
+    sm = agent.session_manager
+    return {
+        "active": sm.active_session_id,
+        "sessions": [s.to_dict() for s in sm.all_sessions],
+    }
+
+
+@app.post("/sessions")
+async def create_session(
+    title: str = "New conversation", user=Depends(get_current_user)
+) -> dict[str, Any]:
+    session = agent.session_manager.create(title)
+    return session.to_dict()
+
+
+@app.post("/sessions/{session_id}/switch")
+async def switch_session(
+    session_id: str, user=Depends(get_current_user)
+) -> dict[str, Any]:
+    session = agent.session_manager.switch(session_id)
+    if not session:
+        raise HTTPException(404, "Session not found")
+    return session.to_dict()
+
+
+@app.post("/sessions/{session_id}/rename")
+async def rename_session(
+    session_id: str, title: str, user=Depends(get_current_user)
+) -> dict[str, Any]:
+    session = agent.session_manager.rename(session_id, title)
+    if not session:
+        raise HTTPException(404, "Session not found")
+    return session.to_dict()
+
+
+@app.post("/sessions/{session_id}/archive")
+async def archive_session(
+    session_id: str, user=Depends(get_current_user)
+) -> dict[str, str]:
+    agent.session_manager.archive(session_id)
+    return {"status": "archived"}
+
+
+@app.delete("/sessions/{session_id}")
+async def delete_session(
+    session_id: str, user=Depends(get_current_user)
+) -> dict[str, str]:
+    agent.session_manager.delete(session_id)
+    return {"status": "deleted"}
