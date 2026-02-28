@@ -116,13 +116,27 @@ class ExecutableAction:
 # ═══════════════════════════════════════════════════════════════
 
 def _send_email(params: dict[str, Any]) -> str:
-    """Send an actual email via SMTP."""
+    """Send email via Gmail SMTP or Outlook SMTP."""
     import os
 
+    provider = params.get("provider", "auto")
+
+    outlook_host = os.getenv("OUTLOOK_SMTP_HOST", "smtp.office365.com")
+    outlook_user = os.getenv("OUTLOOK_USER", "")
+    outlook_pass = os.getenv("OUTLOOK_PASS", "")
+
     smtp_host = os.getenv("SMTP_HOST", "")
-    smtp_port = int(os.getenv("SMTP_PORT", "587"))
     smtp_user = os.getenv("SMTP_USER", "")
     smtp_pass = os.getenv("SMTP_PASS", "")
+
+    if provider == "outlook" or (provider == "auto" and outlook_user):
+        smtp_host = outlook_host
+        smtp_user = outlook_user
+        smtp_pass = outlook_pass
+    elif provider == "auto" and smtp_host:
+        pass  # use Gmail/generic SMTP
+
+    smtp_port = int(os.getenv("SMTP_PORT", "587"))
     from_addr = os.getenv("SMTP_FROM", smtp_user)
 
     to = params.get("to", "")
@@ -135,7 +149,8 @@ def _send_email(params: dict[str, Any]) -> str:
             f"EMAIL QUEUED (SMTP not configured): "
             f"To: {to} | Subject: {subject} | "
             f"Body: {body[:100]}... | "
-            f"Configure SMTP_HOST, SMTP_USER, SMTP_PASS env vars to send."
+            f"Configure SMTP_HOST/SMTP_USER/SMTP_PASS (Gmail) "
+            f"or OUTLOOK_USER/OUTLOOK_PASS (Outlook) to send."
         )
 
     msg = MIMEMultipart()

@@ -32,6 +32,8 @@ from pydantic import BaseModel
 
 from agentic_cxo.config import settings
 from agentic_cxo.conversation.agent import CoFounderAgent
+from agentic_cxo.integrations.connectors import ConnectorRegistry
+from agentic_cxo.integrations.permissions import PermissionChoice, PermissionManager
 from agentic_cxo.memory.vault import ContextVault
 from agentic_cxo.pipeline.enricher import MetadataEnricher
 from agentic_cxo.pipeline.refinery import ContextRefinery
@@ -70,6 +72,8 @@ refinery = ContextRefinery(
 agent = CoFounderAgent(vault=vault, refinery=refinery, use_llm=HAS_LLM)
 analyst = ScenarioAnalyst(vault=vault, use_llm=HAS_LLM)
 scenario_engine = ScenarioEngine(vault=vault)
+connector_registry = ConnectorRegistry()
+permission_manager = PermissionManager()
 
 SAMPLE_DOCS = [
     ("quarterly_report.pdf",
@@ -397,3 +401,86 @@ async def run_due_jobs() -> dict[str, Any]:
             "responses": len(responses),
         })
     return {"jobs_run": len(results), "results": results}
+
+
+# ── Connectors / Settings ────────────────────────────────────────
+
+@app.get("/connectors")
+async def connectors_list(
+    category: str | None = None,
+) -> list[dict[str, Any]]:
+    if category:
+        from agentic_cxo.integrations.connectors import ConnectorCategory
+
+        try:
+            cat = ConnectorCategory(category)
+            return [c.to_dict() for c in connector_registry.by_category(cat)]
+        except ValueError:
+            pass
+    return connector_registry.to_list()
+
+
+@app.get("/connectors/summary")
+async def connectors_summary() -> dict[str, Any]:
+    return connector_registry.summary()
+
+
+@app.get("/connectors/by-agent/{role}")
+async def connectors_by_agent(role: str) -> list[dict[str, Any]]:
+    return [c.to_dict() for c in connector_registry.by_agent(role.upper())]
+
+
+# ── Permissions ──────────────────────────────────────────────────
+
+@app.get("/permissions")
+async def permissions_status() -> dict[str, Any]:
+    return permission_manager.get_rules_summary()
+
+
+@app.get("/permissions/pending")
+async def permissions_pending() -> list[dict[str, Any]]:
+    return [r.to_dict() for r in permission_manager.pending_requests]
+
+
+class PermissionResponse(BaseModel):
+    choice: str  # allow_once, allow_always, deny
+
+
+@app.post("/permissions/{request_id}")
+async def respond_to_permission(
+    request_id: str, body: PermissionResponse
+) -> dict[str, Any]:
+    try:
+        choice = PermissionChoice(body.choice)
+    except ValueError:
+        raise HTTPException(400, f"Invalid choice: {body.choice}")
+    result = permission_manager.respond(request_id, choice)
+    if not result:
+        raise HTTPException(404, "Permission request not found")
+    return result.to_dict()
+
+
+@app.post("/permissions/revoke/{action_type}")
+async def revoke_permission(action_type: str) -> dict[str, str]:
+    permission_manager.revoke(action_type)
+    return {"status": "revoked", "action_type": action_type}
+
+
+# ── Settings ─────────────────────────────────────────────────────
+
+@app.get("/settings")
+async def get_settings() -> dict[str, Any]:
+    return {
+        "llm": {
+            "enabled": HAS_LLM,
+            "model": settings.llm.model,
+        },
+        "connectors": connector_registry.summary(),
+        "permissions": permission_manager.get_rules_summary(),
+        "profile": agent.profile_store.profile.model_dump(mode="json"),
+        "jobs": len(agent.job_scheduler.all_jobs),
+        "tools": [
+            "web_search", "cost_analyzer",
+            "vendor_due_diligence", "travel_analyzer",
+        ],
+    }
