@@ -35,12 +35,17 @@ from agentic_cxo.config import settings
 from agentic_cxo.conversation.agent import CoFounderAgent
 from agentic_cxo.infrastructure.auth import AuthManager
 from agentic_cxo.infrastructure.database import init_db
+from agentic_cxo.infrastructure.notifications import (
+    NotificationManager,
+)
 from agentic_cxo.infrastructure.scheduler import (
     add_interval_job,
     start_scheduler,
     stop_scheduler,
 )
 from agentic_cxo.infrastructure.streaming import stream_chat_response
+from agentic_cxo.infrastructure.teams import TeamRole, TeamStore
+from agentic_cxo.infrastructure.usage import UsageTracker
 from agentic_cxo.integrations.connectors import ConnectorRegistry
 from agentic_cxo.integrations.live.manager import ConnectorManager
 from agentic_cxo.integrations.permissions import PermissionChoice, PermissionManager
@@ -86,6 +91,9 @@ connector_registry = ConnectorRegistry()
 connector_manager = ConnectorManager()
 permission_manager = PermissionManager()
 auth_manager = AuthManager()
+team_store = TeamStore()
+notification_manager = NotificationManager()
+usage_tracker = UsageTracker()
 
 init_db()
 
@@ -670,3 +678,73 @@ async def fetch_connector_data(
 @app.get("/connect/status")
 async def live_connector_status() -> dict[str, Any]:
     return connector_manager.get_status()
+
+
+# ── Teams ────────────────────────────────────────────────────────
+
+class InviteRequest(BaseModel):
+    email: str
+    name: str = ""
+    role: str = "member"
+
+
+@app.post("/team/create")
+async def create_team(name: str = "My Company") -> dict[str, Any]:
+    team = team_store.create(name, "founder", "founder@company.com", "Founder")
+    return team.to_dict()
+
+
+@app.get("/team")
+async def get_team() -> dict[str, Any]:
+    teams = team_store.all_teams
+    if teams:
+        return teams[0].to_dict()
+    return {"error": "No team created yet"}
+
+
+@app.post("/team/invite")
+async def invite_member(req: InviteRequest) -> dict[str, Any]:
+    teams = team_store.all_teams
+    if not teams:
+        raise HTTPException(404, "No team exists")
+    import uuid
+
+    member = team_store.invite(
+        teams[0].team_id,
+        uuid.uuid4().hex[:16], req.email, req.name,
+        TeamRole(req.role), "founder",
+    )
+    if not member:
+        raise HTTPException(400, "Could not invite member")
+    return member.to_dict()
+
+
+# ── Notifications ────────────────────────────────────────────────
+
+@app.get("/notifications")
+async def get_notifications() -> dict[str, Any]:
+    return {
+        "unread": [n.to_dict() for n in notification_manager.unread],
+        "unread_count": notification_manager.unread_count,
+        "urgent": [n.to_dict() for n in notification_manager.urgent],
+        "recent": [n.to_dict() for n in notification_manager.recent()],
+    }
+
+
+@app.post("/notifications/{notification_id}/read")
+async def mark_notification_read(notification_id: str) -> dict[str, str]:
+    notification_manager.mark_read(notification_id)
+    return {"status": "read"}
+
+
+@app.post("/notifications/read-all")
+async def mark_all_read() -> dict[str, int]:
+    count = notification_manager.mark_all_read()
+    return {"marked_read": count}
+
+
+# ── Usage ────────────────────────────────────────────────────────
+
+@app.get("/usage")
+async def get_usage() -> dict[str, Any]:
+    return usage_tracker.summary()
