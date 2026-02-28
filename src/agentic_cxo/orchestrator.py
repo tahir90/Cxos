@@ -22,6 +22,7 @@ from agentic_cxo.agents.coo import AgentCOO
 from agentic_cxo.agents.cso import AgentCSO
 from agentic_cxo.guardrails.approval import ApprovalGate
 from agentic_cxo.guardrails.risk import RiskAssessor
+from agentic_cxo.integrations.live.manager import ConnectorManager
 from agentic_cxo.memory.vault import ContextVault
 from agentic_cxo.models import AgentAction, AgentMessage, Objective
 from agentic_cxo.pipeline.refinery import ContextRefinery, RefineryResult
@@ -120,6 +121,7 @@ class Cockpit:
     ))
     risk_assessor: RiskAssessor = field(default_factory=lambda: RiskAssessor(use_llm=False))
     approval_gate: ApprovalGate = field(default_factory=ApprovalGate)
+    connector_manager: ConnectorManager = field(default_factory=ConnectorManager)
     use_llm: bool = True
     _agents: dict[str, BaseAgent] = field(default_factory=dict, init=False)
     _messages: list[AgentMessage] = field(default_factory=list, init=False)
@@ -141,6 +143,7 @@ class Cockpit:
             vault=self.vault,
             risk_assessor=self.risk_assessor,
             approval_gate=self.approval_gate,
+            connector_manager=self.connector_manager,
             use_llm=self.use_llm,
         )
         self._agents["CFO"] = AgentCFO(**common)

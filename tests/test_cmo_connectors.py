@@ -1,12 +1,19 @@
 """Tests for CMO marketing connector clients — Mailchimp, Twitter/X, Semrush,
-LinkedIn Ads, TikTok Ads, and Hotjar."""
+LinkedIn Ads, TikTok Ads, and Hotjar.
+
+Covers: schema, credential validation, happy-path fetches (mocked),
+error-path responses (429 rate limit, 500 server error, timeout, malformed JSON),
+and manager integration.
+"""
 
 import shutil
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
+import httpx
 import pytest
 
+from agentic_cxo.integrations.live.base import resilient_request
 from agentic_cxo.integrations.live.hotjar_client import HotjarClient
 from agentic_cxo.integrations.live.linkedin_ads_client import LinkedInAdsClient
 from agentic_cxo.integrations.live.mailchimp_client import MailchimpClient
@@ -952,3 +959,283 @@ class TestCMOConnectorsInManager:
             data = mgr.fetch_data(cid, "campaigns")
             assert data.error
             assert "not connected" in data.error.lower()
+
+
+# ═══════════════════════════════════════════════════════════════
+# Error Path Tests
+# ═══════════════════════════════════════════════════════════════
+
+
+class TestErrorPaths:
+    """Test HTTP error responses: 401, 429, 500, timeouts, malformed JSON."""
+
+    @patch("agentic_cxo.integrations.live.mailchimp_client.httpx.get")
+    def test_mailchimp_401_unauthorized(self, mock_get):
+        mock_resp = MagicMock()
+        mock_resp.status_code = 401
+        mock_resp.text = "API key is invalid"
+        mock_get.return_value = mock_resp
+
+        client = MailchimpClient()
+        result = client.test_connection({"api_key": "bad-us1"})
+        assert not result.success
+        assert "401" in result.message
+
+    @patch("agentic_cxo.integrations.live.mailchimp_client.httpx.get")
+    def test_mailchimp_fetch_500_error(self, mock_get):
+        mock_resp = MagicMock()
+        mock_resp.status_code = 500
+        mock_get.return_value = mock_resp
+
+        client = MailchimpClient()
+        data = client.fetch({"api_key": "key-us1"}, "campaigns")
+        assert data.error
+        assert "500" in data.error
+
+    @patch("agentic_cxo.integrations.live.mailchimp_client.httpx.get")
+    def test_mailchimp_network_timeout(self, mock_get):
+        mock_get.side_effect = httpx.TimeoutException("Connection timed out")
+
+        client = MailchimpClient()
+        result = client.test_connection({"api_key": "key-us1"})
+        assert not result.success
+        assert "timed out" in result.message.lower() or "failed" in result.message.lower()
+
+    @patch("agentic_cxo.integrations.live.twitter_client.httpx.get")
+    def test_twitter_403_forbidden(self, mock_get):
+        mock_resp = MagicMock()
+        mock_resp.status_code = 403
+        mock_resp.text = "Forbidden"
+        mock_get.return_value = mock_resp
+
+        client = TwitterClient()
+        result = client.test_connection({"bearer_token": "bad"})
+        assert not result.success
+
+    @patch("agentic_cxo.integrations.live.twitter_client.httpx.get")
+    def test_twitter_search_malformed_json(self, mock_get):
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.json.side_effect = ValueError("Malformed JSON")
+        mock_get.return_value = mock_resp
+
+        client = TwitterClient()
+        data = client.fetch(
+            {"bearer_token": "fake"}, "search_recent", query="test"
+        )
+        assert data.error
+
+    @patch("agentic_cxo.integrations.live.semrush_client.httpx.get")
+    def test_semrush_api_error_response(self, mock_get):
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.text = "ERROR 120 :: WRONG KEY - This API key is not valid"
+        mock_get.return_value = mock_resp
+
+        client = SemrushClient()
+        result = client.test_connection({"api_key": "bad_key"})
+        assert not result.success
+        assert "error" in result.message.lower()
+
+    @patch("agentic_cxo.integrations.live.semrush_client.httpx.get")
+    def test_semrush_domain_overview_api_error(self, mock_get):
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.text = "ERROR 50 :: NOTHING FOUND"
+        mock_get.return_value = mock_resp
+
+        client = SemrushClient()
+        data = client.fetch(
+            {"api_key": "fake"}, "domain_overview", domain="nonexistent.com"
+        )
+        assert data.error
+
+    @patch("agentic_cxo.integrations.live.linkedin_ads_client.httpx.get")
+    def test_linkedin_401_expired_token(self, mock_get):
+        mock_resp = MagicMock()
+        mock_resp.status_code = 401
+        mock_resp.text = '{"message": "expired_token"}'
+        mock_get.return_value = mock_resp
+
+        client = LinkedInAdsClient()
+        result = client.test_connection(
+            {"access_token": "expired", "ad_account_id": "123"}
+        )
+        assert not result.success
+        assert "401" in result.message
+
+    @patch("agentic_cxo.integrations.live.tiktok_ads_client.httpx.get")
+    def test_tiktok_network_error(self, mock_get):
+        mock_get.side_effect = httpx.ConnectError("Connection refused")
+
+        client = TikTokAdsClient()
+        result = client.test_connection(
+            {"access_token": "fake", "advertiser_id": "123"}
+        )
+        assert not result.success
+        assert "failed" in result.message.lower() or "refused" in result.message.lower()
+
+    @patch("agentic_cxo.integrations.live.tiktok_ads_client.httpx.get")
+    def test_tiktok_fetch_campaigns_500(self, mock_get):
+        mock_resp = MagicMock()
+        mock_resp.status_code = 500
+        mock_get.return_value = mock_resp
+
+        client = TikTokAdsClient()
+        data = client.fetch(
+            {"access_token": "fake", "advertiser_id": "123"}, "campaigns"
+        )
+        assert data.error
+        assert "500" in data.error
+
+    @patch("agentic_cxo.integrations.live.hotjar_client.httpx.get")
+    def test_hotjar_403_forbidden(self, mock_get):
+        mock_resp = MagicMock()
+        mock_resp.status_code = 403
+        mock_resp.text = "Forbidden"
+        mock_get.return_value = mock_resp
+
+        client = HotjarClient()
+        result = client.test_connection({"api_token": "bad", "site_id": "123"})
+        assert not result.success
+        assert "403" in result.message
+
+    @patch("agentic_cxo.integrations.live.hotjar_client.httpx.get")
+    def test_hotjar_heatmaps_500(self, mock_get):
+        mock_resp = MagicMock()
+        mock_resp.status_code = 500
+        mock_resp.text = "Internal Server Error"
+        mock_get.return_value = mock_resp
+
+        client = HotjarClient()
+        data = client.fetch(
+            {"api_token": "fake", "site_id": "123"}, "heatmaps"
+        )
+        assert data.error
+        assert "500" in data.error
+
+
+# ═══════════════════════════════════════════════════════════════
+# Resilient Request Tests
+# ═══════════════════════════════════════════════════════════════
+
+
+class TestResilientRequest:
+    """Test the retry and rate-limit logic in resilient_request."""
+
+    @patch("agentic_cxo.integrations.live.base.time.sleep")
+    @patch("agentic_cxo.integrations.live.base.httpx.request")
+    def test_retries_on_500(self, mock_req, mock_sleep):
+        fail_resp = MagicMock()
+        fail_resp.status_code = 500
+        ok_resp = MagicMock()
+        ok_resp.status_code = 200
+        mock_req.side_effect = [fail_resp, ok_resp]
+
+        resp = resilient_request("GET", "https://example.com", max_retries=2)
+        assert resp.status_code == 200
+        assert mock_sleep.call_count == 1
+
+    @patch("agentic_cxo.integrations.live.base.time.sleep")
+    @patch("agentic_cxo.integrations.live.base.httpx.request")
+    def test_retries_on_429_rate_limit(self, mock_req, mock_sleep):
+        rate_resp = MagicMock()
+        rate_resp.status_code = 429
+        rate_resp.headers = {"Retry-After": "1"}
+        ok_resp = MagicMock()
+        ok_resp.status_code = 200
+        mock_req.side_effect = [rate_resp, ok_resp]
+
+        resp = resilient_request("GET", "https://example.com", max_retries=2)
+        assert resp.status_code == 200
+        mock_sleep.assert_called_once_with(1.0)
+
+    @patch("agentic_cxo.integrations.live.base.time.sleep")
+    @patch("agentic_cxo.integrations.live.base.httpx.request")
+    def test_retries_on_network_error(self, mock_req, mock_sleep):
+        ok_resp = MagicMock()
+        ok_resp.status_code = 200
+        mock_req.side_effect = [
+            httpx.ConnectError("Connection refused"),
+            ok_resp,
+        ]
+
+        resp = resilient_request("GET", "https://example.com", max_retries=2)
+        assert resp.status_code == 200
+        assert mock_sleep.call_count == 1
+
+    @patch("agentic_cxo.integrations.live.base.time.sleep")
+    @patch("agentic_cxo.integrations.live.base.httpx.request")
+    def test_raises_after_max_retries(self, mock_req, mock_sleep):
+        mock_req.side_effect = httpx.TimeoutException("timeout")
+
+        with pytest.raises(httpx.TimeoutException):
+            resilient_request("GET", "https://example.com", max_retries=2)
+        assert mock_req.call_count == 3
+
+    @patch("agentic_cxo.integrations.live.base.httpx.request")
+    def test_no_retry_on_400(self, mock_req):
+        bad_resp = MagicMock()
+        bad_resp.status_code = 400
+        mock_req.return_value = bad_resp
+
+        resp = resilient_request("GET", "https://example.com", max_retries=3)
+        assert resp.status_code == 400
+        assert mock_req.call_count == 1
+
+
+# ═══════════════════════════════════════════════════════════════
+# Agent Wiring Tests
+# ═══════════════════════════════════════════════════════════════
+
+
+class TestAgentConnectorWiring:
+    """Verify agents can pull live data from connectors during reasoning."""
+
+    def test_cmo_agent_has_connector_manager_slot(self):
+        from agentic_cxo.agents.cmo import AgentCMO
+        agent = AgentCMO(use_llm=False)
+        assert hasattr(agent, "connector_manager")
+        assert agent.connector_manager is None
+
+    def test_cmo_agent_with_connector_manager(self):
+        from agentic_cxo.agents.cmo import AgentCMO
+        mgr = ConnectorManager()
+        agent = AgentCMO(use_llm=False, connector_manager=mgr)
+        assert agent.connector_manager is mgr
+
+    def test_gather_live_data_no_manager(self):
+        from agentic_cxo.agents.cmo import AgentCMO
+        from agentic_cxo.models import Objective
+        agent = AgentCMO(use_llm=False)
+        obj = Objective(title="Test", description="Test marketing campaign")
+        assert agent.gather_live_data(obj) == []
+
+    def test_gather_live_data_with_no_connected(self):
+        from agentic_cxo.agents.cmo import AgentCMO
+        from agentic_cxo.models import Objective
+        mgr = ConnectorManager()
+        agent = AgentCMO(use_llm=False, connector_manager=mgr)
+        obj = Objective(title="Test", description="Test campaign optimization")
+        result = agent.gather_live_data(obj)
+        assert result == []
+
+    def test_cockpit_passes_connector_manager_to_agents(self):
+        from agentic_cxo.orchestrator import Cockpit
+        cockpit = Cockpit(use_llm=False)
+        for role, agent in cockpit.all_agents.items():
+            assert agent.connector_manager is cockpit.connector_manager, (
+                f"{role} agent missing connector_manager"
+            )
+
+    def test_role_connector_map_has_cmo_entries(self):
+        from agentic_cxo.agents.base import ROLE_CONNECTOR_MAP
+        cmo_connectors = ROLE_CONNECTOR_MAP.get("CMO", [])
+        connector_ids = {c[0] for c in cmo_connectors}
+        assert "mailchimp" in connector_ids
+        assert "google_ads" in connector_ids
+        assert "twitter_x" in connector_ids
+        assert "semrush" in connector_ids
+        assert "hotjar" in connector_ids
+        assert "linkedin_ads" in connector_ids
+        assert "tiktok_ads" in connector_ids

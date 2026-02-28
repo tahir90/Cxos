@@ -22,11 +22,13 @@ Chat-first API: the founder talks, the AI co-founder routes to CXO agents.
 from __future__ import annotations
 
 import logging
+import os as _os
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
 from fastapi import Depends, FastAPI, HTTPException, UploadFile
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
@@ -75,6 +77,16 @@ app = FastAPI(
     description="Your AI Co-Founder",
     version="1.0.0",
 )
+
+_allowed_origins = _os.getenv("CXO_ALLOWED_ORIGINS", "*").split(",")
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=_allowed_origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 
 HAS_LLM = bool(settings.llm.api_key)
@@ -656,7 +668,9 @@ async def get_settings() -> dict[str, Any]:
 # ── Live Connector Wizard ────────────────────────────────────────
 
 @app.get("/connect/{connector_id}/setup")
-async def connector_setup(connector_id: str) -> dict[str, Any]:
+async def connector_setup(
+    connector_id: str, user=Depends(get_current_user)
+) -> dict[str, Any]:
     """Get setup info for a connector — what credentials are needed."""
     info = connector_manager.get_setup_info(connector_id)
     if info is None:
@@ -683,7 +697,7 @@ class ConnectRequest(BaseModel):
 
 @app.post("/connect/{connector_id}")
 async def connect_connector(
-    connector_id: str, body: ConnectRequest
+    connector_id: str, body: ConnectRequest, user=Depends(get_current_user)
 ) -> dict[str, Any]:
     """Test credentials and connect a connector."""
     result = connector_manager.connect(connector_id, body.credentials)
@@ -696,7 +710,9 @@ async def connect_connector(
 
 
 @app.post("/connect/{connector_id}/disconnect")
-async def disconnect_connector(connector_id: str) -> dict[str, Any]:
+async def disconnect_connector(
+    connector_id: str, user=Depends(get_current_user)
+) -> dict[str, Any]:
     connector_manager.disconnect(connector_id)
     return {"connector_id": connector_id, "status": "disconnected"}
 
@@ -713,6 +729,7 @@ async def fetch_connector_data(
     path: str = "/",
     file_id: str = "",
     item_id: str = "",
+    user=Depends(get_current_user),
 ) -> dict[str, Any]:
     """Fetch live data from a connected connector."""
     kwargs: dict[str, Any] = {}
@@ -745,7 +762,9 @@ async def fetch_connector_data(
 
 
 @app.get("/connect/status")
-async def live_connector_status() -> dict[str, Any]:
+async def live_connector_status(
+    user=Depends(get_current_user),
+) -> dict[str, Any]:
     return connector_manager.get_status()
 
 

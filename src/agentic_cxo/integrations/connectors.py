@@ -925,6 +925,18 @@ ALL_CONNECTORS: list[Connector] = [
         icon="AM",
     ),
     Connector(
+        "hotjar", "Hotjar",
+        "Heatmaps, session recordings, funnels, feedback, and surveys for CRO",
+        ConnectorCategory.ANALYTICS, ["CMO"],
+        ["HOTJAR_API_TOKEN", "HOTJAR_SITE_ID"],
+        data_provided=[
+            "heatmaps", "recordings", "funnels",
+            "feedback", "surveys", "site_info",
+        ],
+        icon="HJ",
+        setup_url="https://www.hotjar.com/",
+    ),
+    Connector(
         "segment", "Segment (Twilio)", "Customer data platform, event routing",
         ConnectorCategory.MARKETING, ["CMO"],
         ["SEGMENT_WRITE_KEY"],

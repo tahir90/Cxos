@@ -45,7 +45,7 @@ class LinkedInAdsClient(BaseConnectorClient):
     def _headers(self, creds: dict[str, str]) -> dict[str, str]:
         return {
             "Authorization": f"Bearer {creds.get('access_token', '')}",
-            "LinkedIn-Version": "202402",
+            "LinkedIn-Version": "202602",
             "X-Restli-Protocol-Version": "2.0.0",
         }
 
