@@ -12,6 +12,9 @@ COPY src/ src/
 RUN pip install --no-cache-dir -e "." && \
     pip install --no-cache-dir gunicorn
 
+# Pre-download ChromaDB ONNX model so startup is instant
+RUN python -c "import chromadb; c=chromadb.Client(); c.get_or_create_collection('warmup'); c.delete_collection('warmup')"
+
 COPY examples/ examples/
 
 RUN mkdir -p /app/.cxo_data

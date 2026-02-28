@@ -102,10 +102,7 @@ get_current_user = get_current_user_dep(auth_manager)
 
 init_db()
 
-_logger.info(
-    "Admin user ready: %s / %s",
-    "admin@cxo.ai", "admin123",
-)
+_logger.info("Admin user ready — login at /login")
 
 
 @app.on_event("startup")

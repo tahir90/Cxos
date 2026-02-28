@@ -177,10 +177,7 @@ class AuthManager:
             user = self.store.create(admin_email, admin_pass, admin_name)
             user.role = "admin"
             self.store.save()
-            logger.info(
-                "Admin user created: %s (password: %s)",
-                admin_email, admin_pass,
-            )
+            logger.info("Admin user created: %s", admin_email)
             return user
         return self.store.get_by_email(
             list(self.store._users.keys())[0]
