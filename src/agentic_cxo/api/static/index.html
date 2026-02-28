@@ -1,0 +1,678 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Agentic CXO — Your AI Co-Founder</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+    *{font-family:'Inter',system-ui,sans-serif;} body{background:#0a0e1a;}
+    .fade-in{animation:fadeIn .3s ease-out}
+    @keyframes fadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+    .spinner{border:2px solid rgba(255,255,255,.1);border-top-color:#818cf8;border-radius:50%;width:18px;height:18px;animation:spin .5s linear infinite;display:inline-block}
+    @keyframes spin{to{transform:rotate(360deg)}}
+    .msg-content h2{font-size:1.1rem;font-weight:700;color:#e2e8f0;margin:1rem 0 .5rem}
+    .msg-content h3{font-size:.95rem;font-weight:600;color:#cbd5e1;margin:.75rem 0 .4rem}
+    .msg-content p{color:#94a3b8;line-height:1.65;margin:.4rem 0}
+    .msg-content strong{color:#e2e8f0}
+    .msg-content table{width:100%;border-collapse:collapse;margin:.75rem 0;font-size:.8rem}
+    .msg-content th{text-align:left;padding:.4rem .6rem;background:#1e293b;color:#64748b;font-weight:600;font-size:.7rem;text-transform:uppercase;letter-spacing:.04em;border-bottom:1px solid #334155}
+    .msg-content td{padding:.4rem .6rem;border-bottom:1px solid #1e293b;color:#cbd5e1}
+    .msg-content blockquote{border-left:3px solid #6366f1;padding:.5rem .75rem;margin:.75rem 0;background:#1e293b60;border-radius:0 .4rem .4rem 0;color:#94a3b8;font-style:italic}
+    .msg-content ul,.msg-content ol{padding-left:1.25rem;color:#94a3b8}
+    .msg-content li{margin:.2rem 0;line-height:1.5}
+    .msg-content code{background:#1e293b;padding:.1rem .3rem;border-radius:.2rem;font-size:.8em;color:#a5b4fc}
+    #chat-area{scrollbar-width:thin;scrollbar-color:#1e293b transparent}
+    #chat-area::-webkit-scrollbar{width:6px}
+    #chat-area::-webkit-scrollbar-thumb{background:#1e293b;border-radius:3px}
+  </style>
+</head>
+<body class="text-gray-300 h-screen flex flex-col overflow-hidden">
+
+  <!-- Header -->
+  <header class="border-b border-gray-800/40 bg-[#0c1021]/90 backdrop-blur-xl px-5 py-3 flex items-center justify-between shrink-0 z-50">
+    <div class="flex items-center gap-3">
+      <div class="w-9 h-9 bg-gradient-to-br from-indigo-500 to-violet-600 rounded-xl flex items-center justify-center text-white font-bold text-xs shadow-lg shadow-indigo-500/20">CXO</div>
+      <div>
+        <h1 class="text-sm font-bold text-white tracking-tight">Agentic CXO</h1>
+        <p class="text-[10px] text-gray-500 tracking-wider">YOUR AI CO-FOUNDER</p>
+      </div>
+    </div>
+    <div class="flex items-center gap-1.5 sm:gap-2">
+      <button onclick="getBriefing()" class="hidden sm:block px-3 py-1.5 bg-gray-800/60 hover:bg-gray-700/60 text-gray-300 text-xs rounded-lg transition border border-gray-700/30">Briefing</button>
+      <button onclick="loadNotifications()" class="relative px-2 py-1.5 bg-gray-800/60 hover:bg-gray-700/60 text-gray-300 text-xs rounded-lg transition border border-gray-700/30">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/></svg>
+        <span id="notif-badge" class="hidden absolute -top-1 -right-1 w-4 h-4 bg-red-500 rounded-full text-[9px] text-white flex items-center justify-center font-bold"></span>
+      </button>
+      <span id="reminder-badge" class="hidden px-2 py-1 bg-red-500/20 text-red-400 text-[11px] font-semibold rounded-lg border border-red-500/30 cursor-pointer" onclick="getBriefing()"></span>
+      <button onclick="openSettings()" class="hidden sm:block px-3 py-1.5 bg-gray-800/60 hover:bg-gray-700/60 text-gray-300 text-xs rounded-lg transition border border-gray-700/30">Settings</button>
+      <button onclick="toggleSidebar()" class="lg:hidden px-2 py-1.5 bg-gray-800/60 hover:bg-gray-700/60 text-gray-300 text-xs rounded-lg transition border border-gray-700/30">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/></svg>
+      </button>
+      <button onclick="seedData()" id="seed-btn" class="px-2 sm:px-3 py-1.5 bg-indigo-600/80 hover:bg-indigo-500/80 text-white text-[11px] sm:text-xs rounded-lg transition font-medium">Demo</button>
+      <button onclick="logout()" class="px-2 py-1.5 bg-gray-800/60 hover:bg-red-600/40 text-gray-400 hover:text-red-300 text-xs rounded-lg transition border border-gray-700/30" title="Logout">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/></svg>
+      </button>
+    </div>
+  </header>
+
+  <!-- Main layout -->
+  <div class="flex flex-1 overflow-hidden">
+
+    <!-- Sessions panel (left) -->
+    <div id="sessions-panel" class="w-56 border-r border-gray-800/40 bg-[#080b14] overflow-y-auto hidden md:flex flex-col shrink-0">
+      <div class="p-3 border-b border-gray-800/30 flex items-center justify-between">
+        <h3 class="text-[11px] font-semibold text-gray-500 uppercase tracking-wider">Conversations</h3>
+        <button onclick="createSession()" class="w-6 h-6 flex items-center justify-center bg-gray-800/60 hover:bg-indigo-600/40 text-gray-400 hover:text-white rounded-lg transition text-sm" title="New conversation">+</button>
+      </div>
+      <div id="sessions-list" class="flex-1 overflow-y-auto p-2 space-y-1"></div>
+    </div>
+
+    <!-- Chat area -->
+    <div class="flex-1 flex flex-col min-w-0">
+      <div id="chat-area" class="flex-1 overflow-y-auto px-4 sm:px-5 py-4 space-y-4">
+      </div>
+
+      <!-- Input -->
+      <div class="border-t border-gray-800/40 bg-[#0c1021]/80 backdrop-blur px-3 sm:px-5 py-3">
+        <div class="max-w-3xl mx-auto flex gap-2 items-end">
+          <label class="cursor-pointer shrink-0 w-9 h-9 flex items-center justify-center bg-gray-800/60 hover:bg-gray-700/60 rounded-xl transition border border-gray-700/30" title="Upload document">
+            <input type="file" class="hidden" id="file-input" onchange="uploadFile(this)">
+            <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"/></svg>
+          </label>
+          <div class="flex-1 relative">
+            <textarea id="msg-input" rows="1" class="w-full bg-gray-800/40 border border-gray-700/40 rounded-xl px-4 py-2.5 text-white placeholder-gray-600 focus:ring-2 focus:ring-indigo-500/40 focus:border-indigo-500/40 outline-none text-sm resize-none" placeholder="Talk to your AI co-founder..." onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendMsg()}" oninput="autoResize(this)"></textarea>
+          </div>
+          <button onclick="sendMsg()" class="shrink-0 w-9 h-9 flex items-center justify-center bg-indigo-600 hover:bg-indigo-500 rounded-xl transition shadow-lg shadow-indigo-500/20">
+            <svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"/></svg>
+          </button>
+        </div>
+        <div class="max-w-3xl mx-auto mt-2 flex gap-1.5 flex-wrap">
+          <button onclick="quickSend('What can your team do for my business?')" class="text-[11px] px-2.5 py-1 bg-gray-800/40 hover:bg-gray-700/40 rounded-lg text-gray-500 hover:text-gray-300 transition border border-gray-700/20">What can you do?</button>
+          <button onclick="quickSend('Our burn rate spiked 12%. Where can we cut $100k?')" class="text-[11px] px-2.5 py-1 bg-gray-800/40 hover:bg-gray-700/40 rounded-lg text-gray-500 hover:text-gray-300 transition border border-gray-700/20">Cut costs</button>
+          <button onclick="quickSend('Review our vendor contracts for any risky clauses')" class="text-[11px] px-2.5 py-1 bg-gray-800/40 hover:bg-gray-700/40 rounded-lg text-gray-500 hover:text-gray-300 transition border border-gray-700/20">Audit contracts</button>
+          <button onclick="quickSend('Which stalled deals should we follow up on today?')" class="text-[11px] px-2.5 py-1 bg-gray-800/40 hover:bg-gray-700/40 rounded-lg text-gray-500 hover:text-gray-300 transition border border-gray-700/20">Recover deals</button>
+          <button onclick="quickSend('Remind me to review the Q4 budget by Friday')" class="text-[11px] px-2.5 py-1 bg-gray-800/40 hover:bg-gray-700/40 rounded-lg text-gray-500 hover:text-gray-300 transition border border-gray-700/20">Set reminder</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Right sidebar -->
+    <div id="sidebar" class="w-64 border-l border-gray-800/40 bg-[#0b0f1a] overflow-y-auto hidden lg:block shrink-0">
+      <div class="p-3">
+        <!-- Profile -->
+        <div id="profile-section" class="mb-4">
+          <h3 class="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-2">Business Profile</h3>
+          <div id="profile-body" class="text-xs text-gray-400 space-y-1"></div>
+        </div>
+
+        <!-- Critical reminders -->
+        <div id="critical-section" class="mb-4 hidden">
+          <h3 class="text-[10px] font-semibold text-red-400 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+            <span class="w-2 h-2 bg-red-500 rounded-full animate-pulse"></span> Critical
+          </h3>
+          <div id="critical-body" class="space-y-1.5"></div>
+        </div>
+
+        <!-- Upcoming -->
+        <div id="upcoming-section" class="mb-4 hidden">
+          <h3 class="text-[10px] font-semibold text-amber-400 uppercase tracking-wider mb-2">Upcoming</h3>
+          <div id="upcoming-body" class="space-y-1.5"></div>
+        </div>
+
+        <!-- Agents -->
+        <div class="mb-4">
+          <h3 class="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-2">Your C-Suite</h3>
+          <div class="space-y-1">
+            <div class="flex items-center gap-2 text-xs"><span class="w-2 h-2 rounded-full bg-emerald-500"></span><span class="text-gray-400">CFO</span><span class="text-gray-600">Finance</span></div>
+            <div class="flex items-center gap-2 text-xs"><span class="w-2 h-2 rounded-full bg-blue-500"></span><span class="text-gray-400">COO</span><span class="text-gray-600">Ops</span></div>
+            <div class="flex items-center gap-2 text-xs"><span class="w-2 h-2 rounded-full bg-pink-500"></span><span class="text-gray-400">CMO</span><span class="text-gray-600">Marketing</span></div>
+            <div class="flex items-center gap-2 text-xs"><span class="w-2 h-2 rounded-full bg-amber-500"></span><span class="text-gray-400">CLO</span><span class="text-gray-600">Legal</span></div>
+            <div class="flex items-center gap-2 text-xs"><span class="w-2 h-2 rounded-full bg-cyan-500"></span><span class="text-gray-400">CHRO</span><span class="text-gray-600">People</span></div>
+            <div class="flex items-center gap-2 text-xs"><span class="w-2 h-2 rounded-full bg-violet-500"></span><span class="text-gray-400">CSO</span><span class="text-gray-600">Sales</span></div>
+          </div>
+        </div>
+
+        <!-- Vault + Settings shortcut -->
+        <div class="mb-4">
+          <h3 class="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-2">Vault</h3>
+          <p id="vault-stat" class="text-xs text-gray-600">0 chunks</p>
+        </div>
+        <button onclick="openSettings()" class="w-full text-left px-3 py-2 bg-gray-800/30 hover:bg-gray-700/30 rounded-lg text-xs text-gray-400 hover:text-gray-200 transition border border-gray-700/20">Settings & Connectors</button>
+      </div>
+    </div>
+  </div>
+
+<!-- Settings Modal -->
+<div id="settings-modal" class="fixed inset-0 bg-black/70 backdrop-blur-sm z-[100] hidden flex items-start justify-center overflow-y-auto pt-8 pb-8">
+  <div class="bg-[#0f1420] border border-gray-800/50 rounded-2xl w-full max-w-4xl mx-4 shadow-2xl">
+    <div class="px-6 py-4 border-b border-gray-800/50 flex items-center justify-between sticky top-0 bg-[#0f1420] rounded-t-2xl z-10">
+      <div>
+        <h2 class="text-lg font-bold text-white">Settings & Connectors</h2>
+        <p class="text-xs text-gray-500 mt-0.5">Connect your tools so your AI C-suite has real data</p>
+      </div>
+      <button onclick="closeSettings()" class="text-gray-500 hover:text-white text-2xl transition">&times;</button>
+    </div>
+    <div class="px-6 py-4">
+      <!-- Live connectors status -->
+      <div id="settings-live-status" class="mb-6"></div>
+      <!-- Connector categories -->
+      <div class="flex gap-2 mb-4 flex-wrap">
+        <button onclick="filterConnectors('')" class="scat-btn text-[11px] px-2.5 py-1 rounded-full bg-gray-800/60 text-gray-400 hover:text-white border border-gray-700/30 transition">All</button>
+      </div>
+      <!-- Connector grid -->
+      <div id="settings-connector-grid" class="grid grid-cols-1 md:grid-cols-2 gap-2"></div>
+    </div>
+  </div>
+</div>
+
+<!-- Connect Modal (credential input) -->
+<div id="connect-modal" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-[110] hidden flex items-center justify-center">
+  <div class="bg-[#111827] border border-gray-800/50 rounded-2xl w-full max-w-md mx-4 shadow-2xl">
+    <div class="px-5 py-4 border-b border-gray-800/50 flex items-center justify-between">
+      <h3 id="connect-title" class="text-md font-bold text-white">Connect</h3>
+      <button onclick="closeConnect()" class="text-gray-500 hover:text-white text-xl">&times;</button>
+    </div>
+    <div id="connect-body" class="px-5 py-4"></div>
+    <div id="connect-result" class="px-5 pb-4"></div>
+  </div>
+</div>
+
+<script>
+const API='';
+const TOKEN = localStorage.getItem('cxo_token') || '';
+if (!TOKEN && !window.location.pathname.includes('login')) {
+  window.location.href = '/login';
+}
+function authHeaders() {
+  return {'Content-Type':'application/json','Authorization':'Bearer '+TOKEN};
+}
+function authFetch(url, opts={}) {
+  opts.headers = {...(opts.headers||{}), 'Authorization':'Bearer '+TOKEN};
+  return fetch(url, opts);
+}
+const ROLE_COLORS={agent:'indigo',cfo:'emerald',coo:'blue',cmo:'pink',clo:'amber',chro:'cyan',cso:'violet',system:'gray',user:'gray'};
+const ROLE_LABELS={agent:'Co-Founder',cfo:'CFO',coo:'COO',cmo:'CMO',clo:'CLO',chro:'CHRO',cso:'CSO',system:'System'};
+
+function autoResize(el){el.style.height='auto';el.style.height=Math.min(el.scrollHeight,120)+'px';}
+function scrollBottom(){const a=document.getElementById('chat-area');setTimeout(()=>a.scrollTop=a.scrollHeight,50);}
+
+function addMessage(role, content, actions){
+  const area=document.getElementById('chat-area');
+  const isUser=role==='user';
+  const c=ROLE_COLORS[role]||'gray';
+  const label=ROLE_LABELS[role]||role.toUpperCase();
+
+  let actionsHtml='';
+  if(actions&&actions.length){
+    actionsHtml=actions.map(a=>{
+      const icon=a.status==='completed'?'&#10003;':a.status==='pending_approval'?'&#9888;':'&#10007;';
+      const col=a.status==='completed'?'emerald':a.status==='pending_approval'?'amber':'red';
+      return `<div class="flex items-start gap-2 mt-2 px-3 py-2 bg-${col}-500/5 border border-${col}-500/10 rounded-lg">
+        <span class="text-${col}-400 text-xs mt-0.5">${icon}</span>
+        <div><p class="text-xs text-${col}-300 font-medium">${a.action_type.replace(/_/g,' ')}</p><p class="text-[11px] text-gray-500">${a.description}</p></div>
+      </div>`;
+    }).join('');
+  }
+
+  const html=isUser
+    ? `<div class="flex justify-end fade-in"><div class="max-w-xl">
+        <div class="bg-indigo-600/20 border border-indigo-500/20 rounded-2xl rounded-br-md px-4 py-2.5">
+          <p class="text-sm text-gray-200">${escHtml(content)}</p>
+        </div></div></div>`
+    : `<div class="flex gap-3 fade-in max-w-3xl">
+        <div class="shrink-0 w-7 h-7 rounded-lg bg-${c}-500/15 flex items-center justify-center mt-1">
+          <span class="text-${c}-400 text-[10px] font-bold">${label.slice(0,2)}</span>
+        </div>
+        <div class="flex-1 min-w-0">
+          <p class="text-[11px] text-${c}-400 font-semibold mb-1">${label}</p>
+          <div class="bg-[#111827] border border-gray-800/40 rounded-2xl rounded-tl-md px-4 py-3">
+            <div class="msg-content text-sm">${marked.parse(content)}</div>
+            ${actionsHtml}
+          </div>
+        </div></div>`;
+
+  area.insertAdjacentHTML('beforeend',html);
+  scrollBottom();
+}
+
+function escHtml(s){return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+
+async function sendMsg(){
+  const el=document.getElementById('msg-input');
+  const msg=el.value.trim();
+  if(!msg)return;
+  el.value='';el.style.height='auto';
+  addMessage('user',msg);
+  showTyping();
+  try{
+    const res=await authFetch(API+'/chat',{method:'POST',headers:authHeaders(),body:JSON.stringify({message:msg})});
+    const data=await res.json();
+    hideTyping();
+    if(data.responses && Array.isArray(data.responses)){
+      for(const r of data.responses){addMessage(r.role,r.content,r.actions);}
+    } else if(data.detail){
+      addMessage('system','Error: '+data.detail);
+    } else {
+      addMessage('system','Unexpected response. Check server logs.');
+      console.error('Chat response:', data);
+    }
+    refreshSidebar();
+    loadSessions();
+  }catch(e){hideTyping();addMessage('system','Connection error: '+e.message);console.error(e);}
+}
+
+function quickSend(msg){document.getElementById('msg-input').value=msg;sendMsg();}
+
+async function uploadFile(input){
+  const file=input.files[0];if(!file)return;
+  addMessage('user',`Uploading: ${file.name}`);
+  showTyping();
+  const form=new FormData();form.append('file',file);
+  try{
+    const res=await authFetch(API+'/upload',{method:'POST',body:form});
+    const data=await res.json();
+    hideTyping();
+    if(data.responses && Array.isArray(data.responses)){
+      for(const r of data.responses){addMessage(r.role,r.content,r.actions);}
+    } else if(data.detail){
+      addMessage('system','Error: '+data.detail);
+    }
+    refreshSidebar();
+  }catch(e){hideTyping();addMessage('system','Upload error: '+e.message);}
+  input.value='';
+}
+
+async function getBriefing(){
+  showTyping();
+  try{
+    const res=await authFetch(API+'/briefing');
+    const data=await res.json();
+    hideTyping();
+    addMessage('agent',data.formatted);
+    refreshSidebar();
+  }catch(e){hideTyping();addMessage('system','Error: '+e.message);}
+}
+
+async function seedData(){
+  const btn=document.getElementById('seed-btn');
+  btn.textContent='Loading...';btn.disabled=true;
+  try{
+    await authFetch(API+'/seed',{method:'POST'});
+    btn.textContent='Loaded';btn.classList.replace('bg-indigo-600/80','bg-emerald-600/80');
+    addMessage('system','9 business documents loaded into the vault: financial reports, contracts, sales pipeline, engineering roadmap, invoices, and marketing data. Your C-suite is ready.');
+    refreshSidebar();
+  }catch(e){btn.textContent='Error';addMessage('system','Seed error: '+e.message);}
+}
+
+function showTyping(){
+  const area=document.getElementById('chat-area');
+  area.insertAdjacentHTML('beforeend','<div id="typing" class="flex gap-3 fade-in"><div class="shrink-0 w-7 h-7 rounded-lg bg-indigo-500/15 flex items-center justify-center"><span class="spinner"></span></div><div class="text-xs text-gray-600 mt-2">Thinking...</div></div>');
+  scrollBottom();
+}
+function hideTyping(){const el=document.getElementById('typing');if(el)el.remove();}
+
+async function refreshSidebar(){
+  try{
+    const [statusRes,profileRes,remindersRes]=await Promise.all([
+      authFetch(API+'/status'),authFetch(API+'/profile'),authFetch(API+'/reminders')
+    ]);
+    const status=await statusRes.json();
+    const profile=await profileRes.json();
+    const reminders=await remindersRes.json();
+
+    document.getElementById('vault-stat').textContent=status.vault_chunks+' chunks indexed';
+
+    // Profile
+    const pb=document.getElementById('profile-body');
+    if(profile.company_name){
+      let lines=[];
+      if(profile.company_name)lines.push(`<strong class="text-gray-200">${profile.company_name}</strong>`);
+      if(profile.industry)lines.push(profile.industry);
+      if(profile.arr)lines.push('Revenue: '+profile.arr);
+      if(profile.team_size)lines.push('Team: '+profile.team_size);
+      if(profile.main_product)lines.push(profile.main_product);
+      pb.innerHTML=lines.map(l=>'<p>'+l+'</p>').join('');
+    } else {
+      const pct=Math.round(profile.completeness*100);
+      pb.innerHTML=`<p>Profile: ${pct}% complete</p><p class="text-gray-600">Chat to teach me about your business</p>`;
+    }
+
+    // Critical reminders
+    const cs=document.getElementById('critical-section');
+    const cb=document.getElementById('critical-body');
+    const badge=document.getElementById('reminder-badge');
+    const criticals=[...reminders.overdue,...reminders.critical];
+    if(criticals.length){
+      cs.classList.remove('hidden');
+      cb.innerHTML=criticals.map(r=>
+        `<div class="bg-red-500/5 border border-red-500/10 rounded-lg px-3 py-2">
+          <p class="text-xs text-red-300 font-medium">${r.title}</p>
+          <p class="text-[10px] text-gray-600">${r.source_detail||r.source||''}</p>
+        </div>`
+      ).join('');
+      badge.textContent=criticals.length+' critical';
+      badge.classList.remove('hidden');
+    } else {
+      cs.classList.add('hidden');
+      badge.classList.add('hidden');
+    }
+
+    // Upcoming
+    const us=document.getElementById('upcoming-section');
+    const ub=document.getElementById('upcoming-body');
+    const upcoming=reminders.active.filter(r=>!criticals.find(c=>c.reminder_id===r.reminder_id));
+    if(upcoming.length){
+      us.classList.remove('hidden');
+      ub.innerHTML=upcoming.slice(0,5).map(r=>
+        `<div class="bg-gray-800/30 border border-gray-700/20 rounded-lg px-3 py-2">
+          <p class="text-xs text-gray-300">${r.title}</p>
+          <p class="text-[10px] text-gray-600">${new Date(r.due_date).toLocaleDateString()}</p>
+        </div>`
+      ).join('');
+    } else {us.classList.add('hidden');}
+
+  }catch(e){console.error(e);}
+}
+
+// ── Boot ──
+async function boot(){
+  const res=await authFetch(API+'/history');
+  const msgs=await res.json();
+  if(msgs.length){
+    for(const m of msgs){addMessage(m.role,m.content,m.actions);}
+  } else {
+    addMessage('agent',
+      "Hey! I'm your AI co-founder. I have six specialists on my team — **CFO**, **COO**, **CMO**, **CLO**, **CHRO**, and **CSO**.\n\n"+
+      "Before I can help, I need to learn about your business. We can start two ways:\n\n"+
+      "1. **Tell me about your company** and I'll ask follow-up questions\n"+
+      "2. **Drop some documents** (financials, contracts, reports) and I'll get up to speed fast\n\n"+
+      "Or click **Load Demo** above to try it with sample data right away.\n\n"+
+      "What would you like to do?"
+    );
+  }
+  refreshSidebar();
+  loadSessions();
+}
+function toggleSidebar(){
+  const s=document.getElementById('sidebar');
+  s.classList.toggle('hidden');
+  s.classList.toggle('lg:block');
+}
+
+function logout(){
+  localStorage.removeItem('cxo_token');
+  localStorage.removeItem('cxo_user');
+  window.location.href='/login';
+}
+
+async function loadNotifications(){
+  try{
+    const res=await authFetch(API+'/notifications');
+    const data=await res.json();
+    const badge=document.getElementById('notif-badge');
+    if(data.unread_count>0){
+      badge.textContent=data.unread_count;
+      badge.classList.remove('hidden');
+    }else{badge.classList.add('hidden');}
+
+    if(data.unread.length){
+      let msg='### Notifications\n\n';
+      data.unread.forEach(n=>{
+        const icon=n.priority==='urgent'||n.priority==='high'?'🔴':'🔵';
+        msg+=`${icon} **${n.title}**\n${n.message}\n\n`;
+      });
+      addMessage('system',msg);
+      authFetch(API+'/notifications/read-all',{method:'POST'});
+      setTimeout(()=>{
+        document.getElementById('notif-badge').classList.add('hidden');
+      },1000);
+    }else{
+      addMessage('system','No new notifications. All clear.');
+    }
+  }catch(e){console.error(e);}
+}
+
+boot();
+
+// ═══ SESSIONS ═══════════════════════════════════════════════
+let activeSessionId = '';
+
+async function loadSessions() {
+  try {
+    const res = await authFetch(API+'/sessions');
+    const data = await res.json();
+    activeSessionId = data.active || '';
+    const el = document.getElementById('sessions-list');
+    if (!el) return;
+    el.innerHTML = (data.sessions || []).map(s => {
+      const isActive = s.session_id === activeSessionId;
+      return `<button onclick="switchSession('${s.session_id}')" class="w-full text-left px-3 py-2 rounded-lg text-xs transition ${isActive ? 'bg-indigo-600/20 border border-indigo-500/20 text-white' : 'hover:bg-gray-800/40 text-gray-400 border border-transparent'}">
+        <p class="truncate font-medium">${s.pinned ? '&#128204; ' : ''}${s.title}</p>
+        <p class="text-[10px] text-gray-600 mt-0.5">${s.message_count} messages</p>
+      </button>`;
+    }).join('');
+  } catch(e) { console.error(e); }
+}
+
+async function createSession() {
+  const title = prompt('Conversation name:', 'New conversation');
+  if (!title) return;
+  await authFetch(API+'/sessions?title='+encodeURIComponent(title), {method:'POST'});
+  document.getElementById('chat-area').innerHTML = '';
+  await loadSessions();
+  addMessage('agent', `Started new conversation: **${title}**. What would you like to discuss?`);
+}
+
+async function switchSession(sid) {
+  await authFetch(API+'/sessions/'+sid+'/switch', {method:'POST'});
+  activeSessionId = sid;
+  document.getElementById('chat-area').innerHTML = '';
+  await loadSessions();
+  const res = await authFetch(API+'/history');
+  const msgs = await res.json();
+  if (msgs.length) {
+    for (const m of msgs) { addMessage(m.role, m.content, m.actions); }
+  } else {
+    addMessage('agent', 'This conversation is empty. What would you like to discuss?');
+  }
+}
+
+// ═══ SETTINGS & CONNECTORS ═══════════════════════════════════
+let allConnectorsCache = [];
+
+async function openSettings() {
+  document.getElementById('settings-modal').classList.remove('hidden');
+  const [connRes, liveRes] = await Promise.all([
+    authFetch(API+'/connectors'), authFetch(API+'/connect/status')
+  ]);
+  allConnectorsCache = await connRes.json();
+  const live = await liveRes.json();
+
+  // Show live status
+  const liveEl = document.getElementById('settings-live-status');
+  const connected = live.connected || 0;
+  const total = live.live_connectors || 0;
+  let liveCards = '';
+  for (const [cid, info] of Object.entries(live.connectors || {})) {
+    const ok = info.connected;
+    liveCards += `<div class="flex items-center gap-2 px-3 py-2 bg-gray-800/30 rounded-lg border ${ok?'border-emerald-500/20':'border-gray-700/20'}">
+      <span class="w-2 h-2 rounded-full ${ok?'bg-emerald-500':'bg-gray-600'}"></span>
+      <span class="text-xs ${ok?'text-emerald-300':'text-gray-500'} font-medium">${cid}</span>
+      ${ok?'<span class="text-[10px] text-emerald-600 ml-auto">Connected</span>':'<button onclick="openConnect(\''+cid+'\')" class="text-[10px] text-indigo-400 hover:text-indigo-300 ml-auto">Connect</button>'}
+    </div>`;
+  }
+  liveEl.innerHTML = `<div class="mb-2 flex items-center gap-2">
+    <h3 class="text-sm font-semibold text-white">Live Integrations</h3>
+    <span class="text-[10px] px-2 py-0.5 rounded-full ${connected>0?'bg-emerald-500/10 text-emerald-400':'bg-gray-800 text-gray-500'}">${connected}/${total} connected</span>
+  </div>
+  <div class="grid grid-cols-2 md:grid-cols-3 gap-2 mb-4">${liveCards}</div>`;
+
+  // Category filter buttons
+  const cats = [...new Set(allConnectorsCache.map(c=>c.category))].sort();
+  const catBtns = document.querySelector('.scat-btn').parentElement;
+  catBtns.innerHTML = '<button onclick="filterConnectors(\'\')" class="scat-btn text-[11px] px-2.5 py-1 rounded-full bg-indigo-600/30 text-indigo-300 border border-indigo-500/20 transition">All ('+allConnectorsCache.length+')</button>' +
+    cats.map(c => {
+      const cnt = allConnectorsCache.filter(x=>x.category===c).length;
+      return `<button onclick="filterConnectors('${c}')" class="scat-btn text-[11px] px-2.5 py-1 rounded-full bg-gray-800/60 text-gray-400 hover:text-white border border-gray-700/30 transition">${c.replace(/_/g,' ')} (${cnt})</button>`;
+    }).join('');
+
+  filterConnectors('');
+}
+
+function filterConnectors(cat) {
+  const list = cat ? allConnectorsCache.filter(c=>c.category===cat) : allConnectorsCache;
+  const grid = document.getElementById('settings-connector-grid');
+  grid.innerHTML = list.map(c => {
+    const isLive = ['slack','stripe','github','bitbucket','google_drive','onedrive'].includes(c.id);
+    const statusColor = c.status === 'configured' || c.status === 'connected' ? 'emerald' : 'gray';
+    return `<div class="bg-[#0b0f1a] border border-gray-800/40 rounded-xl px-4 py-3 flex items-center gap-3 hover:border-gray-700/50 transition">
+      <span class="w-2 h-2 rounded-full bg-${statusColor}-500 shrink-0"></span>
+      <div class="flex-1 min-w-0">
+        <p class="text-xs font-medium text-gray-200 truncate">${c.name}</p>
+        <p class="text-[10px] text-gray-600 truncate">${c.description.slice(0,60)}</p>
+      </div>
+      <div class="shrink-0 flex items-center gap-1.5">
+        ${c.used_by.map(a=>'<span class="text-[9px] px-1 py-0.5 bg-gray-800 rounded text-gray-500">'+a+'</span>').join('')}
+        ${isLive?'<button onclick="openConnect(\''+c.id+'\')" class="text-[10px] px-2 py-1 bg-indigo-600/20 text-indigo-400 hover:bg-indigo-600/30 rounded transition ml-1">Connect</button>':''}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function closeSettings() {
+  document.getElementById('settings-modal').classList.add('hidden');
+}
+
+const OAUTH_CONNECTORS = {
+  'github':'github','gmail':'google','google_drive':'google',
+  'ga4':'google','google_ads':'google','slack':'slack',
+  'outlook':'microsoft','onedrive':'microsoft','teams':'microsoft',
+  'shopify':'shopify','hubspot':'hubspot','salesforce':'salesforce',
+  'notion':'notion','jira':'jira','intercom':'intercom',
+  'meta_ads':'meta','facebook_page':'meta','instagram':'meta',
+  'zoom':'zoom',
+};
+const OAUTH_NAMES = {
+  'github':'GitHub','google':'Google','slack':'Slack',
+  'microsoft':'Microsoft','shopify':'Shopify','hubspot':'HubSpot',
+  'salesforce':'Salesforce','notion':'Notion','jira':'Atlassian',
+  'intercom':'Intercom','meta':'Meta','zoom':'Zoom',
+};
+const OAUTH_COLORS = {
+  'github':'gray','google':'red','slack':'green',
+  'microsoft':'blue','shopify':'emerald','hubspot':'orange',
+  'salesforce':'blue','notion':'gray','jira':'blue',
+  'intercom':'indigo','meta':'blue','zoom':'blue',
+};
+
+async function openConnect(connectorId) {
+  document.getElementById('connect-modal').classList.remove('hidden');
+  document.getElementById('connect-title').textContent = 'Connect ' + connectorId;
+  document.getElementById('connect-result').innerHTML = '';
+  const body = document.getElementById('connect-body');
+  body.innerHTML = '<div class="spinner"></div>';
+
+  const res = await authFetch(API+'/connect/'+connectorId+'/setup');
+  const info = await res.json();
+
+  if (info.is_connected) {
+    body.innerHTML = `<div class="flex items-center gap-2 mb-4">
+      <span class="w-3 h-3 rounded-full bg-emerald-500"></span>
+      <span class="text-sm text-emerald-300 font-medium">Connected</span>
+    </div>
+    <div class="space-y-2">
+      <p class="text-xs text-gray-500">Data available: ${(info.available_data_types||[]).join(', ')}</p>
+      <button onclick="doDisconnect('${connectorId}')" class="text-xs px-3 py-1.5 bg-red-600/20 text-red-400 hover:bg-red-600/30 rounded-lg transition">Disconnect</button>
+    </div>`;
+    return;
+  }
+
+  // Check if this connector supports OAuth
+  const oauthProvider = OAUTH_CONNECTORS[connectorId];
+  const oauthName = OAUTH_NAMES[oauthProvider] || '';
+  const oauthColor = OAUTH_COLORS[oauthProvider] || 'indigo';
+
+  let html = '';
+
+  if (oauthProvider) {
+    html += `<div class="mb-4">
+      <a href="/oauth/start/${oauthProvider}?token=${TOKEN}" class="flex items-center justify-center gap-2 w-full px-4 py-3 bg-${oauthColor}-600/20 hover:bg-${oauthColor}-600/30 border border-${oauthColor}-500/30 text-white font-medium rounded-xl transition">
+        <span class="text-lg">${oauthProvider==='github'?'&#9776;':oauthProvider==='google'?'G':oauthProvider==='microsoft'?'M':'&#10003;'}</span>
+        Connect with ${oauthName}
+      </a>
+      <p class="text-[10px] text-gray-600 mt-2 text-center">Authorizes securely via ${oauthName}. We never see your password.</p>
+    </div>
+    <div class="flex items-center gap-3 my-4">
+      <div class="flex-1 h-px bg-gray-800"></div>
+      <span class="text-[10px] text-gray-600">OR enter manually</span>
+      <div class="flex-1 h-px bg-gray-800"></div>
+    </div>`;
+  }
+
+  if (info.status === 'not_implemented' && !oauthProvider) {
+    body.innerHTML = `<p class="text-sm text-gray-400">${info.message||'Not yet implemented.'}</p>
+      <p class="text-xs text-gray-600 mt-2">Required env vars: ${(info.env_vars||[]).join(', ') || 'none'}</p>`;
+    return;
+  }
+
+  const fields = info.required_credentials || [];
+  if (fields.length) {
+    html += '<div class="space-y-3">';
+    fields.forEach(f => {
+      const isSecret = f.includes('key') || f.includes('token') || f.includes('secret') || f.includes('password');
+      html += `<div>
+        <label class="block text-[11px] text-gray-400 mb-1 font-medium uppercase tracking-wide">${f.replace(/_/g,' ')}</label>
+        <input id="cred-${f}" type="${isSecret?'password':'text'}" class="w-full bg-[#0b0f1a] border border-gray-700/50 rounded-lg px-3 py-2 text-white text-sm placeholder-gray-600 focus:ring-2 focus:ring-indigo-500/40 outline-none" placeholder="Enter ${f.replace(/_/g,' ')}">
+      </div>`;
+    });
+    html += `<button onclick="doConnect('${connectorId}', ${JSON.stringify(fields)})" class="w-full bg-gray-700 hover:bg-gray-600 text-white text-sm font-medium rounded-lg px-4 py-2.5 transition mt-2">Connect with API Key</button>`;
+    html += '</div>';
+  } else if (!oauthProvider) {
+    html += '<p class="text-sm text-gray-500">This connector requires OAuth setup. Contact support.</p>';
+  }
+
+  body.innerHTML = html;
+}
+
+async function doConnect(connectorId, fields) {
+  const creds = {};
+  fields.forEach(f => { creds[f] = document.getElementById('cred-'+f).value; });
+  const resEl = document.getElementById('connect-result');
+  resEl.innerHTML = '<div class="flex items-center gap-2"><div class="spinner"></div><span class="text-xs text-gray-400">Testing connection...</span></div>';
+
+  const res = await authFetch(API+'/connect/'+connectorId, {
+    method: 'POST',
+    headers: authHeaders(),
+    body: JSON.stringify({credentials: creds}),
+  });
+  const data = await res.json();
+
+  if (data.success) {
+    resEl.innerHTML = `<div class="flex items-center gap-2 px-3 py-2 bg-emerald-500/10 border border-emerald-500/20 rounded-lg">
+      <span class="text-emerald-400">&#10003;</span>
+      <span class="text-sm text-emerald-300">${data.message}</span>
+    </div>`;
+    setTimeout(() => { closeConnect(); openSettings(); }, 1500);
+  } else {
+    resEl.innerHTML = `<div class="flex items-center gap-2 px-3 py-2 bg-red-500/10 border border-red-500/20 rounded-lg">
+      <span class="text-red-400">&#10007;</span>
+      <span class="text-sm text-red-300">${data.message}</span>
+    </div>`;
+  }
+}
+
+async function doDisconnect(connectorId) {
+  await authFetch(API+'/connect/'+connectorId+'/disconnect', {method:'POST'});
+  closeConnect();
+  openSettings();
+}
+
+function closeConnect() {
+  document.getElementById('connect-modal').classList.add('hidden');
+}
+</script>
+</body>
+</html>

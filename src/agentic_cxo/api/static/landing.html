@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Agentic CXO — Your AI C-Suite</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap');
+    *{font-family:'Inter',system-ui,sans-serif;} body{background:#0a0e1a;}
+    .glow{box-shadow:0 0 80px -20px rgba(99,102,241,.3)}
+    .fade-in{animation:fadeIn .6s ease-out}
+    @keyframes fadeIn{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}
+  </style>
+</head>
+<body class="text-gray-300">
+
+  <!-- Nav -->
+  <nav class="border-b border-gray-800/30 bg-[#0a0e1a]/80 backdrop-blur-xl sticky top-0 z-50">
+    <div class="max-w-6xl mx-auto px-6 py-4 flex items-center justify-between">
+      <div class="flex items-center gap-3">
+        <div class="w-9 h-9 bg-gradient-to-br from-indigo-500 to-violet-600 rounded-xl flex items-center justify-center text-white font-bold text-xs">CXO</div>
+        <span class="text-white font-bold">Agentic CXO</span>
+      </div>
+      <div class="flex items-center gap-4">
+        <a href="#pricing" class="text-sm text-gray-400 hover:text-white transition">Pricing</a>
+        <a href="#features" class="text-sm text-gray-400 hover:text-white transition">Features</a>
+        <a href="/login" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-medium rounded-lg transition shadow-lg shadow-indigo-500/20">Get Started</a>
+      </div>
+    </div>
+  </nav>
+
+  <!-- Hero -->
+  <section class="max-w-6xl mx-auto px-6 pt-20 pb-16 text-center fade-in">
+    <div class="inline-block px-3 py-1 bg-indigo-500/10 border border-indigo-500/20 rounded-full text-xs text-indigo-400 font-medium mb-6">AI-Powered C-Suite for Founders</div>
+    <h1 class="text-4xl sm:text-5xl lg:text-6xl font-black text-white leading-tight mb-6">
+      Six AI Officers.<br>
+      <span class="bg-gradient-to-r from-indigo-400 to-violet-400 bg-clip-text text-transparent">Zero Management Overhead.</span>
+    </h1>
+    <p class="text-lg sm:text-xl text-gray-400 max-w-2xl mx-auto mb-10 leading-relaxed">
+      Talk to your AI co-founder like a human. It learns your business, routes to the right CXO agent, catches repeated mistakes, and actually executes — emails, campaigns, contracts, hiring.
+    </p>
+    <div class="flex flex-col sm:flex-row items-center justify-center gap-4">
+      <a href="/login" class="px-8 py-3.5 bg-indigo-600 hover:bg-indigo-500 text-white font-semibold rounded-xl transition shadow-lg shadow-indigo-500/25 text-lg">Start Free</a>
+      <a href="#features" class="px-8 py-3.5 bg-gray-800/60 hover:bg-gray-700/60 text-gray-300 font-medium rounded-xl transition border border-gray-700/30">See How It Works</a>
+    </div>
+  </section>
+
+  <!-- Agent Cards -->
+  <section class="max-w-6xl mx-auto px-6 pb-20">
+    <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+      <div class="bg-[#111827] border border-gray-800/40 rounded-xl p-4 text-center hover:border-emerald-500/20 transition">
+        <div class="text-2xl mb-2">$</div><p class="font-semibold text-white text-sm">AI CFO</p><p class="text-[11px] text-gray-500">Finance & Risk</p>
+      </div>
+      <div class="bg-[#111827] border border-gray-800/40 rounded-xl p-4 text-center hover:border-blue-500/20 transition">
+        <div class="text-2xl mb-2">&#9881;</div><p class="font-semibold text-white text-sm">AI COO</p><p class="text-[11px] text-gray-500">Operations</p>
+      </div>
+      <div class="bg-[#111827] border border-gray-800/40 rounded-xl p-4 text-center hover:border-pink-500/20 transition">
+        <div class="text-2xl mb-2">&#9889;</div><p class="font-semibold text-white text-sm">AI CMO</p><p class="text-[11px] text-gray-500">Growth & Brand</p>
+      </div>
+      <div class="bg-[#111827] border border-gray-800/40 rounded-xl p-4 text-center hover:border-amber-500/20 transition">
+        <div class="text-2xl mb-2">&#9878;</div><p class="font-semibold text-white text-sm">AI CLO</p><p class="text-[11px] text-gray-500">Legal</p>
+      </div>
+      <div class="bg-[#111827] border border-gray-800/40 rounded-xl p-4 text-center hover:border-cyan-500/20 transition">
+        <div class="text-2xl mb-2">&#9786;</div><p class="font-semibold text-white text-sm">AI CHRO</p><p class="text-[11px] text-gray-500">People</p>
+      </div>
+      <div class="bg-[#111827] border border-gray-800/40 rounded-xl p-4 text-center hover:border-violet-500/20 transition">
+        <div class="text-2xl mb-2">&#8593;</div><p class="font-semibold text-white text-sm">AI CSO</p><p class="text-[11px] text-gray-500">Sales</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- Features -->
+  <section id="features" class="max-w-6xl mx-auto px-6 pb-20">
+    <h2 class="text-3xl font-bold text-white text-center mb-12">Not a Chatbot. A Co-Founder.</h2>
+    <div class="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+      <div class="bg-[#111827] border border-gray-800/40 rounded-2xl p-6">
+        <div class="text-indigo-400 text-xl mb-3">&#128172;</div>
+        <h3 class="font-bold text-white mb-2">Conversational Interface</h3>
+        <p class="text-sm text-gray-400">Talk like you would to a co-founder. The agent asks questions, learns your business, and routes to the right CXO automatically.</p>
+      </div>
+      <div class="bg-[#111827] border border-gray-800/40 rounded-2xl p-6">
+        <div class="text-emerald-400 text-xl mb-3">&#128200;</div>
+        <h3 class="font-bold text-white mb-2">Remembers Everything</h3>
+        <p class="text-sm text-gray-400">Every fact, decision, and number is stored permanently. The agent gets smarter with every conversation — never forgets.</p>
+      </div>
+      <div class="bg-[#111827] border border-gray-800/40 rounded-2xl p-6">
+        <div class="text-red-400 text-xl mb-3">&#9888;</div>
+        <h3 class="font-bold text-white mb-2">Catches Repeated Mistakes</h3>
+        <p class="text-sm text-gray-400">About to triple ad spend like last year's disaster? The agent warns you with the full history and what went wrong.</p>
+      </div>
+      <div class="bg-[#111827] border border-gray-800/40 rounded-2xl p-6">
+        <div class="text-amber-400 text-xl mb-3">&#128279;</div>
+        <h3 class="font-bold text-white mb-2">239 Integrations</h3>
+        <p class="text-sm text-gray-400">Connects to Stripe, Salesforce, Jira, Shopify, GA4, Slack, and 233 more. Click-to-connect from Settings.</p>
+      </div>
+      <div class="bg-[#111827] border border-gray-800/40 rounded-2xl p-6">
+        <div class="text-pink-400 text-xl mb-3">&#9889;</div>
+        <h3 class="font-bold text-white mb-2">Actually Executes</h3>
+        <p class="text-sm text-gray-400">Sends emails, posts to Slack, fires webhooks, creates tasks. Not just advice — real actions with your approval.</p>
+      </div>
+      <div class="bg-[#111827] border border-gray-800/40 rounded-2xl p-6">
+        <div class="text-cyan-400 text-xl mb-3">&#127775;</div>
+        <h3 class="font-bold text-white mb-2">Morning Briefings</h3>
+        <p class="text-sm text-gray-400">Every morning: overdue items, approaching deadlines, critical alerts. Your AI co-founder is already working before you open your laptop.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- Pricing -->
+  <section id="pricing" class="max-w-6xl mx-auto px-6 pb-20">
+    <h2 class="text-3xl font-bold text-white text-center mb-4">Simple Pricing</h2>
+    <p class="text-gray-400 text-center mb-12">Start free. Upgrade when your AI C-suite proves its value.</p>
+    <div class="grid md:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div class="bg-[#111827] border border-gray-800/40 rounded-2xl p-6">
+        <p class="text-sm text-gray-500 font-medium mb-1">Free</p>
+        <p class="text-3xl font-bold text-white mb-4">$0<span class="text-sm text-gray-500 font-normal">/mo</span></p>
+        <ul class="text-sm text-gray-400 space-y-2 mb-6">
+          <li>50 messages/day</li><li>2 connectors</li><li>1 user</li><li>10 documents</li>
+        </ul>
+        <a href="/login" class="block text-center px-4 py-2 bg-gray-800 hover:bg-gray-700 text-white text-sm rounded-lg transition">Start Free</a>
+      </div>
+      <div class="bg-[#111827] border border-indigo-500/30 rounded-2xl p-6 glow">
+        <p class="text-sm text-indigo-400 font-medium mb-1">Starter</p>
+        <p class="text-3xl font-bold text-white mb-4">$49<span class="text-sm text-gray-500 font-normal">/mo</span></p>
+        <ul class="text-sm text-gray-400 space-y-2 mb-6">
+          <li>500 messages/day</li><li>10 connectors</li><li>5 users</li><li>100 documents</li>
+        </ul>
+        <a href="/login" class="block text-center px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-sm rounded-lg transition">Get Started</a>
+      </div>
+      <div class="bg-[#111827] border border-gray-800/40 rounded-2xl p-6">
+        <p class="text-sm text-gray-500 font-medium mb-1">Pro</p>
+        <p class="text-3xl font-bold text-white mb-4">$199<span class="text-sm text-gray-500 font-normal">/mo</span></p>
+        <ul class="text-sm text-gray-400 space-y-2 mb-6">
+          <li>5,000 messages/day</li><li>50 connectors</li><li>25 users</li><li>1,000 documents</li>
+        </ul>
+        <a href="/login" class="block text-center px-4 py-2 bg-gray-800 hover:bg-gray-700 text-white text-sm rounded-lg transition">Get Started</a>
+      </div>
+      <div class="bg-[#111827] border border-gray-800/40 rounded-2xl p-6">
+        <p class="text-sm text-gray-500 font-medium mb-1">Enterprise</p>
+        <p class="text-3xl font-bold text-white mb-4">Custom</p>
+        <ul class="text-sm text-gray-400 space-y-2 mb-6">
+          <li>Unlimited everything</li><li>Custom integrations</li><li>Dedicated support</li><li>On-premise option</li>
+        </ul>
+        <a href="mailto:hello@agenticcxo.com" class="block text-center px-4 py-2 bg-gray-800 hover:bg-gray-700 text-white text-sm rounded-lg transition">Contact Us</a>
+      </div>
+    </div>
+  </section>
+
+  <!-- CTA -->
+  <section class="max-w-6xl mx-auto px-6 pb-20 text-center">
+    <div class="bg-gradient-to-r from-indigo-600/20 to-violet-600/20 border border-indigo-500/20 rounded-3xl p-12">
+      <h2 class="text-3xl font-bold text-white mb-4">Ready to run your business with AI?</h2>
+      <p class="text-gray-400 mb-8 max-w-xl mx-auto">Join founders who replaced $500K in management overhead with six AI officers that never sleep, never forget, and always cite their sources.</p>
+      <a href="/login" class="inline-block px-8 py-3.5 bg-indigo-600 hover:bg-indigo-500 text-white font-semibold rounded-xl transition shadow-lg shadow-indigo-500/25 text-lg">Start Free — No Credit Card</a>
+    </div>
+  </section>
+
+  <!-- Footer -->
+  <footer class="border-t border-gray-800/30 py-8">
+    <div class="max-w-6xl mx-auto px-6 flex flex-col sm:flex-row items-center justify-between gap-4">
+      <div class="flex items-center gap-2">
+        <div class="w-6 h-6 bg-gradient-to-br from-indigo-500 to-violet-600 rounded-lg flex items-center justify-center text-white font-bold text-[8px]">CXO</div>
+        <span class="text-sm text-gray-500">Agentic CXO</span>
+      </div>
+      <p class="text-xs text-gray-600">Your AI C-Suite. 6 agents. 239 integrations. 1 conversation.</p>
+    </div>
+  </footer>
+
+</body>
+</html>
