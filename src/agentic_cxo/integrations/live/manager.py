@@ -59,6 +59,14 @@ from agentic_cxo.integrations.live.cmo_write_clients import (
     NanoBananaClient,
     TwitterWriteClient,
 )
+from agentic_cxo.integrations.live.cso_clients import (
+    CalendlyClient,
+    CloseCRMClient,
+    GongClient,
+    OutreachClient,
+    PandaDocClient,
+    PipedriveClient,
+)
 from agentic_cxo.integrations.live.drive_client import (
     GoogleDriveClient,
     OneDriveClient,
@@ -133,6 +141,13 @@ LIVE_CLIENTS: dict[str, BaseConnectorClient] = {
     "meta_ads_write": MetaAdsWriteClient(),
     "mixpanel": MixpanelRealClient(),
     "amplitude": AmplitudeRealClient(),
+    # CSO Production
+    "pipedrive": PipedriveClient(),
+    "close_crm": CloseCRMClient(),
+    "gong": GongClient(),
+    "outreach": OutreachClient(),
+    "calendly": CalendlyClient(),
+    "pandadoc": PandaDocClient(),
 }
 
 
