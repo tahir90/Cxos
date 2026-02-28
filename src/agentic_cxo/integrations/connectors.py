@@ -1024,6 +1024,436 @@ ALL_CONNECTORS: list[Connector] = [
         data_provided=["meetings", "calendar_integration"],
         icon="GM",
     ),
+
+    # ── Salesforce Ecosystem ─────────────────────────────────
+    Connector(
+        "sfcc", "Salesforce Commerce Cloud (SFCC)",
+        "E-commerce storefront, orders, products, promotions, customer data",
+        ConnectorCategory.ECOMMERCE, ["CMO", "CSO", "CFO"],
+        ["SFCC_CLIENT_ID", "SFCC_CLIENT_SECRET", "SFCC_INSTANCE_URL"],
+        oauth=True,
+        data_provided=[
+            "orders", "products", "promotions", "customers",
+            "catalogs", "inventory", "price_books",
+        ],
+        icon="SFCC",
+    ),
+    Connector(
+        "sfsc", "Salesforce Service Cloud (SFSC)",
+        "Customer service: cases, knowledge base, omni-channel, SLA tracking",
+        ConnectorCategory.CUSTOMER_SUPPORT, ["COO", "CMO", "CSO"],
+        ["SFSC_CLIENT_ID", "SFSC_CLIENT_SECRET", "SFSC_INSTANCE_URL"],
+        oauth=True,
+        data_provided=[
+            "cases", "knowledge_articles", "sla", "customer_satisfaction",
+            "agent_performance", "omnichannel", "escalations",
+        ],
+        icon="SFSC",
+    ),
+    Connector(
+        "sf_marketing_cloud", "Salesforce Marketing Cloud",
+        "Email, mobile, social, advertising, and journey orchestration",
+        ConnectorCategory.MARKETING, ["CMO"],
+        ["SFMC_CLIENT_ID", "SFMC_CLIENT_SECRET", "SFMC_SUBDOMAIN"],
+        oauth=True,
+        data_provided=[
+            "email_campaigns", "journeys", "audiences",
+            "sms", "push_notifications", "analytics",
+        ],
+        icon="SFMC",
+    ),
+    Connector(
+        "sf_cpq", "Salesforce CPQ",
+        "Configure-price-quote: product config, pricing rules, proposals",
+        ConnectorCategory.SALES, ["CSO", "CFO"],
+        ["SF_CPQ_CLIENT_ID", "SF_CPQ_CLIENT_SECRET"],
+        oauth=True,
+        data_provided=["quotes", "products", "pricing", "contracts", "renewals"],
+        icon="CPQ",
+    ),
+
+    # ── App Store / Mobile Performance ───────────────────────
+    Connector(
+        "apple_app_store", "Apple App Store Connect",
+        "iOS app performance, ratings, reviews, downloads, revenue, crashes",
+        ConnectorCategory.ANALYTICS, ["CMO", "COO"],
+        ["APPLE_ISSUER_ID", "APPLE_KEY_ID", "APPLE_PRIVATE_KEY"],
+        data_provided=[
+            "downloads", "revenue", "ratings", "reviews",
+            "crashes", "app_analytics", "subscriptions",
+        ],
+        icon="AS",
+    ),
+    Connector(
+        "google_play", "Google Play Console",
+        "Android app performance, ratings, reviews, installs, revenue, ANRs",
+        ConnectorCategory.ANALYTICS, ["CMO", "COO"],
+        ["GOOGLE_PLAY_CREDENTIALS_JSON"],
+        data_provided=[
+            "installs", "revenue", "ratings", "reviews",
+            "crashes", "anrs", "vitals", "subscriptions",
+        ],
+        icon="GP",
+    ),
+    Connector(
+        "appfollow", "AppFollow",
+        "App store review monitoring, ASO, competitor tracking across stores",
+        ConnectorCategory.ANALYTICS, ["CMO"],
+        ["APPFOLLOW_API_KEY"],
+        data_provided=[
+            "reviews", "ratings", "aso_keywords", "competitors",
+            "reply_to_reviews", "sentiment",
+        ],
+        icon="AF",
+    ),
+    Connector(
+        "app_annie", "data.ai (App Annie)",
+        "App market intelligence, download estimates, revenue estimates",
+        ConnectorCategory.ANALYTICS, ["CMO", "CSO"],
+        ["DATA_AI_API_KEY"],
+        data_provided=[
+            "market_estimates", "downloads", "revenue",
+            "usage", "engagement", "competitor_intel",
+        ],
+        icon="DA",
+    ),
+    Connector(
+        "firebase", "Google Firebase",
+        "Mobile analytics, crashlytics, A/B testing, remote config",
+        ConnectorCategory.ANALYTICS, ["CMO", "COO"],
+        ["FIREBASE_CREDENTIALS_JSON", "FIREBASE_PROJECT_ID"],
+        data_provided=[
+            "analytics", "crashlytics", "performance",
+            "ab_testing", "remote_config", "cloud_messaging",
+        ],
+        icon="FB",
+    ),
+    Connector(
+        "appsflyer", "AppsFlyer",
+        "Mobile attribution, marketing analytics, deep linking, fraud",
+        ConnectorCategory.ANALYTICS, ["CMO"],
+        ["APPSFLYER_API_TOKEN", "APPSFLYER_APP_ID"],
+        data_provided=[
+            "attribution", "installs", "in_app_events",
+            "retargeting", "fraud_detection", "cohorts",
+        ],
+        icon="AF",
+    ),
+    Connector(
+        "adjust", "Adjust",
+        "Mobile measurement, fraud prevention, automation",
+        ConnectorCategory.ANALYTICS, ["CMO"],
+        ["ADJUST_API_TOKEN"],
+        data_provided=[
+            "attribution", "events", "fraud_prevention",
+            "audience_builder", "analytics",
+        ],
+        icon="AD",
+    ),
+
+    # ── Review / Reputation Platforms ────────────────────────
+    Connector(
+        "g2", "G2",
+        "B2B software reviews, competitor comparisons, buyer intent",
+        ConnectorCategory.MARKETING, ["CMO", "CSO"],
+        ["G2_API_TOKEN"],
+        data_provided=[
+            "reviews", "ratings", "competitor_comparison",
+            "buyer_intent", "market_presence",
+        ],
+        icon="G2",
+    ),
+    Connector(
+        "trustpilot", "Trustpilot",
+        "Customer reviews, reputation management, trust score",
+        ConnectorCategory.MARKETING, ["CMO"],
+        ["TRUSTPILOT_API_KEY", "TRUSTPILOT_API_SECRET"],
+        data_provided=[
+            "reviews", "trust_score", "reply_to_reviews",
+            "invitation_links", "analytics",
+        ],
+        icon="TP",
+    ),
+    Connector(
+        "capterra", "Capterra / GetApp",
+        "Software reviews and comparisons for B2B buyers",
+        ConnectorCategory.MARKETING, ["CMO", "CSO"],
+        ["CAPTERRA_API_KEY"],
+        data_provided=["reviews", "ratings", "category_ranking"],
+        icon="CA",
+    ),
+    Connector(
+        "glassdoor", "Glassdoor",
+        "Employer reviews, salary data, interview feedback",
+        ConnectorCategory.PEOPLE, ["CHRO"],
+        ["GLASSDOOR_PARTNER_ID", "GLASSDOOR_KEY"],
+        data_provided=[
+            "employer_reviews", "ratings", "salary_data",
+            "interview_reviews", "benefits_reviews",
+        ],
+        icon="GD",
+    ),
+    Connector(
+        "yelp", "Yelp",
+        "Business reviews, ratings, customer feedback",
+        ConnectorCategory.MARKETING, ["CMO"],
+        ["YELP_API_KEY"],
+        data_provided=["reviews", "ratings", "photos", "business_info"],
+        icon="Y",
+    ),
+    Connector(
+        "google_business", "Google Business Profile",
+        "Google Maps listing, reviews, local SEO, insights",
+        ConnectorCategory.MARKETING, ["CMO"],
+        ["GOOGLE_BUSINESS_ACCOUNT_ID"],
+        oauth=True,
+        data_provided=[
+            "reviews", "ratings", "insights", "posts",
+            "q_and_a", "local_seo",
+        ],
+        icon="GB",
+    ),
+    Connector(
+        "bbb", "Better Business Bureau",
+        "Business accreditation, complaints, ratings",
+        ConnectorCategory.LEGAL, ["CLO", "COO"],
+        [],
+        data_provided=["accreditation", "complaints", "rating"],
+        icon="BBB",
+    ),
+
+    # ── Freshworks Suite ─────────────────────────────────────
+    Connector(
+        "freshsales", "Freshsales (Freshworks CRM)",
+        "CRM, lead scoring, deal management, email tracking",
+        ConnectorCategory.SALES, ["CSO"],
+        ["FRESHSALES_DOMAIN", "FRESHSALES_API_KEY"],
+        data_provided=[
+            "leads", "contacts", "deals", "accounts",
+            "email_tracking", "phone", "activities",
+        ],
+        icon="FS",
+    ),
+    Connector(
+        "freshmarketer", "Freshmarketer",
+        "Marketing automation, email campaigns, journeys",
+        ConnectorCategory.MARKETING, ["CMO"],
+        ["FRESHMARKETER_DOMAIN", "FRESHMARKETER_API_KEY"],
+        data_provided=[
+            "campaigns", "journeys", "contacts",
+            "landing_pages", "forms", "analytics",
+        ],
+        icon="FM",
+    ),
+    Connector(
+        "freshservice", "Freshservice",
+        "IT service management, asset management, change management",
+        ConnectorCategory.CUSTOMER_SUPPORT, ["COO"],
+        ["FRESHSERVICE_DOMAIN", "FRESHSERVICE_API_KEY"],
+        data_provided=[
+            "tickets", "assets", "changes", "problems",
+            "releases", "cmdb", "sla",
+        ],
+        icon="FS",
+    ),
+
+    # ── Payment Processors ───────────────────────────────────
+    Connector(
+        "paypal", "PayPal",
+        "Payments, invoicing, subscriptions, payouts",
+        ConnectorCategory.FINANCE, ["CFO"],
+        ["PAYPAL_CLIENT_ID", "PAYPAL_CLIENT_SECRET"],
+        data_provided=[
+            "transactions", "invoices", "subscriptions",
+            "payouts", "disputes",
+        ],
+        icon="PP",
+    ),
+    Connector(
+        "square", "Square",
+        "Payments, POS, invoicing, inventory, team management",
+        ConnectorCategory.FINANCE, ["CFO", "COO"],
+        ["SQUARE_ACCESS_TOKEN"],
+        data_provided=[
+            "payments", "orders", "inventory", "customers",
+            "team", "loyalty",
+        ],
+        icon="SQ",
+    ),
+    Connector(
+        "razorpay", "Razorpay",
+        "India payment gateway: payments, subscriptions, payroll",
+        ConnectorCategory.FINANCE, ["CFO"],
+        ["RAZORPAY_KEY_ID", "RAZORPAY_KEY_SECRET"],
+        data_provided=["payments", "subscriptions", "settlements", "invoices"],
+        icon="RP",
+    ),
+    Connector(
+        "chargebee", "Chargebee",
+        "Subscription billing, revenue recognition, dunning",
+        ConnectorCategory.FINANCE, ["CFO"],
+        ["CHARGEBEE_SITE", "CHARGEBEE_API_KEY"],
+        data_provided=[
+            "subscriptions", "invoices", "customers",
+            "revenue", "mrr", "churn", "dunning",
+        ],
+        icon="CB",
+    ),
+    Connector(
+        "recurly", "Recurly",
+        "Subscription management, billing, revenue optimization",
+        ConnectorCategory.FINANCE, ["CFO"],
+        ["RECURLY_API_KEY"],
+        data_provided=["subscriptions", "invoices", "revenue", "churn"],
+        icon="RC",
+    ),
+
+    # ── Advertising / Media ──────────────────────────────────
+    Connector(
+        "twitter_ads", "X (Twitter) Ads",
+        "Twitter/X advertising campaigns and analytics",
+        ConnectorCategory.MARKETING, ["CMO"],
+        ["TWITTER_ADS_ACCOUNT_ID", "TWITTER_ADS_ACCESS_TOKEN"],
+        data_provided=["campaigns", "audiences", "creatives", "analytics"],
+        icon="XA",
+    ),
+    Connector(
+        "spotify_ads", "Spotify Ad Studio",
+        "Audio advertising on Spotify",
+        ConnectorCategory.MARKETING, ["CMO"],
+        ["SPOTIFY_ADS_ACCESS_TOKEN"],
+        oauth=True,
+        data_provided=["campaigns", "audio_creatives", "targeting", "analytics"],
+        icon="SP",
+    ),
+    Connector(
+        "taboola", "Taboola",
+        "Native advertising, content discovery, performance marketing",
+        ConnectorCategory.MARKETING, ["CMO"],
+        ["TABOOLA_CLIENT_ID", "TABOOLA_CLIENT_SECRET"],
+        data_provided=["campaigns", "creatives", "audiences", "analytics"],
+        icon="TB",
+    ),
+    Connector(
+        "criteo", "Criteo",
+        "Retargeting, performance display, commerce media",
+        ConnectorCategory.MARKETING, ["CMO"],
+        ["CRITEO_CLIENT_ID", "CRITEO_CLIENT_SECRET"],
+        data_provided=["campaigns", "retargeting", "audiences", "analytics"],
+        icon="CR",
+    ),
+
+    # ── Surveys / Feedback ───────────────────────────────────
+    Connector(
+        "typeform", "Typeform",
+        "Surveys, forms, quizzes, customer feedback collection",
+        ConnectorCategory.MARKETING, ["CMO", "CHRO"],
+        ["TYPEFORM_ACCESS_TOKEN"],
+        data_provided=["responses", "forms", "analytics", "webhooks"],
+        icon="TF",
+    ),
+    Connector(
+        "surveymonkey", "SurveyMonkey",
+        "Surveys, market research, employee engagement",
+        ConnectorCategory.MARKETING, ["CMO", "CHRO"],
+        ["SURVEYMONKEY_ACCESS_TOKEN"],
+        data_provided=["surveys", "responses", "analytics"],
+        icon="SM",
+    ),
+    Connector(
+        "qualtrics", "Qualtrics",
+        "Experience management: customer, employee, brand, product",
+        ConnectorCategory.MARKETING, ["CMO", "CHRO"],
+        ["QUALTRICS_API_TOKEN", "QUALTRICS_DATACENTER"],
+        data_provided=[
+            "surveys", "cx_metrics", "ex_metrics",
+            "nps", "csat", "analytics",
+        ],
+        icon="QX",
+    ),
+
+    # ── CRM / Customer Data ──────────────────────────────────
+    Connector(
+        "customer_io", "Customer.io",
+        "Messaging automation: email, push, SMS, in-app based on behavior",
+        ConnectorCategory.MARKETING, ["CMO"],
+        ["CUSTOMERIO_SITE_ID", "CUSTOMERIO_API_KEY"],
+        data_provided=[
+            "campaigns", "segments", "customers",
+            "events", "deliveries",
+        ],
+        icon="CIO",
+    ),
+    Connector(
+        "braze", "Braze",
+        "Customer engagement: push, email, in-app, SMS, cross-channel",
+        ConnectorCategory.MARKETING, ["CMO"],
+        ["BRAZE_API_KEY", "BRAZE_INSTANCE_URL"],
+        data_provided=[
+            "campaigns", "canvases", "segments",
+            "users", "messaging", "analytics",
+        ],
+        icon="BZ",
+    ),
+    Connector(
+        "clevertap", "CleverTap",
+        "Customer engagement and retention platform for mobile apps",
+        ConnectorCategory.MARKETING, ["CMO"],
+        ["CLEVERTAP_ACCOUNT_ID", "CLEVERTAP_PASSCODE"],
+        data_provided=[
+            "events", "profiles", "campaigns",
+            "segments", "funnels", "analytics",
+        ],
+        icon="CT",
+    ),
+
+    # ── Document / Contract Intelligence ─────────────────────
+    Connector(
+        "ironclad", "Ironclad",
+        "Contract lifecycle management, AI-powered review",
+        ConnectorCategory.LEGAL, ["CLO"],
+        ["IRONCLAD_API_KEY"],
+        data_provided=[
+            "contracts", "workflows", "approvals",
+            "templates", "analytics",
+        ],
+        icon="IC",
+    ),
+    Connector(
+        "icertis", "Icertis",
+        "Enterprise contract management, AI-powered insights",
+        ConnectorCategory.LEGAL, ["CLO"],
+        ["ICERTIS_URL", "ICERTIS_API_KEY"],
+        data_provided=[
+            "contracts", "obligations", "compliance",
+            "risk_scoring", "analytics",
+        ],
+        icon="IC",
+    ),
+
+    # ── Shipping / Logistics ─────────────────────────────────
+    Connector(
+        "shipstation", "ShipStation",
+        "Multi-carrier shipping, order management, automation",
+        ConnectorCategory.OPERATIONS, ["COO"],
+        ["SHIPSTATION_API_KEY", "SHIPSTATION_API_SECRET"],
+        data_provided=[
+            "orders", "shipments", "carriers",
+            "tracking", "warehouses",
+        ],
+        icon="SS",
+    ),
+    Connector(
+        "flexport", "Flexport",
+        "Global freight forwarding, customs, supply chain visibility",
+        ConnectorCategory.OPERATIONS, ["COO"],
+        ["FLEXPORT_API_KEY"],
+        data_provided=[
+            "shipments", "tracking", "customs",
+            "invoices", "carbon_emissions",
+        ],
+        icon="FP",
+    ),
 ]
 
 
