@@ -60,6 +60,11 @@ class ConnectorCategory(str, Enum):
     TRAVEL_EXPENSE = "travel_expense"
     LEARNING = "learning"
     REAL_ESTATE = "real_estate"
+    CMS = "cms"
+    DAM = "dam"
+    PRODUCT_MANAGEMENT = "product_management"
+    DESIGN = "design"
+    OBSERVABILITY = "observability"
 
 
 @dataclass
@@ -1129,12 +1134,14 @@ ALL_CONNECTORS: list[Connector] = [
     ),
     Connector(
         "firebase", "Google Firebase",
-        "Mobile analytics, crashlytics, A/B testing, remote config",
-        ConnectorCategory.ANALYTICS, ["CMO", "COO"],
+        "Mobile app platform: analytics, crashlytics, crash rates, ANR rates, "
+        "A/B testing, remote config, performance monitoring, cloud messaging",
+        ConnectorCategory.ANALYTICS, ["CMO", "COO", "CSO"],
         ["FIREBASE_CREDENTIALS_JSON", "FIREBASE_PROJECT_ID"],
         data_provided=[
-            "analytics", "crashlytics", "performance",
-            "ab_testing", "remote_config", "cloud_messaging",
+            "analytics", "crashlytics", "crash_rate", "anr_rate",
+            "stability_score", "performance_traces", "ab_testing",
+            "remote_config", "cloud_messaging", "app_distribution",
         ],
         icon="FB",
     ),
@@ -2042,6 +2049,349 @@ ALL_CONNECTORS: list[Connector] = [
             "office_analytics", "capacity",
         ],
         icon="RB",
+    ),
+
+    # ── CMS (Content Management Systems) ─────────────────────
+    Connector(
+        "contentful", "Contentful",
+        "Headless CMS: content models, entries, assets, locales, publishing",
+        ConnectorCategory.CMS, ["CMO", "COO"],
+        ["CONTENTFUL_SPACE_ID", "CONTENTFUL_ACCESS_TOKEN"],
+        data_provided=[
+            "entries", "content_types", "assets", "locales",
+            "publishing_status", "scheduled_content", "webhooks",
+        ],
+        icon="CF",
+    ),
+    Connector(
+        "strapi", "Strapi",
+        "Open-source headless CMS: content types, REST/GraphQL, media",
+        ConnectorCategory.CMS, ["CMO", "COO"],
+        ["STRAPI_URL", "STRAPI_API_TOKEN"],
+        data_provided=[
+            "content_types", "entries", "media",
+            "users", "roles", "webhooks",
+        ],
+        icon="ST",
+    ),
+    Connector(
+        "wordpress", "WordPress",
+        "Website CMS: posts, pages, media, SEO, WooCommerce",
+        ConnectorCategory.CMS, ["CMO"],
+        ["WORDPRESS_URL", "WORDPRESS_USER", "WORDPRESS_APP_PASSWORD"],
+        data_provided=[
+            "posts", "pages", "media", "comments",
+            "categories", "tags", "users", "seo_metadata",
+        ],
+        icon="WP",
+    ),
+    Connector(
+        "sanity", "Sanity",
+        "Structured content platform: real-time editing, GROQ queries",
+        ConnectorCategory.CMS, ["CMO"],
+        ["SANITY_PROJECT_ID", "SANITY_TOKEN"],
+        data_provided=[
+            "documents", "assets", "schemas",
+            "datasets", "history", "webhooks",
+        ],
+        icon="SN",
+    ),
+    Connector(
+        "prismic", "Prismic",
+        "Headless CMS: slices, custom types, scheduling, A/B testing",
+        ConnectorCategory.CMS, ["CMO"],
+        ["PRISMIC_REPO", "PRISMIC_ACCESS_TOKEN"],
+        data_provided=[
+            "documents", "custom_types", "slices",
+            "releases", "experiments",
+        ],
+        icon="PR",
+    ),
+    Connector(
+        "storyblok", "Storyblok",
+        "Headless CMS with visual editor: stories, components, assets",
+        ConnectorCategory.CMS, ["CMO"],
+        ["STORYBLOK_API_KEY"],
+        data_provided=[
+            "stories", "components", "assets",
+            "datasources", "spaces", "activity_log",
+        ],
+        icon="SB",
+    ),
+    Connector(
+        "ghost", "Ghost",
+        "Publishing platform: posts, members, newsletters, subscriptions",
+        ConnectorCategory.CMS, ["CMO"],
+        ["GHOST_URL", "GHOST_ADMIN_API_KEY"],
+        data_provided=[
+            "posts", "pages", "members", "newsletters",
+            "subscriptions", "tiers", "analytics",
+        ],
+        icon="GH",
+    ),
+    Connector(
+        "webflow", "Webflow",
+        "Visual web design + CMS: sites, collections, forms, e-commerce",
+        ConnectorCategory.CMS, ["CMO"],
+        ["WEBFLOW_API_TOKEN"],
+        data_provided=[
+            "sites", "collections", "items", "forms",
+            "orders", "memberships", "analytics",
+        ],
+        icon="WF",
+    ),
+    Connector(
+        "adobe_experience_manager", "Adobe Experience Manager (AEM)",
+        "Enterprise CMS and digital experience platform",
+        ConnectorCategory.CMS, ["CMO"],
+        ["AEM_URL", "AEM_USER", "AEM_PASS"],
+        data_provided=[
+            "pages", "assets", "content_fragments",
+            "workflows", "templates", "experience_fragments",
+        ],
+        icon="AEM",
+    ),
+    Connector(
+        "sitecore", "Sitecore",
+        "Enterprise DXP: content, personalization, commerce, analytics",
+        ConnectorCategory.CMS, ["CMO"],
+        ["SITECORE_URL", "SITECORE_CLIENT_ID", "SITECORE_CLIENT_SECRET"],
+        oauth=True,
+        data_provided=[
+            "content", "personalization", "analytics",
+            "forms", "campaigns", "xdb_contacts",
+        ],
+        icon="SC",
+    ),
+
+    # ── DAM (Digital Asset Management) ───────────────────────
+    Connector(
+        "cloudinary", "Cloudinary",
+        "Media management: images, video, transformation, CDN, AI tagging",
+        ConnectorCategory.DAM, ["CMO"],
+        ["CLOUDINARY_CLOUD_NAME", "CLOUDINARY_API_KEY", "CLOUDINARY_API_SECRET"],
+        data_provided=[
+            "assets", "transformations", "folders",
+            "tags", "analytics", "ai_tagging", "video",
+        ],
+        icon="CL",
+    ),
+    Connector(
+        "bynder", "Bynder",
+        "Digital asset management: brand portal, templates, workflow",
+        ConnectorCategory.DAM, ["CMO"],
+        ["BYNDER_URL", "BYNDER_ACCESS_TOKEN"],
+        oauth=True,
+        data_provided=[
+            "assets", "collections", "metaproperties",
+            "brand_guidelines", "templates", "workflows",
+        ],
+        icon="BY",
+    ),
+    Connector(
+        "brandfolder", "Brandfolder (Smartsheet)",
+        "Brand asset management: assets, guidelines, analytics",
+        ConnectorCategory.DAM, ["CMO"],
+        ["BRANDFOLDER_API_KEY"],
+        data_provided=[
+            "assets", "brand_guidelines", "collections",
+            "analytics", "guest_links",
+        ],
+        icon="BF",
+    ),
+    Connector(
+        "dam_io", "DAM.io (Acquia DAM / Widen)",
+        "Enterprise DAM: assets, metadata, workflows, brand portals",
+        ConnectorCategory.DAM, ["CMO"],
+        ["WIDEN_URL", "WIDEN_ACCESS_TOKEN"],
+        data_provided=[
+            "assets", "metadata", "workflows",
+            "portals", "embed_links", "analytics",
+        ],
+        icon="WD",
+    ),
+
+    # ── Product Management ───────────────────────────────────
+    Connector(
+        "productboard", "Productboard",
+        "Product management: features, insights, roadmap, portal",
+        ConnectorCategory.PRODUCT_MANAGEMENT, ["COO", "CMO"],
+        ["PRODUCTBOARD_API_TOKEN"],
+        data_provided=[
+            "features", "insights", "roadmap",
+            "objectives", "portal", "customer_needs",
+        ],
+        icon="PB",
+    ),
+    Connector(
+        "pendo", "Pendo",
+        "Product analytics, in-app guidance, feedback, roadmap",
+        ConnectorCategory.PRODUCT_MANAGEMENT, ["CMO", "COO"],
+        ["PENDO_INTEGRATION_KEY"],
+        data_provided=[
+            "usage_analytics", "guides", "feedback",
+            "nps", "roadmap", "feature_adoption",
+        ],
+        icon="PE",
+    ),
+    Connector(
+        "launchdarkly", "LaunchDarkly",
+        "Feature flags, experimentation, progressive delivery",
+        ConnectorCategory.PRODUCT_MANAGEMENT, ["COO"],
+        ["LAUNCHDARKLY_API_KEY"],
+        data_provided=[
+            "feature_flags", "experiments", "segments",
+            "environments", "audit_log",
+        ],
+        icon="LD",
+    ),
+    Connector(
+        "split", "Split.io",
+        "Feature delivery, experimentation, feature flags",
+        ConnectorCategory.PRODUCT_MANAGEMENT, ["COO"],
+        ["SPLIT_API_KEY"],
+        data_provided=["feature_flags", "experiments", "impressions", "metrics"],
+        icon="SP",
+    ),
+    Connector(
+        "aha", "Aha!",
+        "Product roadmap, strategy, ideas portal, release planning",
+        ConnectorCategory.PRODUCT_MANAGEMENT, ["COO", "CMO"],
+        ["AHA_URL", "AHA_API_KEY"],
+        data_provided=[
+            "ideas", "features", "releases", "roadmap",
+            "strategy", "epics", "requirements",
+        ],
+        icon="AH",
+    ),
+    Connector(
+        "canny", "Canny",
+        "Feature request tracking, voting, changelog, roadmap",
+        ConnectorCategory.PRODUCT_MANAGEMENT, ["COO", "CMO"],
+        ["CANNY_API_KEY"],
+        data_provided=[
+            "feature_requests", "votes", "changelog",
+            "roadmap", "status_updates",
+        ],
+        icon="CN",
+    ),
+
+    # ── Design ───────────────────────────────────────────────
+    Connector(
+        "figma", "Figma",
+        "Design files, components, comments, dev handoff, variables",
+        ConnectorCategory.DESIGN, ["CMO", "COO"],
+        ["FIGMA_ACCESS_TOKEN"],
+        data_provided=[
+            "files", "components", "comments",
+            "teams", "projects", "versions",
+        ],
+        icon="FG",
+    ),
+    Connector(
+        "canva", "Canva (Enterprise)",
+        "Design platform: templates, brand kit, team collaboration",
+        ConnectorCategory.DESIGN, ["CMO"],
+        ["CANVA_API_KEY"],
+        oauth=True,
+        data_provided=[
+            "designs", "templates", "brand_kit",
+            "folders", "team_activity",
+        ],
+        icon="CV",
+    ),
+    Connector(
+        "adobe_creative_cloud", "Adobe Creative Cloud",
+        "Creative suite: Photoshop, Illustrator, Premiere, libraries",
+        ConnectorCategory.DESIGN, ["CMO"],
+        ["ADOBE_CLIENT_ID", "ADOBE_CLIENT_SECRET"],
+        oauth=True,
+        data_provided=[
+            "libraries", "assets", "fonts",
+            "colors", "projects",
+        ],
+        icon="AC",
+    ),
+
+    # ── Observability / Error Monitoring ─────────────────────
+    Connector(
+        "new_relic", "New Relic",
+        "Full-stack observability: APM, infrastructure, logs, synthetics, AIOps",
+        ConnectorCategory.OBSERVABILITY, ["COO"],
+        ["NEW_RELIC_API_KEY", "NEW_RELIC_ACCOUNT_ID"],
+        data_provided=[
+            "apm", "infrastructure", "logs", "synthetics",
+            "browser", "mobile", "alerts", "dashboards",
+        ],
+        icon="NR",
+    ),
+    Connector(
+        "elastic", "Elastic (ELK Stack)",
+        "Search, observability, security: Elasticsearch, Kibana, APM",
+        ConnectorCategory.OBSERVABILITY, ["COO"],
+        ["ELASTIC_URL", "ELASTIC_API_KEY"],
+        data_provided=[
+            "logs", "metrics", "apm", "uptime",
+            "security", "dashboards",
+        ],
+        icon="EL",
+    ),
+    Connector(
+        "grafana", "Grafana",
+        "Observability dashboards: metrics, logs, traces from any source",
+        ConnectorCategory.OBSERVABILITY, ["COO"],
+        ["GRAFANA_URL", "GRAFANA_API_KEY"],
+        data_provided=[
+            "dashboards", "alerts", "annotations",
+            "datasources", "panels",
+        ],
+        icon="GF",
+    ),
+    Connector(
+        "instabug", "Instabug",
+        "Mobile bug reporting, crash analytics, performance monitoring, surveys",
+        ConnectorCategory.OBSERVABILITY, ["COO", "CMO"],
+        ["INSTABUG_API_TOKEN"],
+        data_provided=[
+            "bug_reports", "crash_reports", "performance",
+            "session_replay", "surveys", "feature_requests",
+        ],
+        icon="IB",
+    ),
+    Connector(
+        "bugsnag", "Bugsnag",
+        "Error monitoring: stability score, error grouping, release tracking",
+        ConnectorCategory.OBSERVABILITY, ["COO"],
+        ["BUGSNAG_API_KEY"],
+        data_provided=[
+            "errors", "stability_score", "releases",
+            "sessions", "breadcrumbs",
+        ],
+        icon="BS",
+    ),
+    Connector(
+        "rollbar", "Rollbar",
+        "Real-time error tracking, deploy tracking, people tracking",
+        ConnectorCategory.OBSERVABILITY, ["COO"],
+        ["ROLLBAR_ACCESS_TOKEN"],
+        data_provided=[
+            "errors", "deploys", "rql_queries",
+            "people_tracking", "alerts",
+        ],
+        icon="RB",
+    ),
+    Connector(
+        "crashlytics_standalone", "Firebase Crashlytics",
+        "Dedicated crash reporting: crash-free rate, ANR rate, stack traces, "
+        "velocity alerts, regression detection",
+        ConnectorCategory.OBSERVABILITY, ["COO", "CSO"],
+        ["FIREBASE_CREDENTIALS_JSON", "FIREBASE_PROJECT_ID"],
+        data_provided=[
+            "crash_free_rate", "crash_reports", "anr_rate",
+            "stack_traces", "velocity_alerts", "regressions",
+            "affected_users", "device_breakdown",
+        ],
+        icon="FC",
     ),
 ]
 
