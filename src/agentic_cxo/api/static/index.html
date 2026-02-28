@@ -61,14 +61,22 @@
   <!-- Main layout -->
   <div class="flex flex-1 overflow-hidden">
 
+    <!-- Sessions panel (left) -->
+    <div id="sessions-panel" class="w-56 border-r border-gray-800/40 bg-[#080b14] overflow-y-auto hidden md:flex flex-col shrink-0">
+      <div class="p-3 border-b border-gray-800/30 flex items-center justify-between">
+        <h3 class="text-[11px] font-semibold text-gray-500 uppercase tracking-wider">Conversations</h3>
+        <button onclick="createSession()" class="w-6 h-6 flex items-center justify-center bg-gray-800/60 hover:bg-indigo-600/40 text-gray-400 hover:text-white rounded-lg transition text-sm" title="New conversation">+</button>
+      </div>
+      <div id="sessions-list" class="flex-1 overflow-y-auto p-2 space-y-1"></div>
+    </div>
+
     <!-- Chat area -->
-    <div class="flex-1 flex flex-col">
-      <div id="chat-area" class="flex-1 overflow-y-auto px-5 py-4 space-y-4">
-        <!-- Welcome message injected by JS -->
+    <div class="flex-1 flex flex-col min-w-0">
+      <div id="chat-area" class="flex-1 overflow-y-auto px-4 sm:px-5 py-4 space-y-4">
       </div>
 
       <!-- Input -->
-      <div class="border-t border-gray-800/40 bg-[#0c1021]/80 backdrop-blur px-5 py-3">
+      <div class="border-t border-gray-800/40 bg-[#0c1021]/80 backdrop-blur px-3 sm:px-5 py-3">
         <div class="max-w-3xl mx-auto flex gap-2 items-end">
           <label class="cursor-pointer shrink-0 w-9 h-9 flex items-center justify-center bg-gray-800/60 hover:bg-gray-700/60 rounded-xl transition border border-gray-700/30" title="Upload document">
             <input type="file" class="hidden" id="file-input" onchange="uploadFile(this)">
@@ -82,7 +90,7 @@
           </button>
         </div>
         <div class="max-w-3xl mx-auto mt-2 flex gap-1.5 flex-wrap">
-          <button onclick="quickSend('What should I focus on today?')" class="text-[11px] px-2.5 py-1 bg-gray-800/40 hover:bg-gray-700/40 rounded-lg text-gray-500 hover:text-gray-300 transition border border-gray-700/20">Today's priorities</button>
+          <button onclick="quickSend('What can your team do for my business?')" class="text-[11px] px-2.5 py-1 bg-gray-800/40 hover:bg-gray-700/40 rounded-lg text-gray-500 hover:text-gray-300 transition border border-gray-700/20">What can you do?</button>
           <button onclick="quickSend('Our burn rate spiked 12%. Where can we cut $100k?')" class="text-[11px] px-2.5 py-1 bg-gray-800/40 hover:bg-gray-700/40 rounded-lg text-gray-500 hover:text-gray-300 transition border border-gray-700/20">Cut costs</button>
           <button onclick="quickSend('Review our vendor contracts for any risky clauses')" class="text-[11px] px-2.5 py-1 bg-gray-800/40 hover:bg-gray-700/40 rounded-lg text-gray-500 hover:text-gray-300 transition border border-gray-700/20">Audit contracts</button>
           <button onclick="quickSend('Which stalled deals should we follow up on today?')" class="text-[11px] px-2.5 py-1 bg-gray-800/40 hover:bg-gray-700/40 rounded-lg text-gray-500 hover:text-gray-300 transition border border-gray-700/20">Recover deals</button>
@@ -91,35 +99,35 @@
       </div>
     </div>
 
-    <!-- Sidebar -->
-    <div id="sidebar" class="w-72 border-l border-gray-800/40 bg-[#0b0f1a] overflow-y-auto hidden lg:block fixed lg:static right-0 top-[57px] bottom-0 z-40">
-      <div class="p-4">
+    <!-- Right sidebar -->
+    <div id="sidebar" class="w-64 border-l border-gray-800/40 bg-[#0b0f1a] overflow-y-auto hidden lg:block shrink-0">
+      <div class="p-3">
         <!-- Profile -->
-        <div id="profile-section" class="mb-5">
-          <h3 class="text-[11px] font-semibold text-gray-500 uppercase tracking-wider mb-2">Business Profile</h3>
+        <div id="profile-section" class="mb-4">
+          <h3 class="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-2">Business Profile</h3>
           <div id="profile-body" class="text-xs text-gray-400 space-y-1"></div>
         </div>
 
         <!-- Critical reminders -->
-        <div id="critical-section" class="mb-5 hidden">
-          <h3 class="text-[11px] font-semibold text-red-400 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+        <div id="critical-section" class="mb-4 hidden">
+          <h3 class="text-[10px] font-semibold text-red-400 uppercase tracking-wider mb-2 flex items-center gap-1.5">
             <span class="w-2 h-2 bg-red-500 rounded-full animate-pulse"></span> Critical
           </h3>
           <div id="critical-body" class="space-y-1.5"></div>
         </div>
 
         <!-- Upcoming -->
-        <div id="upcoming-section" class="mb-5 hidden">
-          <h3 class="text-[11px] font-semibold text-amber-400 uppercase tracking-wider mb-2">Upcoming</h3>
+        <div id="upcoming-section" class="mb-4 hidden">
+          <h3 class="text-[10px] font-semibold text-amber-400 uppercase tracking-wider mb-2">Upcoming</h3>
           <div id="upcoming-body" class="space-y-1.5"></div>
         </div>
 
         <!-- Agents -->
-        <div class="mb-5">
-          <h3 class="text-[11px] font-semibold text-gray-500 uppercase tracking-wider mb-2">Your C-Suite</h3>
+        <div class="mb-4">
+          <h3 class="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-2">Your C-Suite</h3>
           <div class="space-y-1">
             <div class="flex items-center gap-2 text-xs"><span class="w-2 h-2 rounded-full bg-emerald-500"></span><span class="text-gray-400">CFO</span><span class="text-gray-600">Finance</span></div>
-            <div class="flex items-center gap-2 text-xs"><span class="w-2 h-2 rounded-full bg-blue-500"></span><span class="text-gray-400">COO</span><span class="text-gray-600">Operations</span></div>
+            <div class="flex items-center gap-2 text-xs"><span class="w-2 h-2 rounded-full bg-blue-500"></span><span class="text-gray-400">COO</span><span class="text-gray-600">Ops</span></div>
             <div class="flex items-center gap-2 text-xs"><span class="w-2 h-2 rounded-full bg-pink-500"></span><span class="text-gray-400">CMO</span><span class="text-gray-600">Marketing</span></div>
             <div class="flex items-center gap-2 text-xs"><span class="w-2 h-2 rounded-full bg-amber-500"></span><span class="text-gray-400">CLO</span><span class="text-gray-600">Legal</span></div>
             <div class="flex items-center gap-2 text-xs"><span class="w-2 h-2 rounded-full bg-cyan-500"></span><span class="text-gray-400">CHRO</span><span class="text-gray-600">People</span></div>
@@ -127,11 +135,12 @@
           </div>
         </div>
 
-        <!-- Vault -->
-        <div>
-          <h3 class="text-[11px] font-semibold text-gray-500 uppercase tracking-wider mb-2">Vault</h3>
+        <!-- Vault + Settings shortcut -->
+        <div class="mb-4">
+          <h3 class="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-2">Vault</h3>
           <p id="vault-stat" class="text-xs text-gray-600">0 chunks</p>
         </div>
+        <button onclick="openSettings()" class="w-full text-left px-3 py-2 bg-gray-800/30 hover:bg-gray-700/30 rounded-lg text-xs text-gray-400 hover:text-gray-200 transition border border-gray-700/20">Settings & Connectors</button>
       </div>
     </div>
   </div>
@@ -373,6 +382,7 @@ async function boot(){
     );
   }
   refreshSidebar();
+  loadSessions();
 }
 function toggleSidebar(){
   const s=document.getElementById('sidebar');
@@ -414,6 +424,49 @@ async function loadNotifications(){
 }
 
 boot();
+
+// ═══ SESSIONS ═══════════════════════════════════════════════
+let activeSessionId = '';
+
+async function loadSessions() {
+  try {
+    const res = await authFetch(API+'/sessions');
+    const data = await res.json();
+    activeSessionId = data.active || '';
+    const el = document.getElementById('sessions-list');
+    if (!el) return;
+    el.innerHTML = (data.sessions || []).map(s => {
+      const isActive = s.session_id === activeSessionId;
+      return `<button onclick="switchSession('${s.session_id}')" class="w-full text-left px-3 py-2 rounded-lg text-xs transition ${isActive ? 'bg-indigo-600/20 border border-indigo-500/20 text-white' : 'hover:bg-gray-800/40 text-gray-400 border border-transparent'}">
+        <p class="truncate font-medium">${s.pinned ? '&#128204; ' : ''}${s.title}</p>
+        <p class="text-[10px] text-gray-600 mt-0.5">${s.message_count} messages</p>
+      </button>`;
+    }).join('');
+  } catch(e) { console.error(e); }
+}
+
+async function createSession() {
+  const title = prompt('Conversation name:', 'New conversation');
+  if (!title) return;
+  await authFetch(API+'/sessions?title='+encodeURIComponent(title), {method:'POST'});
+  document.getElementById('chat-area').innerHTML = '';
+  await loadSessions();
+  addMessage('agent', `Started new conversation: **${title}**. What would you like to discuss?`);
+}
+
+async function switchSession(sid) {
+  await authFetch(API+'/sessions/'+sid+'/switch', {method:'POST'});
+  activeSessionId = sid;
+  document.getElementById('chat-area').innerHTML = '';
+  await loadSessions();
+  const res = await authFetch(API+'/history');
+  const msgs = await res.json();
+  if (msgs.length) {
+    for (const m of msgs) { addMessage(m.role, m.content, m.actions); }
+  } else {
+    addMessage('agent', 'This conversation is empty. What would you like to discuss?');
+  }
+}
 
 // ═══ SETTINGS & CONNECTORS ═══════════════════════════════════
 let allConnectorsCache = [];
