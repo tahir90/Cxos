@@ -173,6 +173,17 @@
 
 <script>
 const API='';
+const TOKEN = localStorage.getItem('cxo_token') || '';
+if (!TOKEN && !window.location.pathname.includes('login')) {
+  window.location.href = '/login';
+}
+function authHeaders() {
+  return {'Content-Type':'application/json','Authorization':'Bearer '+TOKEN};
+}
+function authFetch(url, opts={}) {
+  opts.headers = {...(opts.headers||{}), 'Authorization':'Bearer '+TOKEN};
+  return fetch(url, opts);
+}
 const ROLE_COLORS={agent:'indigo',cfo:'emerald',coo:'blue',cmo:'pink',clo:'amber',chro:'cyan',cso:'violet',system:'gray',user:'gray'};
 const ROLE_LABELS={agent:'Co-Founder',cfo:'CFO',coo:'COO',cmo:'CMO',clo:'CLO',chro:'CHRO',cso:'CSO',system:'System'};
 
@@ -228,7 +239,7 @@ async function sendMsg(){
   addMessage('user',msg);
   showTyping();
   try{
-    const res=await fetch(API+'/chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({message:msg})});
+    const res=await authFetch(API+'/chat',{method:'POST',headers:authHeaders(),body:JSON.stringify({message:msg})});
     const data=await res.json();
     hideTyping();
     for(const r of data.responses){addMessage(r.role,r.content,r.actions);}
@@ -244,7 +255,7 @@ async function uploadFile(input){
   showTyping();
   const form=new FormData();form.append('file',file);
   try{
-    const res=await fetch(API+'/upload',{method:'POST',body:form});
+    const res=await authFetch(API+'/upload',{method:'POST',body:form});
     const data=await res.json();
     hideTyping();
     for(const r of data.responses){addMessage(r.role,r.content,r.actions);}
@@ -256,7 +267,7 @@ async function uploadFile(input){
 async function getBriefing(){
   showTyping();
   try{
-    const res=await fetch(API+'/briefing');
+    const res=await authFetch(API+'/briefing');
     const data=await res.json();
     hideTyping();
     addMessage('agent',data.formatted);
@@ -268,7 +279,7 @@ async function seedData(){
   const btn=document.getElementById('seed-btn');
   btn.textContent='Loading...';btn.disabled=true;
   try{
-    await fetch(API+'/seed',{method:'POST'});
+    await authFetch(API+'/seed',{method:'POST'});
     btn.textContent='Loaded';btn.classList.replace('bg-indigo-600/80','bg-emerald-600/80');
     addMessage('system','9 business documents loaded into the vault: financial reports, contracts, sales pipeline, engineering roadmap, invoices, and marketing data. Your C-suite is ready.');
     refreshSidebar();
@@ -285,7 +296,7 @@ function hideTyping(){const el=document.getElementById('typing');if(el)el.remove
 async function refreshSidebar(){
   try{
     const [statusRes,profileRes,remindersRes]=await Promise.all([
-      fetch(API+'/status'),fetch(API+'/profile'),fetch(API+'/reminders')
+      authFetch(API+'/status'),authFetch(API+'/profile'),authFetch(API+'/reminders')
     ]);
     const status=await statusRes.json();
     const profile=await profileRes.json();
@@ -347,7 +358,7 @@ async function refreshSidebar(){
 
 // ── Boot ──
 async function boot(){
-  const res=await fetch(API+'/history');
+  const res=await authFetch(API+'/history');
   const msgs=await res.json();
   if(msgs.length){
     for(const m of msgs){addMessage(m.role,m.content,m.actions);}
@@ -377,7 +388,7 @@ function logout(){
 
 async function loadNotifications(){
   try{
-    const res=await fetch(API+'/notifications');
+    const res=await authFetch(API+'/notifications');
     const data=await res.json();
     const badge=document.getElementById('notif-badge');
     if(data.unread_count>0){
@@ -392,7 +403,7 @@ async function loadNotifications(){
         msg+=`${icon} **${n.title}**\n${n.message}\n\n`;
       });
       addMessage('system',msg);
-      fetch(API+'/notifications/read-all',{method:'POST'});
+      authFetch(API+'/notifications/read-all',{method:'POST'});
       setTimeout(()=>{
         document.getElementById('notif-badge').classList.add('hidden');
       },1000);
@@ -410,7 +421,7 @@ let allConnectorsCache = [];
 async function openSettings() {
   document.getElementById('settings-modal').classList.remove('hidden');
   const [connRes, liveRes] = await Promise.all([
-    fetch(API+'/connectors'), fetch(API+'/connect/status')
+    authFetch(API+'/connectors'), authFetch(API+'/connect/status')
   ]);
   allConnectorsCache = await connRes.json();
   const live = await liveRes.json();
@@ -477,7 +488,7 @@ async function openConnect(connectorId) {
   const body = document.getElementById('connect-body');
   body.innerHTML = '<div class="spinner"></div>';
 
-  const res = await fetch(API+'/connect/'+connectorId+'/setup');
+  const res = await authFetch(API+'/connect/'+connectorId+'/setup');
   const info = await res.json();
 
   if (info.status === 'not_implemented') {
@@ -518,9 +529,9 @@ async function doConnect(connectorId, fields) {
   const resEl = document.getElementById('connect-result');
   resEl.innerHTML = '<div class="flex items-center gap-2"><div class="spinner"></div><span class="text-xs text-gray-400">Testing connection...</span></div>';
 
-  const res = await fetch(API+'/connect/'+connectorId, {
+  const res = await authFetch(API+'/connect/'+connectorId, {
     method: 'POST',
-    headers: {'Content-Type':'application/json'},
+    headers: authHeaders(),
     body: JSON.stringify({credentials: creds}),
   });
   const data = await res.json();
@@ -540,7 +551,7 @@ async function doConnect(connectorId, fields) {
 }
 
 async function doDisconnect(connectorId) {
-  await fetch(API+'/connect/'+connectorId+'/disconnect', {method:'POST'});
+  await authFetch(API+'/connect/'+connectorId+'/disconnect', {method:'POST'});
   closeConnect();
   openSettings();
 }

@@ -11,7 +11,13 @@ from agentic_cxo.api.server import app
 
 @pytest.fixture
 def client():
-    return TestClient(app)
+    c = TestClient(app)
+    resp = c.post("/auth/login", json={
+        "email": "admin@cxo.ai", "password": "admin123"
+    })
+    token = resp.json().get("token", "")
+    c.headers["Authorization"] = f"Bearer {token}"
+    return c
 
 
 @pytest.fixture(autouse=True)

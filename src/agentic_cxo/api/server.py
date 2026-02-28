@@ -25,7 +25,7 @@ import logging
 from pathlib import Path
 from typing import Any
 
-from fastapi import FastAPI, HTTPException, UploadFile
+from fastapi import Depends, FastAPI, HTTPException, UploadFile
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
@@ -33,10 +33,12 @@ from sse_starlette.sse import EventSourceResponse
 
 from agentic_cxo.config import settings
 from agentic_cxo.conversation.agent import CoFounderAgent
-from agentic_cxo.infrastructure.auth import AuthManager
+from agentic_cxo.infrastructure.auth import AuthManager, get_current_user_dep
 from agentic_cxo.infrastructure.database import init_db
 from agentic_cxo.infrastructure.notifications import (
     NotificationManager,
+    NotificationPriority,
+    NotificationType,
 )
 from agentic_cxo.infrastructure.scheduler import (
     add_interval_job,
@@ -91,11 +93,19 @@ connector_registry = ConnectorRegistry()
 connector_manager = ConnectorManager()
 permission_manager = PermissionManager()
 auth_manager = AuthManager()
+auth_manager.ensure_admin()
 team_store = TeamStore()
 notification_manager = NotificationManager()
 usage_tracker = UsageTracker()
 
+get_current_user = get_current_user_dep(auth_manager)
+
 init_db()
+
+_logger.info(
+    "Admin user ready: %s / %s",
+    "admin@cxo.ai", "admin123",
+)
 
 
 @app.on_event("startup")
@@ -158,7 +168,7 @@ async def login(req: LoginRequest) -> dict[str, Any]:
 
 
 @app.get("/chat/stream")
-async def chat_stream(message: str):
+async def chat_stream(message: str, user=Depends(get_current_user)):
     """Stream LLM response token by token via Server-Sent Events."""
     assembled = agent.context_assembler.assemble(
         user_message=message, agent_role="Co-Founder"
@@ -230,8 +240,33 @@ async def login_page():
 # ── Chat ─────────────────────────────────────────────────────────
 
 @app.post("/chat")
-async def chat(req: ChatRequest) -> dict[str, Any]:
+async def chat(
+    req: ChatRequest, user=Depends(get_current_user)
+) -> dict[str, Any]:
+    usage_tracker.track("messages_sent")
     responses = agent.chat(req.message)
+    usage_tracker.track("messages_received", len(responses))
+
+    for r in responses:
+        if r.actions:
+            for a in r.actions:
+                if a.status == "pending_approval":
+                    notification_manager.notify(
+                        NotificationType.APPROVAL_NEEDED,
+                        f"Action needs approval: {a.action_type}",
+                        a.description[:200],
+                        NotificationPriority.HIGH,
+                        user.user_id,
+                    )
+        if r.metadata.get("type") == "pattern_alert":
+            notification_manager.notify(
+                NotificationType.PATTERN_WARNING,
+                "Pattern warning detected",
+                r.content[:200],
+                NotificationPriority.URGENT,
+                user.user_id,
+            )
+
     return {
         "responses": [
             {
@@ -247,7 +282,8 @@ async def chat(req: ChatRequest) -> dict[str, Any]:
 
 
 @app.post("/upload")
-async def upload(file: UploadFile) -> dict[str, Any]:
+async def upload(file: UploadFile, user=Depends(get_current_user)) -> dict[str, Any]:
+    usage_tracker.track("documents_ingested")
     content = await file.read()
     text = content.decode("utf-8", errors="replace")
     filename = file.filename or "upload.txt"
@@ -277,7 +313,7 @@ async def upload(file: UploadFile) -> dict[str, Any]:
 # ── Briefing ─────────────────────────────────────────────────────
 
 @app.get("/briefing")
-async def briefing() -> dict[str, Any]:
+async def briefing(user=Depends(get_current_user)) -> dict[str, Any]:
     b = agent.morning_briefing()
     return {
         "greeting": b.greeting,
@@ -301,7 +337,7 @@ async def briefing() -> dict[str, Any]:
 # ── Reminders ────────────────────────────────────────────────────
 
 @app.get("/reminders")
-async def reminders() -> dict[str, Any]:
+async def reminders(user=Depends(get_current_user)) -> dict[str, Any]:
     store = agent.reminder_store
     return {
         "active": [r.model_dump(mode="json") for r in store.active],
@@ -330,7 +366,7 @@ async def snooze_reminder(reminder_id: str, hours: int = 24) -> dict[str, Any]:
 # ── Profile ──────────────────────────────────────────────────────
 
 @app.get("/profile")
-async def profile() -> dict[str, Any]:
+async def profile(user=Depends(get_current_user)) -> dict[str, Any]:
     p = agent.profile_store.profile
     return {
         **p.model_dump(mode="json"),
@@ -342,7 +378,7 @@ async def profile() -> dict[str, Any]:
 # ── Status ───────────────────────────────────────────────────────
 
 @app.get("/status")
-async def status() -> dict[str, Any]:
+async def status(user=Depends(get_current_user)) -> dict[str, Any]:
     return {
         "vault_chunks": vault.count(),
         "messages": agent.memory.message_count,
@@ -362,7 +398,7 @@ async def status() -> dict[str, Any]:
 
 
 @app.get("/history")
-async def history(limit: int = 50) -> list[dict[str, Any]]:
+async def history(limit: int = 50, user=Depends(get_current_user)) -> list[dict[str, Any]]:
     msgs = agent.memory.recent(limit)
     return [
         {

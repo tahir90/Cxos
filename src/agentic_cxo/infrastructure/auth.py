@@ -166,6 +166,26 @@ class AuthManager:
         except JWTError:
             return None
 
+    def ensure_admin(self) -> User:
+        """Create default admin user if no users exist."""
+        if self.store.count == 0:
+            import os
+
+            admin_email = os.getenv("CXO_ADMIN_EMAIL", "admin@cxo.ai")
+            admin_pass = os.getenv("CXO_ADMIN_PASSWORD", "admin123")
+            admin_name = os.getenv("CXO_ADMIN_NAME", "Admin")
+            user = self.store.create(admin_email, admin_pass, admin_name)
+            user.role = "admin"
+            self.store.save()
+            logger.info(
+                "Admin user created: %s (password: %s)",
+                admin_email, admin_pass,
+            )
+            return user
+        return self.store.get_by_email(
+            list(self.store._users.keys())[0]
+        )
+
     @staticmethod
     def _create_token(user: User) -> str:
         expire = datetime.now(timezone.utc) + timedelta(
@@ -176,3 +196,23 @@ class AuthManager:
             SECRET_KEY,
             algorithm=ALGORITHM,
         )
+
+
+def get_current_user_dep(auth_manager: AuthManager):
+    """Create a FastAPI dependency that verifies JWT tokens."""
+    from fastapi import Depends, HTTPException
+    from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+
+    security = HTTPBearer(auto_error=False)
+
+    async def get_current_user(
+        credentials: HTTPAuthorizationCredentials | None = Depends(security),
+    ) -> User:
+        if not credentials or not credentials.credentials:
+            raise HTTPException(401, "Not authenticated")
+        user = auth_manager.verify_token(credentials.credentials)
+        if not user:
+            raise HTTPException(401, "Invalid or expired token")
+        return user
+
+    return get_current_user
