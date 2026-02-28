@@ -130,6 +130,30 @@ DEFAULT_JOBS = [
             "1.0x for immediate pausing. Recommend budget reallocation."
         ),
     ),
+    ScheduledJob(
+        job_id="weekly-ads-audit",
+        name="Ads Health Audit",
+        description="Score all ad platforms against 190+ checks",
+        frequency="weekly",
+        agent_role="CMO",
+        action_template=(
+            "Run an ads audit across all connected ad platforms. "
+            "Score each platform, flag critical issues, and identify "
+            "quick wins. Report findings in the morning briefing."
+        ),
+    ),
+    ScheduledJob(
+        job_id="monthly-seo-audit",
+        name="SEO Health Audit",
+        description="Audit website SEO health and track improvements",
+        frequency="monthly",
+        agent_role="CMO",
+        action_template=(
+            "Run an SEO audit on the company's primary website. "
+            "Check technical SEO, content quality, schema markup, "
+            "and AI search readiness. Compare with last month's score."
+        ),
+    ),
 ]
 
 
