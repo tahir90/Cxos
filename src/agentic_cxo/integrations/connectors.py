@@ -50,6 +50,9 @@ class ConnectorCategory(str, Enum):
     CUSTOMER_SUPPORT = "customer_support"
     ECOMMERCE = "ecommerce"
     SECURITY = "security"
+    PIM = "pim"
+    INVENTORY_WMS = "inventory_wms"
+    SUPPLY_CHAIN = "supply_chain"
 
 
 @dataclass
@@ -1431,11 +1434,198 @@ ALL_CONNECTORS: list[Connector] = [
         icon="IC",
     ),
 
-    # ── Shipping / Logistics ─────────────────────────────────
+    # ── Supply Chain / Logistics ─────────────────────────────
+    Connector(
+        "flexport", "Flexport",
+        "Global freight forwarding, customs, supply chain visibility",
+        ConnectorCategory.SUPPLY_CHAIN, ["COO"],
+        ["FLEXPORT_API_KEY"],
+        data_provided=[
+            "shipments", "tracking", "customs",
+            "invoices", "carbon_emissions",
+        ],
+        icon="FP",
+    ),
+
+    # ── PIM (Product Information Management) ─────────────────
+    Connector(
+        "akeneo", "Akeneo",
+        "Product information management: catalog, attributes, assets, channels",
+        ConnectorCategory.PIM, ["CMO", "COO"],
+        ["AKENEO_URL", "AKENEO_CLIENT_ID", "AKENEO_SECRET"],
+        data_provided=[
+            "products", "families", "attributes", "categories",
+            "assets", "channels", "locales", "completeness",
+        ],
+        icon="AK",
+    ),
+    Connector(
+        "salsify", "Salsify",
+        "Product experience management: PIM, DAM, syndication",
+        ConnectorCategory.PIM, ["CMO", "COO"],
+        ["SALSIFY_API_KEY", "SALSIFY_ORG_ID"],
+        data_provided=[
+            "products", "digital_assets", "channels",
+            "syndication", "enrichment_score",
+        ],
+        icon="SL",
+    ),
+    Connector(
+        "pimcore", "Pimcore",
+        "Open-source PIM, MDM, DAM, and digital experience platform",
+        ConnectorCategory.PIM, ["CMO", "COO"],
+        ["PIMCORE_URL", "PIMCORE_API_KEY"],
+        data_provided=[
+            "products", "assets", "documents",
+            "classifications", "data_quality",
+        ],
+        icon="PM",
+    ),
+    Connector(
+        "inriver", "inRiver",
+        "Product marketing cloud: PIM, digital shelf, syndication",
+        ConnectorCategory.PIM, ["CMO"],
+        ["INRIVER_URL", "INRIVER_API_KEY"],
+        data_provided=[
+            "products", "resources", "channels",
+            "syndication", "completeness",
+        ],
+        icon="IR",
+    ),
+    Connector(
+        "plytix", "Plytix",
+        "PIM for SMBs: product data, channels, brand portals",
+        ConnectorCategory.PIM, ["CMO", "COO"],
+        ["PLYTIX_API_KEY"],
+        data_provided=["products", "channels", "brand_portals", "analytics"],
+        icon="PX",
+    ),
+    Connector(
+        "syndigo", "Syndigo (Riversand)",
+        "Master data management, product content, syndication to retailers",
+        ConnectorCategory.PIM, ["CMO", "COO"],
+        ["SYNDIGO_API_KEY"],
+        data_provided=[
+            "products", "master_data", "content",
+            "syndication", "retailer_compliance",
+        ],
+        icon="SY",
+    ),
+    Connector(
+        "contentserv", "Contentserv",
+        "Product experience platform: PIM, MDM, marketing portal",
+        ConnectorCategory.PIM, ["CMO"],
+        ["CONTENTSERV_URL", "CONTENTSERV_API_KEY"],
+        data_provided=["products", "marketing_content", "channels", "portals"],
+        icon="CS",
+    ),
+
+    # ── Inventory & Warehouse Management ─────────────────────
+    Connector(
+        "skubana", "Extensiv (Skubana)",
+        "Multi-channel inventory, order, and warehouse management",
+        ConnectorCategory.INVENTORY_WMS, ["COO", "CFO"],
+        ["SKUBANA_API_KEY"],
+        data_provided=[
+            "inventory_levels", "sku_management", "warehouses",
+            "orders", "purchase_orders", "demand_forecasting",
+        ],
+        icon="SK",
+    ),
+    Connector(
+        "cin7", "Cin7",
+        "Inventory management, POS, B2B, warehouse, 3PL",
+        ConnectorCategory.INVENTORY_WMS, ["COO", "CFO"],
+        ["CIN7_API_KEY"],
+        data_provided=[
+            "stock_levels", "products", "warehouses",
+            "purchase_orders", "sales_orders", "bom",
+        ],
+        icon="C7",
+    ),
+    Connector(
+        "ordoro", "Ordoro",
+        "Inventory management, dropshipping, shipping, supplier management",
+        ConnectorCategory.INVENTORY_WMS, ["COO"],
+        ["ORDORO_API_KEY"],
+        data_provided=[
+            "inventory", "suppliers", "dropship",
+            "shipping", "purchase_orders",
+        ],
+        icon="OR",
+    ),
+    Connector(
+        "fishbowl", "Fishbowl",
+        "Inventory management and warehouse for QuickBooks",
+        ConnectorCategory.INVENTORY_WMS, ["COO", "CFO"],
+        ["FISHBOWL_HOST", "FISHBOWL_USER", "FISHBOWL_PASS"],
+        data_provided=[
+            "inventory", "warehouses", "manufacturing",
+            "pick_pack_ship", "barcoding",
+        ],
+        icon="FB",
+    ),
+    Connector(
+        "logiwa", "Logiwa",
+        "Cloud WMS: fulfillment, inventory, warehouse automation",
+        ConnectorCategory.INVENTORY_WMS, ["COO"],
+        ["LOGIWA_API_KEY"],
+        data_provided=[
+            "inventory", "warehouses", "fulfillment",
+            "picking", "packing", "shipping",
+        ],
+        icon="LW",
+    ),
+    Connector(
+        "shiphero", "ShipHero",
+        "Warehouse management, inventory, pick-pack-ship",
+        ConnectorCategory.INVENTORY_WMS, ["COO"],
+        ["SHIPHERO_API_KEY"],
+        data_provided=[
+            "inventory", "orders", "warehouses",
+            "shipping", "returns",
+        ],
+        icon="SH",
+    ),
+    Connector(
+        "dear_inventory", "Cin7 Core (DEAR Inventory)",
+        "Inventory, manufacturing, B2B portal, integrations",
+        ConnectorCategory.INVENTORY_WMS, ["COO", "CFO"],
+        ["DEAR_ACCOUNT_ID", "DEAR_APPLICATION_KEY"],
+        data_provided=[
+            "stock_levels", "purchase_orders", "sale_orders",
+            "manufacturing", "bom", "stocktake",
+        ],
+        icon="DI",
+    ),
+    Connector(
+        "tradegecko", "QuickBooks Commerce (TradeGecko)",
+        "Inventory and order management for SMBs",
+        ConnectorCategory.INVENTORY_WMS, ["COO", "CFO"],
+        ["QBC_API_KEY"],
+        data_provided=[
+            "products", "variants", "stock_levels",
+            "orders", "purchase_orders",
+        ],
+        icon="TG",
+    ),
+    Connector(
+        "brightpearl", "Sage Brightpearl",
+        "Retail operations platform: inventory, orders, accounting, POS",
+        ConnectorCategory.INVENTORY_WMS, ["COO", "CFO"],
+        ["BRIGHTPEARL_ACCOUNT", "BRIGHTPEARL_API_KEY"],
+        data_provided=[
+            "inventory", "orders", "purchasing",
+            "accounting", "warehouses", "demand_planning",
+        ],
+        icon="BP",
+    ),
+
+    # ── Supply Chain ─────────────────────────────────────────
     Connector(
         "shipstation", "ShipStation",
         "Multi-carrier shipping, order management, automation",
-        ConnectorCategory.OPERATIONS, ["COO"],
+        ConnectorCategory.SUPPLY_CHAIN, ["COO"],
         ["SHIPSTATION_API_KEY", "SHIPSTATION_API_SECRET"],
         data_provided=[
             "orders", "shipments", "carriers",
@@ -1444,15 +1634,57 @@ ALL_CONNECTORS: list[Connector] = [
         icon="SS",
     ),
     Connector(
-        "flexport", "Flexport",
-        "Global freight forwarding, customs, supply chain visibility",
-        ConnectorCategory.OPERATIONS, ["COO"],
-        ["FLEXPORT_API_KEY"],
+        "easypost", "EasyPost",
+        "Shipping API: rates, labels, tracking across carriers",
+        ConnectorCategory.SUPPLY_CHAIN, ["COO"],
+        ["EASYPOST_API_KEY"],
+        data_provided=["rates", "labels", "tracking", "insurance"],
+        icon="EP",
+    ),
+    Connector(
+        "project44", "project44",
+        "Supply chain visibility: real-time tracking, ETA predictions",
+        ConnectorCategory.SUPPLY_CHAIN, ["COO"],
+        ["P44_CLIENT_ID", "P44_CLIENT_SECRET"],
         data_provided=[
-            "shipments", "tracking", "customs",
-            "invoices", "carbon_emissions",
+            "shipment_tracking", "eta_predictions",
+            "carrier_performance", "exceptions",
         ],
-        icon="FP",
+        icon="P44",
+    ),
+    Connector(
+        "fourkites", "FourKites",
+        "Real-time supply chain visibility and predictive analytics",
+        ConnectorCategory.SUPPLY_CHAIN, ["COO"],
+        ["FOURKITES_API_KEY"],
+        data_provided=[
+            "tracking", "dwell_time", "eta",
+            "carrier_scorecards", "yard_visibility",
+        ],
+        icon="4K",
+    ),
+    Connector(
+        "oracle_scm", "Oracle SCM Cloud",
+        "Supply chain management: planning, manufacturing, logistics",
+        ConnectorCategory.SUPPLY_CHAIN, ["COO"],
+        ["ORACLE_SCM_URL", "ORACLE_SCM_CLIENT_ID", "ORACLE_SCM_CLIENT_SECRET"],
+        oauth=True,
+        data_provided=[
+            "demand_planning", "supply_planning", "manufacturing",
+            "order_management", "logistics", "procurement",
+        ],
+        icon="OSCM",
+    ),
+    Connector(
+        "sap_ibp", "SAP Integrated Business Planning",
+        "Demand planning, inventory optimization, supply planning",
+        ConnectorCategory.SUPPLY_CHAIN, ["COO", "CFO"],
+        ["SAP_IBP_URL", "SAP_IBP_CLIENT_ID", "SAP_IBP_CLIENT_SECRET"],
+        data_provided=[
+            "demand_forecast", "inventory_optimization",
+            "supply_planning", "sales_ops_planning",
+        ],
+        icon="IBP",
     ),
 ]
 
