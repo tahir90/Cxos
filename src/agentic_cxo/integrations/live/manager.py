@@ -15,6 +15,7 @@ from __future__ import annotations
 import logging
 from typing import Any
 
+from agentic_cxo.integrations.live.ads_clients import GoogleAdsClient, MetaAdsClient
 from agentic_cxo.integrations.live.analytics_clients import (
     AmplitudeClient,
     AvalaraClient,
@@ -22,6 +23,11 @@ from agentic_cxo.integrations.live.analytics_clients import (
     MixpanelClient,
     WebhooksClient,
     ZendeskClient,
+)
+from agentic_cxo.integrations.live.appstore_clients import (
+    AppleAppStoreClient,
+    FirebaseClient,
+    GooglePlayClient,
 )
 from agentic_cxo.integrations.live.base import (
     BaseConnectorClient,
@@ -34,6 +40,7 @@ from agentic_cxo.integrations.live.drive_client import (
     GoogleDriveClient,
     OneDriveClient,
 )
+from agentic_cxo.integrations.live.ga4_client import GA4Client
 from agentic_cxo.integrations.live.github_client import (
     BitbucketClient,
     GitHubClient,
@@ -42,6 +49,8 @@ from agentic_cxo.integrations.live.gmail_client import GmailClient
 from agentic_cxo.integrations.live.hubspot_client import HubSpotClient
 from agentic_cxo.integrations.live.jira_client import JiraClient
 from agentic_cxo.integrations.live.notion_client import NotionClient
+from agentic_cxo.integrations.live.quickbooks_client import QuickBooksClient
+from agentic_cxo.integrations.live.salesforce_client import SalesforceClient
 from agentic_cxo.integrations.live.shopify_client import ShopifyClient
 from agentic_cxo.integrations.live.slack_client import SlackClient
 from agentic_cxo.integrations.live.stripe_client import StripeClient
@@ -57,7 +66,7 @@ LIVE_CLIENTS: dict[str, BaseConnectorClient] = {
     "bitbucket": BitbucketClient(),
     "google_drive": GoogleDriveClient(),
     "onedrive": OneDriveClient(),
-    # Tier 1 (12 new)
+    # Tier 1 (12)
     "gmail": GmailClient(),
     "hubspot": HubSpotClient(),
     "jira": JiraClient(),
@@ -70,6 +79,15 @@ LIVE_CLIENTS: dict[str, BaseConnectorClient] = {
     "intercom": IntercomClient(),
     "avalara": AvalaraClient(),
     "webhooks": WebhooksClient(),
+    # Tier 2 (7)
+    "ga4": GA4Client(),
+    "google_ads": GoogleAdsClient(),
+    "meta_ads": MetaAdsClient(),
+    "salesforce": SalesforceClient(),
+    "quickbooks": QuickBooksClient(),
+    "apple_app_store": AppleAppStoreClient(),
+    "google_play": GooglePlayClient(),
+    "firebase": FirebaseClient(),
 }
 
 
