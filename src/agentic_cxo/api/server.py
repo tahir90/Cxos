@@ -232,6 +232,11 @@ async def dashboard():
     return FileResponse(str(STATIC_DIR / "index.html"))
 
 
+@app.get("/welcome")
+async def landing_page():
+    return FileResponse(str(STATIC_DIR / "landing.html"))
+
+
 @app.get("/login")
 async def login_page():
     return FileResponse(str(STATIC_DIR / "login.html"))

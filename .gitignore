@@ -6,6 +6,10 @@ dist/
 build/
 .vault/
 .env
+.env.production
 .pytest_cache/
 .ruff_cache/
 *.egg
+.cxo_data/
+cxo.db
+*.db
