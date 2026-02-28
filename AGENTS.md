@@ -18,6 +18,14 @@ Agentic CXO is a Python FastAPI application — an AI-driven C-suite agent platf
 
 See `README.md` for full CLI and REST API usage.
 
+### URL structure
+
+| URL | What It Is |
+|-----|-----------|
+| `/welcome` | Landing page — pricing, features, CTA |
+| `/login` | Signup / signin page (JWT auth) |
+| `/` | Chat dashboard (requires auth — redirects to `/login` if no token in localStorage) |
+
 ### Non-obvious caveats
 
 - The `cxo` CLI and other pip-installed scripts land in `~/.local/bin`. Ensure `PATH` includes `$HOME/.local/bin` (or use `uvicorn` / `pytest` via full path).
@@ -26,3 +34,6 @@ See `README.md` for full CLI and REST API usage.
 - Scenarios are exposed via the REST API at `POST /scenarios/<id>/run` and the CLI (`cxo run <id>`). The web dashboard is chat-first; use API/CLI to trigger specific scenarios.
 - `POST /seed` loads 9 sample business documents into the vault for testing/demo purposes.
 - `asyncio_mode = "auto"` is configured in `pyproject.toml`, so async test functions are handled automatically by `pytest-asyncio`.
+- Auth is client-side enforced: `/` checks for `cxo_token` in `localStorage` and redirects to `/login`. The signup/login forms call `/auth/signup` and `/auth/login` to obtain JWTs.
+- Deployment: `Procfile` (Railway), `Dockerfile`, and `fly.toml` (Fly.io) are included. Set `OPENAI_API_KEY` and `CXO_ADMIN_PASSWORD` as environment variables in the deploy platform.
+- `CXO_JWT_SECRET` env var overrides the default JWT signing key (important for production).
