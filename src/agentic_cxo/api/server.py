@@ -33,6 +33,7 @@ from pydantic import BaseModel
 from agentic_cxo.config import settings
 from agentic_cxo.conversation.agent import CoFounderAgent
 from agentic_cxo.integrations.connectors import ConnectorRegistry
+from agentic_cxo.integrations.live.manager import ConnectorManager
 from agentic_cxo.integrations.permissions import PermissionChoice, PermissionManager
 from agentic_cxo.memory.vault import ContextVault
 from agentic_cxo.pipeline.enricher import MetadataEnricher
@@ -73,6 +74,7 @@ agent = CoFounderAgent(vault=vault, refinery=refinery, use_llm=HAS_LLM)
 analyst = ScenarioAnalyst(vault=vault, use_llm=HAS_LLM)
 scenario_engine = ScenarioEngine(vault=vault)
 connector_registry = ConnectorRegistry()
+connector_manager = ConnectorManager()
 permission_manager = PermissionManager()
 
 SAMPLE_DOCS = [
@@ -476,6 +478,7 @@ async def get_settings() -> dict[str, Any]:
             "model": settings.llm.model,
         },
         "connectors": connector_registry.summary(),
+        "live_connectors": connector_manager.get_status(),
         "permissions": permission_manager.get_rules_summary(),
         "profile": agent.profile_store.profile.model_dump(mode="json"),
         "jobs": len(agent.job_scheduler.all_jobs),
@@ -484,3 +487,99 @@ async def get_settings() -> dict[str, Any]:
             "vendor_due_diligence", "travel_analyzer",
         ],
     }
+
+
+# ── Live Connector Wizard ────────────────────────────────────────
+
+@app.get("/connect/{connector_id}/setup")
+async def connector_setup(connector_id: str) -> dict[str, Any]:
+    """Get setup info for a connector — what credentials are needed."""
+    info = connector_manager.get_setup_info(connector_id)
+    if info is None:
+        registry_entry = connector_registry.get(connector_id)
+        if registry_entry:
+            return {
+                "connector_id": connector_id,
+                "name": registry_entry.name,
+                "status": "not_implemented",
+                "message": (
+                    f"{registry_entry.name} is defined but doesn't have "
+                    "a live integration yet. Set environment variables "
+                    f"({', '.join(registry_entry.env_vars)}) to use it."
+                ),
+                "env_vars": registry_entry.env_vars,
+            }
+        raise HTTPException(404, f"Connector '{connector_id}' not found")
+    return info
+
+
+class ConnectRequest(BaseModel):
+    credentials: dict[str, str]
+
+
+@app.post("/connect/{connector_id}")
+async def connect_connector(
+    connector_id: str, body: ConnectRequest
+) -> dict[str, Any]:
+    """Test credentials and connect a connector."""
+    result = connector_manager.connect(connector_id, body.credentials)
+    return {
+        "connector_id": connector_id,
+        "success": result.success,
+        "message": result.message,
+        "details": result.details,
+    }
+
+
+@app.post("/connect/{connector_id}/disconnect")
+async def disconnect_connector(connector_id: str) -> dict[str, Any]:
+    connector_manager.disconnect(connector_id)
+    return {"connector_id": connector_id, "status": "disconnected"}
+
+
+@app.get("/connect/{connector_id}/fetch/{data_type}")
+async def fetch_connector_data(
+    connector_id: str,
+    data_type: str,
+    repo: str = "",
+    org: str = "",
+    query: str = "",
+    channel: str = "",
+    workspace: str = "",
+    path: str = "/",
+    file_id: str = "",
+    item_id: str = "",
+) -> dict[str, Any]:
+    """Fetch live data from a connected connector."""
+    kwargs: dict[str, Any] = {}
+    if repo:
+        kwargs["repo"] = repo
+    if org:
+        kwargs["org"] = org
+    if query:
+        kwargs["query"] = query
+    if channel:
+        kwargs["channel"] = channel
+    if workspace:
+        kwargs["workspace"] = workspace
+    if path != "/":
+        kwargs["path"] = path
+    if file_id:
+        kwargs["file_id"] = file_id
+    if item_id:
+        kwargs["item_id"] = item_id
+
+    data = connector_manager.fetch_data(connector_id, data_type, **kwargs)
+    return {
+        "connector_id": data.connector_id,
+        "data_type": data.data_type,
+        "records": data.records[:100],
+        "summary": data.summary,
+        "error": data.error,
+        "fetched_at": data.fetched_at,
+    }
+
+
+@app.get("/connect/status")
+async def live_connector_status() -> dict[str, Any]:
+    return connector_manager.get_status()
