@@ -29,9 +29,18 @@ from fastapi import FastAPI, HTTPException, UploadFile
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
+from sse_starlette.sse import EventSourceResponse
 
 from agentic_cxo.config import settings
 from agentic_cxo.conversation.agent import CoFounderAgent
+from agentic_cxo.infrastructure.auth import AuthManager
+from agentic_cxo.infrastructure.database import init_db
+from agentic_cxo.infrastructure.scheduler import (
+    add_interval_job,
+    start_scheduler,
+    stop_scheduler,
+)
+from agentic_cxo.infrastructure.streaming import stream_chat_response
 from agentic_cxo.integrations.connectors import ConnectorRegistry
 from agentic_cxo.integrations.live.manager import ConnectorManager
 from agentic_cxo.integrations.permissions import PermissionChoice, PermissionManager
@@ -76,6 +85,84 @@ scenario_engine = ScenarioEngine(vault=vault)
 connector_registry = ConnectorRegistry()
 connector_manager = ConnectorManager()
 permission_manager = PermissionManager()
+auth_manager = AuthManager()
+
+init_db()
+
+
+@app.on_event("startup")
+async def on_startup():
+    start_scheduler()
+    add_interval_job(
+        "auto_check_due_jobs", _run_due_jobs_background, hours=1
+    )
+    _logger.info("Background scheduler started with hourly job check")
+
+
+@app.on_event("shutdown")
+async def on_shutdown():
+    stop_scheduler()
+
+
+def _run_due_jobs_background():
+    """Background function for scheduled jobs."""
+    due = agent.job_scheduler.due_jobs
+    for job in due:
+        try:
+            agent.chat(job.action_template)
+            agent.job_scheduler.mark_run(job.job_id)
+            _logger.info("Auto-ran job: %s", job.name)
+        except Exception as e:
+            _logger.error("Job %s failed: %s", job.name, e)
+
+
+# ── Auth endpoints ───────────────────────────────────────────────
+
+
+class SignupRequest(BaseModel):
+    email: str
+    password: str
+    name: str = ""
+
+
+class LoginRequest(BaseModel):
+    email: str
+    password: str
+
+
+@app.post("/auth/signup")
+async def signup(req: SignupRequest) -> dict[str, Any]:
+    result = auth_manager.signup(req.email, req.password, req.name)
+    if "error" in result:
+        raise HTTPException(400, result["error"])
+    return result
+
+
+@app.post("/auth/login")
+async def login(req: LoginRequest) -> dict[str, Any]:
+    result = auth_manager.login(req.email, req.password)
+    if "error" in result:
+        raise HTTPException(401, result["error"])
+    return result
+
+
+# ── Streaming chat endpoint ──────────────────────────────────────
+
+
+@app.get("/chat/stream")
+async def chat_stream(message: str):
+    """Stream LLM response token by token via Server-Sent Events."""
+    assembled = agent.context_assembler.assemble(
+        user_message=message, agent_role="Co-Founder"
+    )
+    return EventSourceResponse(
+        stream_chat_response(
+            system_prompt=assembled.system_prompt,
+            user_message=assembled.user_message,
+            agent_role="agent",
+        )
+    )
+
 
 SAMPLE_DOCS = [
     ("quarterly_report.pdf",
