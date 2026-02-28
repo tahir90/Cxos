@@ -251,9 +251,17 @@ async function sendMsg(){
     const res=await authFetch(API+'/chat',{method:'POST',headers:authHeaders(),body:JSON.stringify({message:msg})});
     const data=await res.json();
     hideTyping();
-    for(const r of data.responses){addMessage(r.role,r.content,r.actions);}
+    if(data.responses && Array.isArray(data.responses)){
+      for(const r of data.responses){addMessage(r.role,r.content,r.actions);}
+    } else if(data.detail){
+      addMessage('system','Error: '+data.detail);
+    } else {
+      addMessage('system','Unexpected response. Check server logs.');
+      console.error('Chat response:', data);
+    }
     refreshSidebar();
-  }catch(e){hideTyping();addMessage('system','Connection error: '+e.message);}
+    loadSessions();
+  }catch(e){hideTyping();addMessage('system','Connection error: '+e.message);console.error(e);}
 }
 
 function quickSend(msg){document.getElementById('msg-input').value=msg;sendMsg();}
@@ -267,7 +275,11 @@ async function uploadFile(input){
     const res=await authFetch(API+'/upload',{method:'POST',body:form});
     const data=await res.json();
     hideTyping();
-    for(const r of data.responses){addMessage(r.role,r.content,r.actions);}
+    if(data.responses && Array.isArray(data.responses)){
+      for(const r of data.responses){addMessage(r.role,r.content,r.actions);}
+    } else if(data.detail){
+      addMessage('system','Error: '+data.detail);
+    }
     refreshSidebar();
   }catch(e){hideTyping();addMessage('system','Upload error: '+e.message);}
   input.value='';

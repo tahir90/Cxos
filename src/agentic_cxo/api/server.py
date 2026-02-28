@@ -22,6 +22,7 @@ Chat-first API: the founder talks, the AI co-founder routes to CXO agents.
 from __future__ import annotations
 
 import logging
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -250,42 +251,60 @@ async def login_page():
 async def chat(
     req: ChatRequest, user=Depends(get_current_user)
 ) -> dict[str, Any]:
-    usage_tracker.track("messages_sent")
-    responses = agent.chat(req.message)
-    usage_tracker.track("messages_received", len(responses))
+    try:
+        usage_tracker.track("messages_sent")
+        responses = agent.chat(req.message)
+        usage_tracker.track("messages_received", len(responses))
 
-    for r in responses:
-        if r.actions:
-            for a in r.actions:
-                if a.status == "pending_approval":
+        for r in responses:
+            try:
+                if r.actions:
+                    for a in r.actions:
+                        if a.status == "pending_approval":
+                            notification_manager.notify(
+                                NotificationType.APPROVAL_NEEDED,
+                                f"Action needs approval: {a.action_type}",
+                                a.description[:200],
+                                NotificationPriority.HIGH,
+                                user.user_id,
+                            )
+                if r.metadata.get("type") == "pattern_alert":
                     notification_manager.notify(
-                        NotificationType.APPROVAL_NEEDED,
-                        f"Action needs approval: {a.action_type}",
-                        a.description[:200],
-                        NotificationPriority.HIGH,
+                        NotificationType.PATTERN_WARNING,
+                        "Pattern warning detected",
+                        r.content[:200],
+                        NotificationPriority.URGENT,
                         user.user_id,
                     )
-        if r.metadata.get("type") == "pattern_alert":
-            notification_manager.notify(
-                NotificationType.PATTERN_WARNING,
-                "Pattern warning detected",
-                r.content[:200],
-                NotificationPriority.URGENT,
-                user.user_id,
-            )
+            except Exception:
+                pass
 
-    return {
-        "responses": [
-            {
-                "role": r.role.value,
-                "content": r.content,
-                "actions": [a.model_dump() for a in r.actions],
-                "metadata": r.metadata,
-                "timestamp": r.timestamp.isoformat(),
-            }
-            for r in responses
-        ]
-    }
+        return {
+            "responses": [
+                {
+                    "role": r.role.value,
+                    "content": r.content,
+                    "actions": [a.model_dump() for a in r.actions],
+                    "metadata": r.metadata,
+                    "timestamp": r.timestamp.isoformat(),
+                }
+                for r in responses
+            ]
+        }
+    except Exception as e:
+        _logger.error("Chat error: %s", e, exc_info=True)
+        return {
+            "responses": [
+                {
+                    "role": "system",
+                    "content": f"Something went wrong: {str(e)[:200]}. "
+                    "Please try again.",
+                    "actions": [],
+                    "metadata": {},
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
+                }
+            ]
+        }
 
 
 @app.post("/upload")
