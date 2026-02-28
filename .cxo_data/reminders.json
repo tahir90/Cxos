@@ -1,0 +1,80 @@
+[
+  {
+    "reminder_id": "908962f2bdd5",
+    "title": "Deadline: December 15, 2026",
+    "description": "ment: Net 30. Non-compete: 12 months. Liability cap: $500k. Expiration: December 15, 2026.",
+    "due_date": "2026-12-15T00:00:00Z",
+    "priority": "critical",
+    "source": "document",
+    "source_detail": "vendor_contracts.pdf",
+    "completed": false,
+    "snoozed_until": null,
+    "created_at": "2026-02-28T10:22:32.561237Z",
+    "assigned_to": null
+  },
+  {
+    "reminder_id": "ec2dd3c785f4",
+    "title": "Auto-renewal clause detected",
+    "description": "Found in: vendor_contracts.pdf",
+    "due_date": "2026-03-30T10:22:32.559718Z",
+    "priority": "high",
+    "source": "contract_scan",
+    "source_detail": "vendor_contracts.pdf",
+    "completed": false,
+    "snoozed_until": null,
+    "created_at": "2026-02-28T10:22:32.561689Z",
+    "assigned_to": null
+  },
+  {
+    "reminder_id": "d604311b3371",
+    "title": "Deadline: June 1, 2026",
+    "description": "3 2026: Webhook API v2 (planned). Q4 2026: ZK-proof module. Deadline: June 1, 2026 for California AI Transparency Act compliance.",
+    "due_date": "2026-06-01T00:00:00Z",
+    "priority": "high",
+    "source": "document",
+    "source_detail": "engineering_roadmap.md",
+    "completed": false,
+    "snoozed_until": null,
+    "created_at": "2026-02-28T10:22:32.934190Z",
+    "assigned_to": null
+  },
+  {
+    "reminder_id": "99f3b01c89a6",
+    "title": "Deadline: December 15, 2026",
+    "description": "ment: Net 30. Non-compete: 12 months. Liability cap: $500k. Expiration: December 15, 2026.",
+    "due_date": "2026-12-15T00:00:00Z",
+    "priority": "critical",
+    "source": "document",
+    "source_detail": "vendor_contracts.pdf",
+    "completed": false,
+    "snoozed_until": null,
+    "created_at": "2026-02-28T10:24:41.099366Z",
+    "assigned_to": null
+  },
+  {
+    "reminder_id": "9751ca7dc59d",
+    "title": "Auto-renewal clause detected",
+    "description": "Found in: vendor_contracts.pdf",
+    "due_date": "2026-03-30T10:24:41.099081Z",
+    "priority": "high",
+    "source": "contract_scan",
+    "source_detail": "vendor_contracts.pdf",
+    "completed": false,
+    "snoozed_until": null,
+    "created_at": "2026-02-28T10:24:41.100033Z",
+    "assigned_to": null
+  },
+  {
+    "reminder_id": "7f0e7b9ed7a4",
+    "title": "Deadline: June 1, 2026",
+    "description": "3 2026: Webhook API v2 (planned). Q4 2026: ZK-proof module. Deadline: June 1, 2026 for California AI Transparency Act compliance.",
+    "due_date": "2026-06-01T00:00:00Z",
+    "priority": "high",
+    "source": "document",
+    "source_detail": "engineering_roadmap.md",
+    "completed": false,
+    "snoozed_until": null,
+    "created_at": "2026-02-28T10:24:41.682759Z",
+    "assigned_to": null
+  }
+]
