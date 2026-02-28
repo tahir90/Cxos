@@ -51,6 +51,7 @@ from agentic_cxo.infrastructure.teams import TeamRole, TeamStore
 from agentic_cxo.infrastructure.usage import UsageTracker
 from agentic_cxo.integrations.connectors import ConnectorRegistry
 from agentic_cxo.integrations.live.manager import ConnectorManager
+from agentic_cxo.integrations.oauth import OAuthManager
 from agentic_cxo.integrations.permissions import PermissionChoice, PermissionManager
 from agentic_cxo.memory.vault import ContextVault
 from agentic_cxo.pipeline.enricher import MetadataEnricher
@@ -93,6 +94,7 @@ scenario_engine = ScenarioEngine(vault=vault)
 connector_registry = ConnectorRegistry()
 connector_manager = ConnectorManager()
 permission_manager = PermissionManager()
+oauth_manager = OAuthManager()
 auth_manager = AuthManager()
 auth_manager.ensure_admin()
 team_store = TeamStore()
@@ -870,3 +872,60 @@ async def delete_session(
 ) -> dict[str, str]:
     agent.session_manager.delete(session_id)
     return {"status": "deleted"}
+
+
+# ── OAuth2 Flows ─────────────────────────────────────────────────
+
+@app.get("/oauth/providers")
+async def oauth_providers() -> list[dict[str, Any]]:
+    """List all OAuth providers with connection status."""
+    return oauth_manager.get_providers()
+
+
+@app.get("/oauth/start/{provider_id}")
+async def oauth_start(
+    provider_id: str, shop: str = "", user=Depends(get_current_user)
+):
+    """Start OAuth flow — redirects to provider's auth page."""
+    from fastapi.responses import RedirectResponse
+
+    host = os.getenv("RAILWAY_PUBLIC_DOMAIN", "")
+    if host:
+        oauth_manager.base_url = f"https://{host}"
+    elif not oauth_manager.base_url:
+        oauth_manager.base_url = "http://localhost:8000"
+
+    result = oauth_manager.start_auth(provider_id, shop)
+    if "error" in result:
+        raise HTTPException(400, result["error"])
+    return RedirectResponse(result["auth_url"])
+
+
+@app.get("/oauth/callback/{provider_id}")
+async def oauth_callback(
+    provider_id: str, code: str = "", state: str = ""
+):
+    """OAuth callback — exchanges code for token, redirects to dashboard."""
+    from fastapi.responses import HTMLResponse
+
+    if not code:
+        return HTMLResponse(
+            "<h3>Authorization cancelled</h3>"
+            '<p><a href="/">Back to dashboard</a></p>'
+        )
+
+    result = oauth_manager.handle_callback(provider_id, code, state)
+    if result.get("success"):
+        return HTMLResponse(
+            f"<h3>Connected {provider_id} successfully!</h3>"
+            '<p>Redirecting to dashboard...</p>'
+            '<script>setTimeout(()=>window.location="/",1500)</script>'
+        )
+    return HTMLResponse(
+        f"<h3>Connection failed</h3>"
+        f"<p>{result.get('error', 'Unknown error')}</p>"
+        f'<p><a href="/">Back to dashboard</a></p>'
+    )
+
+
+import os  # noqa: E402

@@ -546,6 +546,28 @@ function closeSettings() {
   document.getElementById('settings-modal').classList.add('hidden');
 }
 
+const OAUTH_CONNECTORS = {
+  'github':'github','gmail':'google','google_drive':'google',
+  'ga4':'google','google_ads':'google','slack':'slack',
+  'outlook':'microsoft','onedrive':'microsoft','teams':'microsoft',
+  'shopify':'shopify','hubspot':'hubspot','salesforce':'salesforce',
+  'notion':'notion','jira':'jira','intercom':'intercom',
+  'meta_ads':'meta','facebook_page':'meta','instagram':'meta',
+  'zoom':'zoom',
+};
+const OAUTH_NAMES = {
+  'github':'GitHub','google':'Google','slack':'Slack',
+  'microsoft':'Microsoft','shopify':'Shopify','hubspot':'HubSpot',
+  'salesforce':'Salesforce','notion':'Notion','jira':'Atlassian',
+  'intercom':'Intercom','meta':'Meta','zoom':'Zoom',
+};
+const OAUTH_COLORS = {
+  'github':'gray','google':'red','slack':'green',
+  'microsoft':'blue','shopify':'emerald','hubspot':'orange',
+  'salesforce':'blue','notion':'gray','jira':'blue',
+  'intercom':'indigo','meta':'blue','zoom':'blue',
+};
+
 async function openConnect(connectorId) {
   document.getElementById('connect-modal').classList.remove('hidden');
   document.getElementById('connect-title').textContent = 'Connect ' + connectorId;
@@ -556,36 +578,63 @@ async function openConnect(connectorId) {
   const res = await authFetch(API+'/connect/'+connectorId+'/setup');
   const info = await res.json();
 
-  if (info.status === 'not_implemented') {
-    body.innerHTML = `<p class="text-sm text-gray-400">${info.message}</p>
-      <p class="text-xs text-gray-600 mt-2">Required env vars: ${(info.env_vars||[]).join(', ') || 'none'}</p>`;
-    return;
-  }
-
   if (info.is_connected) {
     body.innerHTML = `<div class="flex items-center gap-2 mb-4">
       <span class="w-3 h-3 rounded-full bg-emerald-500"></span>
       <span class="text-sm text-emerald-300 font-medium">Connected</span>
     </div>
     <div class="space-y-2">
-      <p class="text-xs text-gray-500">Data available: ${info.available_data_types.join(', ')}</p>
+      <p class="text-xs text-gray-500">Data available: ${(info.available_data_types||[]).join(', ')}</p>
       <button onclick="doDisconnect('${connectorId}')" class="text-xs px-3 py-1.5 bg-red-600/20 text-red-400 hover:bg-red-600/30 rounded-lg transition">Disconnect</button>
     </div>`;
     return;
   }
 
-  const fields = info.required_credentials || [];
-  let formHtml = '<div class="space-y-3">';
-  fields.forEach(f => {
-    const isSecret = f.includes('key') || f.includes('token') || f.includes('secret') || f.includes('password');
-    formHtml += `<div>
-      <label class="block text-[11px] text-gray-400 mb-1 font-medium uppercase tracking-wide">${f.replace(/_/g,' ')}</label>
-      <input id="cred-${f}" type="${isSecret?'password':'text'}" class="w-full bg-[#0b0f1a] border border-gray-700/50 rounded-lg px-3 py-2 text-white text-sm placeholder-gray-600 focus:ring-2 focus:ring-indigo-500/40 outline-none" placeholder="Enter ${f.replace(/_/g,' ')}">
+  // Check if this connector supports OAuth
+  const oauthProvider = OAUTH_CONNECTORS[connectorId];
+  const oauthName = OAUTH_NAMES[oauthProvider] || '';
+  const oauthColor = OAUTH_COLORS[oauthProvider] || 'indigo';
+
+  let html = '';
+
+  if (oauthProvider) {
+    html += `<div class="mb-4">
+      <a href="/oauth/start/${oauthProvider}?token=${TOKEN}" class="flex items-center justify-center gap-2 w-full px-4 py-3 bg-${oauthColor}-600/20 hover:bg-${oauthColor}-600/30 border border-${oauthColor}-500/30 text-white font-medium rounded-xl transition">
+        <span class="text-lg">${oauthProvider==='github'?'&#9776;':oauthProvider==='google'?'G':oauthProvider==='microsoft'?'M':'&#10003;'}</span>
+        Connect with ${oauthName}
+      </a>
+      <p class="text-[10px] text-gray-600 mt-2 text-center">Authorizes securely via ${oauthName}. We never see your password.</p>
+    </div>
+    <div class="flex items-center gap-3 my-4">
+      <div class="flex-1 h-px bg-gray-800"></div>
+      <span class="text-[10px] text-gray-600">OR enter manually</span>
+      <div class="flex-1 h-px bg-gray-800"></div>
     </div>`;
-  });
-  formHtml += `<button onclick="doConnect('${connectorId}', ${JSON.stringify(fields)})" class="w-full bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-medium rounded-lg px-4 py-2.5 transition mt-2">Test & Connect</button>`;
-  formHtml += '</div>';
-  body.innerHTML = formHtml;
+  }
+
+  if (info.status === 'not_implemented' && !oauthProvider) {
+    body.innerHTML = `<p class="text-sm text-gray-400">${info.message||'Not yet implemented.'}</p>
+      <p class="text-xs text-gray-600 mt-2">Required env vars: ${(info.env_vars||[]).join(', ') || 'none'}</p>`;
+    return;
+  }
+
+  const fields = info.required_credentials || [];
+  if (fields.length) {
+    html += '<div class="space-y-3">';
+    fields.forEach(f => {
+      const isSecret = f.includes('key') || f.includes('token') || f.includes('secret') || f.includes('password');
+      html += `<div>
+        <label class="block text-[11px] text-gray-400 mb-1 font-medium uppercase tracking-wide">${f.replace(/_/g,' ')}</label>
+        <input id="cred-${f}" type="${isSecret?'password':'text'}" class="w-full bg-[#0b0f1a] border border-gray-700/50 rounded-lg px-3 py-2 text-white text-sm placeholder-gray-600 focus:ring-2 focus:ring-indigo-500/40 outline-none" placeholder="Enter ${f.replace(/_/g,' ')}">
+      </div>`;
+    });
+    html += `<button onclick="doConnect('${connectorId}', ${JSON.stringify(fields)})" class="w-full bg-gray-700 hover:bg-gray-600 text-white text-sm font-medium rounded-lg px-4 py-2.5 transition mt-2">Connect with API Key</button>`;
+    html += '</div>';
+  } else if (!oauthProvider) {
+    html += '<p class="text-sm text-gray-500">This connector requires OAuth setup. Contact support.</p>';
+  }
+
+  body.innerHTML = html;
 }
 
 async function doConnect(connectorId, fields) {
