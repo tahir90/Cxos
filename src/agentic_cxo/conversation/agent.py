@@ -60,6 +60,7 @@ from agentic_cxo.memory.vault import ContextVault
 from agentic_cxo.pipeline.refinery import ContextRefinery
 from agentic_cxo.tools.auditors.ads_auditor import AdsAuditorTool
 from agentic_cxo.tools.auditors.seo_auditor import SEOAuditorTool
+from agentic_cxo.tools.brand_intelligence import BrandIntelligenceTool
 from agentic_cxo.tools.cost_analyzer import CostAnalyzerTool
 from agentic_cxo.tools.framework import ToolExecutor, ToolRegistry
 from agentic_cxo.tools.image_generator import ImageGeneratorTool
@@ -167,6 +168,7 @@ class CoFounderAgent:
         self._tool_registry.register(AdsAuditorTool())
         self._tool_registry.register(SEOAuditorTool())
         self._tool_registry.register(StrategyPlannerTool())
+        self._tool_registry.register(BrandIntelligenceTool())
         self._tool_executor = ToolExecutor(
             registry=self._tool_registry, use_llm=self.use_llm
         )
