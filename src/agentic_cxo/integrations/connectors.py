@@ -53,6 +53,13 @@ class ConnectorCategory(str, Enum):
     PIM = "pim"
     INVENTORY_WMS = "inventory_wms"
     SUPPLY_CHAIN = "supply_chain"
+    OMS = "oms"
+    RETURNS_FULFILLMENT = "returns_fulfillment"
+    MARKETPLACE = "marketplace"
+    TAX_COMPLIANCE = "tax_compliance"
+    TRAVEL_EXPENSE = "travel_expense"
+    LEARNING = "learning"
+    REAL_ESTATE = "real_estate"
 
 
 @dataclass
@@ -1685,6 +1692,356 @@ ALL_CONNECTORS: list[Connector] = [
             "supply_planning", "sales_ops_planning",
         ],
         icon="IBP",
+    ),
+
+    # ── OMS (Order Management Systems) ───────────────────────
+    Connector(
+        "fluent_commerce", "Fluent Commerce",
+        "Distributed order management: routing, fulfillment, inventory visibility",
+        ConnectorCategory.OMS, ["COO", "CFO"],
+        ["FLUENT_URL", "FLUENT_CLIENT_ID", "FLUENT_CLIENT_SECRET"],
+        data_provided=[
+            "orders", "fulfillment", "routing_rules",
+            "inventory_positions", "returns", "ship_from_store",
+            "click_collect", "orchestration",
+        ],
+        icon="FC",
+    ),
+    Connector(
+        "vinculum", "Vinculum",
+        "OMS and warehouse management: multi-channel, fulfillment, reverse logistics",
+        ConnectorCategory.OMS, ["COO", "CFO"],
+        ["VINCULUM_URL", "VINCULUM_API_KEY"],
+        data_provided=[
+            "orders", "fulfillment", "inventory_sync",
+            "marketplace_integration", "returns", "reverse_logistics",
+            "warehouse_management", "last_mile",
+        ],
+        icon="VN",
+    ),
+    Connector(
+        "manhattan_active", "Manhattan Active Omni",
+        "Enterprise OMS: order orchestration, store fulfillment, customer service",
+        ConnectorCategory.OMS, ["COO"],
+        ["MANHATTAN_URL", "MANHATTAN_CLIENT_ID", "MANHATTAN_CLIENT_SECRET"],
+        data_provided=[
+            "order_orchestration", "store_fulfillment",
+            "customer_service", "inventory_visibility",
+            "bopis", "ship_from_store",
+        ],
+        icon="MA",
+    ),
+    Connector(
+        "kibo_commerce", "Kibo Commerce",
+        "Unified commerce: OMS, e-commerce, personalization",
+        ConnectorCategory.OMS, ["COO", "CMO"],
+        ["KIBO_CLIENT_ID", "KIBO_CLIENT_SECRET"],
+        data_provided=[
+            "orders", "fulfillment", "inventory",
+            "catalog", "personalization",
+        ],
+        icon="KB",
+    ),
+    Connector(
+        "fabric_oms", "fabric OMS",
+        "Headless OMS: order routing, split shipments, dropship",
+        ConnectorCategory.OMS, ["COO"],
+        ["FABRIC_API_KEY"],
+        data_provided=[
+            "orders", "routing", "split_shipments",
+            "dropship", "inventory_allocation",
+        ],
+        icon="FB",
+    ),
+    Connector(
+        "orderbot", "Orderbot (Dsco)",
+        "Dropship and marketplace order automation",
+        ConnectorCategory.OMS, ["COO"],
+        ["ORDERBOT_API_KEY"],
+        data_provided=["orders", "dropship", "vendor_compliance", "edi"],
+        icon="OB",
+    ),
+    Connector(
+        "celect", "Celect (Nike/acquired)",
+        "AI-powered inventory optimization and demand sensing",
+        ConnectorCategory.OMS, ["COO", "CFO"],
+        ["CELECT_API_KEY"],
+        data_provided=[
+            "demand_sensing", "inventory_optimization",
+            "allocation", "markdown_optimization",
+        ],
+        icon="CE",
+    ),
+    Connector(
+        "aptos_oms", "Aptos OMS",
+        "Retail OMS: order brokering, fulfillment, in-store pickup",
+        ConnectorCategory.OMS, ["COO"],
+        ["APTOS_URL", "APTOS_API_KEY"],
+        data_provided=[
+            "order_brokering", "fulfillment", "bopis",
+            "inventory", "customer_orders",
+        ],
+        icon="AP",
+    ),
+    Connector(
+        "oms_ibm_sterling", "IBM Sterling Order Management",
+        "Enterprise OMS: multi-channel orchestration, promising, fulfillment",
+        ConnectorCategory.OMS, ["COO"],
+        ["STERLING_URL", "STERLING_USER", "STERLING_PASS"],
+        data_provided=[
+            "order_orchestration", "promising", "fulfillment",
+            "inventory_visibility", "returns",
+        ],
+        icon="SO",
+    ),
+    Connector(
+        "increff", "Increff",
+        "Inventory and OMS for fashion/retail: allocation, replenishment",
+        ConnectorCategory.OMS, ["COO", "CFO"],
+        ["INCREFF_API_KEY"],
+        data_provided=[
+            "inventory_allocation", "replenishment",
+            "assortment_planning", "oms", "warehouse",
+        ],
+        icon="IF",
+    ),
+    Connector(
+        "anchanto", "Anchanto",
+        "E-commerce logistics and OMS: multi-marketplace, fulfillment, returns",
+        ConnectorCategory.OMS, ["COO"],
+        ["ANCHANTO_URL", "ANCHANTO_API_KEY"],
+        data_provided=[
+            "orders", "fulfillment", "returns",
+            "marketplace_sync", "warehouse", "last_mile",
+        ],
+        icon="AN",
+    ),
+
+    # ── Returns & Reverse Logistics ──────────────────────────
+    Connector(
+        "loop_returns", "Loop Returns",
+        "Automated returns, exchanges, store credit, fraud prevention",
+        ConnectorCategory.RETURNS_FULFILLMENT, ["COO", "CFO"],
+        ["LOOP_API_KEY"],
+        data_provided=[
+            "returns", "exchanges", "store_credit",
+            "return_reasons", "fraud_detection", "analytics",
+        ],
+        icon="LR",
+    ),
+    Connector(
+        "narvar", "Narvar",
+        "Post-purchase: tracking, returns, notifications, concierge",
+        ConnectorCategory.RETURNS_FULFILLMENT, ["COO", "CMO"],
+        ["NARVAR_API_KEY"],
+        data_provided=[
+            "tracking_pages", "return_portal", "notifications",
+            "delivery_estimates", "customer_experience",
+        ],
+        icon="NR",
+    ),
+    Connector(
+        "returnly", "Returnly (Affirm)",
+        "Instant exchanges, refunds, return analytics",
+        ConnectorCategory.RETURNS_FULFILLMENT, ["COO", "CFO"],
+        ["RETURNLY_API_KEY"],
+        data_provided=[
+            "returns", "instant_exchanges", "refunds",
+            "return_rate", "analytics",
+        ],
+        icon="RT",
+    ),
+    Connector(
+        "aftership", "AfterShip",
+        "Shipment tracking, returns management, estimated delivery",
+        ConnectorCategory.RETURNS_FULFILLMENT, ["COO"],
+        ["AFTERSHIP_API_KEY"],
+        data_provided=[
+            "tracking", "returns", "delivery_estimates",
+            "notifications", "analytics",
+        ],
+        icon="AS",
+    ),
+
+    # ── Marketplace Aggregators ──────────────────────────────
+    Connector(
+        "channelengine", "ChannelEngine",
+        "Multi-marketplace integration: list, sell, fulfill across 700+ channels",
+        ConnectorCategory.MARKETPLACE, ["COO", "CMO", "CSO"],
+        ["CHANNELENGINE_API_KEY"],
+        data_provided=[
+            "listings", "orders", "fulfillment",
+            "repricing", "marketplace_analytics",
+        ],
+        icon="CE",
+    ),
+    Connector(
+        "channeladvisor", "ChannelAdvisor",
+        "Multi-channel commerce: marketplaces, digital marketing, fulfillment",
+        ConnectorCategory.MARKETPLACE, ["COO", "CMO"],
+        ["CHANNELADVISOR_API_KEY"],
+        data_provided=[
+            "listings", "orders", "inventory",
+            "repricing", "advertising", "analytics",
+        ],
+        icon="CA",
+    ),
+    Connector(
+        "linnworks", "Linnworks",
+        "Multi-channel order and inventory management",
+        ConnectorCategory.MARKETPLACE, ["COO"],
+        ["LINNWORKS_APP_ID", "LINNWORKS_APP_SECRET"],
+        data_provided=[
+            "orders", "inventory", "listings",
+            "shipping", "warehouse",
+        ],
+        icon="LW",
+    ),
+    Connector(
+        "sellbrite", "Sellbrite (GoDaddy)",
+        "Multi-channel listing and inventory sync",
+        ConnectorCategory.MARKETPLACE, ["COO", "CMO"],
+        ["SELLBRITE_API_KEY"],
+        data_provided=["listings", "inventory_sync", "orders", "channels"],
+        icon="SB",
+    ),
+
+    # ── Tax & Compliance ─────────────────────────────────────
+    Connector(
+        "avalara", "Avalara",
+        "Automated tax compliance: sales tax, VAT, excise, customs",
+        ConnectorCategory.TAX_COMPLIANCE, ["CFO", "CLO"],
+        ["AVALARA_ACCOUNT_ID", "AVALARA_LICENSE_KEY"],
+        data_provided=[
+            "tax_calculation", "tax_filing", "exemptions",
+            "returns", "vat", "customs_duties",
+        ],
+        icon="AV",
+    ),
+    Connector(
+        "vertex", "Vertex",
+        "Enterprise tax technology: indirect tax, compliance, reporting",
+        ConnectorCategory.TAX_COMPLIANCE, ["CFO"],
+        ["VERTEX_URL", "VERTEX_CLIENT_ID", "VERTEX_CLIENT_SECRET"],
+        data_provided=[
+            "tax_calculation", "compliance", "reporting",
+            "audit_support", "data_integrity",
+        ],
+        icon="VX",
+    ),
+    Connector(
+        "taxjar", "TaxJar (Stripe)",
+        "Sales tax automation: calculation, nexus, filing",
+        ConnectorCategory.TAX_COMPLIANCE, ["CFO"],
+        ["TAXJAR_API_KEY"],
+        data_provided=[
+            "tax_calculation", "nexus_tracking",
+            "auto_filing", "reporting",
+        ],
+        icon="TJ",
+    ),
+    Connector(
+        "sovos", "Sovos",
+        "Global tax compliance: VAT, e-invoicing, 1099, regulatory reporting",
+        ConnectorCategory.TAX_COMPLIANCE, ["CFO", "CLO"],
+        ["SOVOS_API_KEY"],
+        data_provided=[
+            "vat_compliance", "e_invoicing", "tax_reporting",
+            "1099", "regulatory",
+        ],
+        icon="SV",
+    ),
+
+    # ── Travel & Expense Management ──────────────────────────
+    Connector(
+        "sap_concur", "SAP Concur",
+        "Travel booking, expense management, invoice processing",
+        ConnectorCategory.TRAVEL_EXPENSE, ["CFO", "COO"],
+        ["CONCUR_CLIENT_ID", "CONCUR_CLIENT_SECRET"],
+        oauth=True,
+        data_provided=[
+            "travel_requests", "expense_reports", "invoices",
+            "itineraries", "receipts", "policy_compliance",
+        ],
+        icon="SC",
+    ),
+    Connector(
+        "navan", "Navan (TripActions)",
+        "Business travel and expense management",
+        ConnectorCategory.TRAVEL_EXPENSE, ["CFO", "COO"],
+        ["NAVAN_API_KEY"],
+        data_provided=[
+            "travel_bookings", "expenses", "policy_compliance",
+            "carbon_tracking", "analytics",
+        ],
+        icon="NV",
+    ),
+    Connector(
+        "travelperk", "TravelPerk",
+        "Business travel management, booking, approvals",
+        ConnectorCategory.TRAVEL_EXPENSE, ["CFO", "COO"],
+        ["TRAVELPERK_API_KEY"],
+        data_provided=[
+            "bookings", "invoices", "travelers",
+            "approvals", "sustainability",
+        ],
+        icon="TP",
+    ),
+
+    # ── Learning & Development ───────────────────────────────
+    Connector(
+        "cornerstone", "Cornerstone OnDemand",
+        "Learning management, talent management, content",
+        ConnectorCategory.LEARNING, ["CHRO"],
+        ["CORNERSTONE_URL", "CORNERSTONE_API_KEY"],
+        data_provided=[
+            "courses", "enrollments", "completions",
+            "certifications", "skills", "learning_paths",
+        ],
+        icon="CS",
+    ),
+    Connector(
+        "docebo", "Docebo",
+        "AI-powered LMS: learning, training, compliance",
+        ConnectorCategory.LEARNING, ["CHRO"],
+        ["DOCEBO_URL", "DOCEBO_CLIENT_ID", "DOCEBO_CLIENT_SECRET"],
+        data_provided=[
+            "courses", "users", "certifications",
+            "analytics", "compliance_training",
+        ],
+        icon="DO",
+    ),
+    Connector(
+        "lessonly", "Lessonly (Seismic)",
+        "Team training and enablement platform",
+        ConnectorCategory.LEARNING, ["CHRO", "CSO"],
+        ["LESSONLY_API_KEY"],
+        data_provided=["lessons", "paths", "completions", "practice"],
+        icon="LS",
+    ),
+
+    # ── Real Estate / Facilities ─────────────────────────────
+    Connector(
+        "envoy", "Envoy",
+        "Workplace platform: visitor management, desks, deliveries",
+        ConnectorCategory.REAL_ESTATE, ["COO"],
+        ["ENVOY_API_KEY"],
+        data_provided=[
+            "visitors", "deliveries", "desk_bookings",
+            "rooms", "capacity",
+        ],
+        icon="EV",
+    ),
+    Connector(
+        "robin", "Robin",
+        "Hybrid office management: desks, rooms, scheduling",
+        ConnectorCategory.REAL_ESTATE, ["COO", "CHRO"],
+        ["ROBIN_API_KEY"],
+        data_provided=[
+            "desks", "rooms", "reservations",
+            "office_analytics", "capacity",
+        ],
+        icon="RB",
     ),
 ]
 
