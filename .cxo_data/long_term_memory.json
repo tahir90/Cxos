@@ -1,12 +1,36 @@
 [
   {
-    "memory_id": "75574e8e6dfc",
-    "content": "What is our current cash",
-    "category": "person",
+    "memory_id": "ca6dac0b8a60",
+    "content": "What are our biggest expenses this quarter?",
+    "category": "fact",
+    "importance": 0.5,
+    "source": "conversation",
+    "created_at": "2026-02-28T11:10:25.746691+00:00",
+    "last_accessed": "2026-02-28T11:10:25.746691+00:00",
+    "access_count": 0,
+    "related_to": null,
+    "superseded_by": null
+  },
+  {
+    "memory_id": "d67bf7480ebd",
+    "content": "vendor contracts for",
+    "category": "company",
     "importance": 0.7,
     "source": "conversation",
-    "created_at": "2026-02-28T10:22:53.020070+00:00",
-    "last_accessed": "2026-02-28T10:22:53.020070+00:00",
+    "created_at": "2026-02-28T11:12:39.253188+00:00",
+    "last_accessed": "2026-02-28T11:12:39.253188+00:00",
+    "access_count": 0,
+    "related_to": null,
+    "superseded_by": null
+  },
+  {
+    "memory_id": "870d8adf9e78",
+    "content": "Show me stalled deals in the pipeline",
+    "category": "fact",
+    "importance": 0.5,
+    "source": "conversation",
+    "created_at": "2026-02-28T11:13:32.976212+00:00",
+    "last_accessed": "2026-02-28T11:13:32.976212+00:00",
     "access_count": 0,
     "related_to": null,
     "superseded_by": null
