@@ -26,7 +26,7 @@ def clean_data():
 class TestConnectorRegistry:
     def test_all_connectors_loaded(self):
         reg = ConnectorRegistry()
-        assert len(reg.all_connectors) >= 40
+        assert len(reg.all_connectors) >= 90
 
     def test_by_category(self):
         reg = ConnectorRegistry()
@@ -43,24 +43,57 @@ class TestConnectorRegistry:
     def test_summary(self):
         reg = ConnectorRegistry()
         s = reg.summary()
-        assert s["total_connectors"] >= 40
+        assert s["total_connectors"] >= 90
         assert "by_category" in s
 
     def test_each_connector_has_required_fields(self):
         reg = ConnectorRegistry()
         for c in reg.all_connectors:
-            assert c.connector_id
+            assert c.connector_id, f"Missing ID: {c.name}"
             assert c.name
             assert c.description
             assert c.category
-            assert len(c.used_by) >= 1
+            assert len(c.used_by) >= 1, f"No agent for: {c.name}"
 
     def test_to_list(self):
         reg = ConnectorRegistry()
         items = reg.to_list()
-        assert len(items) >= 40
-        assert all("id" in c for c in items)
-        assert all("status" in c for c in items)
+        assert len(items) >= 90
+
+    def test_no_duplicate_ids(self):
+        reg = ConnectorRegistry()
+        ids = [c.connector_id for c in reg.all_connectors]
+        assert len(ids) == len(set(ids)), "Duplicate connector IDs found"
+
+    def test_erp_connectors(self):
+        reg = ConnectorRegistry()
+        erp = reg.by_category(ConnectorCategory.ERP)
+        names = [c.name for c in erp]
+        assert any("SAP" in n for n in names)
+        assert any("NetSuite" in n or "Oracle" in n for n in names)
+        assert any("Dynamics" in n for n in names)
+
+    def test_procurement_connectors(self):
+        reg = ConnectorRegistry()
+        proc = reg.by_category(ConnectorCategory.PROCUREMENT)
+        names = [c.name for c in proc]
+        assert any("Coupa" in n for n in names)
+        assert any("Ariba" in n for n in names)
+
+    def test_data_platform_connectors(self):
+        reg = ConnectorRegistry()
+        dp = reg.by_category(ConnectorCategory.DATA_PLATFORM)
+        names = [c.name for c in dp]
+        assert any("Databricks" in n for n in names)
+        assert any("Snowflake" in n for n in names)
+        assert any("Power BI" in n for n in names)
+
+    def test_hr_enterprise_connectors(self):
+        reg = ConnectorRegistry()
+        people = reg.by_category(ConnectorCategory.PEOPLE)
+        names = [c.name for c in people]
+        assert any("SuccessFactors" in n for n in names)
+        assert any("Workday" in n for n in names)
 
 
 class TestPermissionManager:

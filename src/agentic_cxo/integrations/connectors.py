@@ -43,6 +43,13 @@ class ConnectorCategory(str, Enum):
     STORAGE = "storage"
     ANALYTICS = "analytics"
     AUTOMATION = "automation"
+    ERP = "erp"
+    PROCUREMENT = "procurement"
+    DATA_PLATFORM = "data_platform"
+    DEVOPS = "devops"
+    CUSTOMER_SUPPORT = "customer_support"
+    ECOMMERCE = "ecommerce"
+    SECURITY = "security"
 
 
 @dataclass
@@ -463,6 +470,559 @@ ALL_CONNECTORS: list[Connector] = [
         [],
         data_provided=["trigger_any_api"],
         icon="W",
+    ),
+    Connector(
+        "n8n", "n8n", "Open-source workflow automation, self-hosted",
+        ConnectorCategory.AUTOMATION, ["COO"],
+        ["N8N_URL", "N8N_API_KEY"],
+        data_provided=["trigger_workflows", "custom_automations"],
+        icon="n8",
+    ),
+    Connector(
+        "power_automate", "Microsoft Power Automate",
+        "Enterprise workflow automation in Microsoft 365",
+        ConnectorCategory.AUTOMATION, ["COO"],
+        ["POWER_AUTOMATE_CLIENT_ID", "POWER_AUTOMATE_CLIENT_SECRET"],
+        oauth=True,
+        data_provided=["trigger_flows", "m365_automations"],
+        icon="PA",
+    ),
+
+    # ── ERP Systems ──────────────────────────────────────────
+    Connector(
+        "sap_erp", "SAP S/4HANA", "Enterprise resource planning, finance, supply chain",
+        ConnectorCategory.ERP, ["CFO", "COO"],
+        ["SAP_HOST", "SAP_CLIENT", "SAP_USER", "SAP_PASS"],
+        data_provided=[
+            "general_ledger", "accounts_payable", "accounts_receivable",
+            "purchase_orders", "inventory", "production_orders",
+        ],
+        icon="SAP",
+    ),
+    Connector(
+        "sap_business_one", "SAP Business One", "ERP for small-mid enterprises",
+        ConnectorCategory.ERP, ["CFO", "COO"],
+        ["SAP_B1_SERVICE_URL", "SAP_B1_USER", "SAP_B1_PASS"],
+        data_provided=["financials", "inventory", "purchasing", "sales_orders"],
+        icon="SB1",
+    ),
+    Connector(
+        "oracle_erp", "Oracle ERP Cloud",
+        "Enterprise financials, procurement, project management",
+        ConnectorCategory.ERP, ["CFO", "COO"],
+        ["ORACLE_ERP_URL", "ORACLE_ERP_CLIENT_ID", "ORACLE_ERP_CLIENT_SECRET"],
+        oauth=True,
+        data_provided=["financials", "procurement", "projects", "supply_chain"],
+        icon="ORC",
+    ),
+    Connector(
+        "netsuite", "Oracle NetSuite", "Cloud ERP for mid-market, financials and operations",
+        ConnectorCategory.ERP, ["CFO", "COO"],
+        ["NETSUITE_ACCOUNT_ID", "NETSUITE_CONSUMER_KEY", "NETSUITE_CONSUMER_SECRET"],
+        data_provided=["financials", "inventory", "crm", "ecommerce"],
+        icon="NS",
+    ),
+    Connector(
+        "dynamics_365", "Microsoft Dynamics 365",
+        "ERP and CRM: finance, supply chain, sales, service",
+        ConnectorCategory.ERP, ["CFO", "COO", "CSO"],
+        ["DYNAMICS_URL", "DYNAMICS_CLIENT_ID", "DYNAMICS_CLIENT_SECRET"],
+        oauth=True,
+        data_provided=["finance", "supply_chain", "sales", "customer_service"],
+        icon="D365",
+    ),
+    Connector(
+        "odoo", "Odoo", "Open-source ERP: accounting, inventory, CRM, HR",
+        ConnectorCategory.ERP, ["CFO", "COO", "CHRO"],
+        ["ODOO_URL", "ODOO_DB", "ODOO_API_KEY"],
+        data_provided=["accounting", "inventory", "crm", "hr", "manufacturing"],
+        icon="OD",
+    ),
+    Connector(
+        "zoho_one", "Zoho One", "All-in-one business suite: CRM, books, desk, projects",
+        ConnectorCategory.ERP, ["CFO", "COO", "CSO"],
+        ["ZOHO_CLIENT_ID", "ZOHO_CLIENT_SECRET"],
+        oauth=True,
+        data_provided=["crm", "accounting", "projects", "desk", "hr"],
+        icon="ZO",
+    ),
+
+    # ── Procurement ──────────────────────────────────────────
+    Connector(
+        "coupa", "Coupa", "Procurement, invoicing, expense management",
+        ConnectorCategory.PROCUREMENT, ["CFO", "COO"],
+        ["COUPA_URL", "COUPA_API_KEY"],
+        data_provided=[
+            "purchase_orders", "invoices", "suppliers", "contracts",
+            "expense_reports", "budgets",
+        ],
+        icon="CP",
+    ),
+    Connector(
+        "sap_ariba", "SAP Ariba", "Procurement and supply chain collaboration",
+        ConnectorCategory.PROCUREMENT, ["COO", "CFO"],
+        ["ARIBA_REALM", "ARIBA_CLIENT_ID", "ARIBA_CLIENT_SECRET"],
+        oauth=True,
+        data_provided=["sourcing", "contracts", "suppliers", "purchase_orders"],
+        icon="AR",
+    ),
+    Connector(
+        "jaggaer", "Jaggaer", "Source-to-pay procurement platform",
+        ConnectorCategory.PROCUREMENT, ["COO"],
+        ["JAGGAER_URL", "JAGGAER_API_KEY"],
+        data_provided=["sourcing", "procurement", "supplier_management"],
+        icon="JG",
+    ),
+    Connector(
+        "procurify", "Procurify", "Purchasing and spend management for mid-market",
+        ConnectorCategory.PROCUREMENT, ["CFO", "COO"],
+        ["PROCURIFY_API_KEY"],
+        data_provided=["purchase_orders", "approvals", "budgets", "spend"],
+        icon="PF",
+    ),
+
+    # ── HR / People (Enterprise) ─────────────────────────────
+    Connector(
+        "successfactors", "SAP SuccessFactors",
+        "Enterprise HCM: recruiting, performance, learning, payroll",
+        ConnectorCategory.PEOPLE, ["CHRO", "CFO"],
+        ["SF_API_URL", "SF_CLIENT_ID", "SF_CLIENT_SECRET"],
+        oauth=True,
+        data_provided=[
+            "employee_central", "recruiting", "performance",
+            "learning", "compensation", "succession",
+        ],
+        icon="SF",
+    ),
+    Connector(
+        "workday", "Workday",
+        "Enterprise HR, finance, and planning cloud platform",
+        ConnectorCategory.PEOPLE, ["CHRO", "CFO"],
+        ["WORKDAY_TENANT", "WORKDAY_CLIENT_ID", "WORKDAY_CLIENT_SECRET"],
+        oauth=True,
+        data_provided=[
+            "hr", "payroll", "benefits", "recruiting", "talent",
+            "financials", "planning",
+        ],
+        icon="WD",
+    ),
+    Connector(
+        "adp", "ADP", "Payroll, HR, tax, and benefits administration",
+        ConnectorCategory.PEOPLE, ["CHRO", "CFO"],
+        ["ADP_CLIENT_ID", "ADP_CLIENT_SECRET"],
+        oauth=True,
+        data_provided=["payroll", "time_attendance", "benefits", "tax"],
+        icon="ADP",
+    ),
+    Connector(
+        "namely", "Namely", "Mid-market HR, payroll, benefits, and talent",
+        ConnectorCategory.PEOPLE, ["CHRO"],
+        ["NAMELY_API_TOKEN", "NAMELY_SUBDOMAIN"],
+        data_provided=["employees", "payroll", "benefits", "performance"],
+        icon="NM",
+    ),
+    Connector(
+        "lattice", "Lattice", "Performance management, engagement, OKRs",
+        ConnectorCategory.PEOPLE, ["CHRO"],
+        ["LATTICE_API_KEY"],
+        data_provided=["reviews", "engagement", "okrs", "goals"],
+        icon="LT",
+    ),
+    Connector(
+        "deel", "Deel", "Global payroll, contractors, EOR for remote teams",
+        ConnectorCategory.PEOPLE, ["CHRO", "CFO"],
+        ["DEEL_API_KEY"],
+        data_provided=["contractors", "payroll", "compliance", "invoices"],
+        icon="DL",
+    ),
+
+    # ── Data Platforms ───────────────────────────────────────
+    Connector(
+        "databricks", "Databricks", "Unified data analytics, ML, lakehouse",
+        ConnectorCategory.DATA_PLATFORM, ["CFO", "CMO", "COO"],
+        ["DATABRICKS_HOST", "DATABRICKS_TOKEN"],
+        data_provided=["sql_queries", "dashboards", "ml_models", "data_pipelines"],
+        icon="DB",
+    ),
+    Connector(
+        "snowflake", "Snowflake", "Cloud data warehouse, analytics, data sharing",
+        ConnectorCategory.DATA_PLATFORM, ["CFO", "CMO", "COO"],
+        ["SNOWFLAKE_ACCOUNT", "SNOWFLAKE_USER", "SNOWFLAKE_PASSWORD"],
+        data_provided=["sql_queries", "data_warehouse", "data_sharing"],
+        icon="SF",
+    ),
+    Connector(
+        "bigquery", "Google BigQuery", "Serverless data warehouse, analytics",
+        ConnectorCategory.DATA_PLATFORM, ["CFO", "CMO"],
+        ["BIGQUERY_PROJECT_ID", "BIGQUERY_CREDENTIALS_JSON"],
+        data_provided=["sql_queries", "datasets", "ml"],
+        icon="BQ",
+    ),
+    Connector(
+        "redshift", "Amazon Redshift", "AWS cloud data warehouse",
+        ConnectorCategory.DATA_PLATFORM, ["CFO", "CMO"],
+        ["REDSHIFT_HOST", "REDSHIFT_USER", "REDSHIFT_PASSWORD", "REDSHIFT_DB"],
+        data_provided=["sql_queries", "data_warehouse"],
+        icon="RS",
+    ),
+    Connector(
+        "power_bi", "Microsoft Power BI",
+        "Business intelligence, interactive dashboards and reports",
+        ConnectorCategory.DATA_PLATFORM, ["CFO", "CMO", "COO"],
+        ["POWER_BI_CLIENT_ID", "POWER_BI_CLIENT_SECRET"],
+        oauth=True,
+        data_provided=["dashboards", "reports", "datasets"],
+        icon="PBI",
+    ),
+    Connector(
+        "dbt", "dbt (data build tool)", "Data transformation, modeling, testing",
+        ConnectorCategory.DATA_PLATFORM, ["COO"],
+        ["DBT_CLOUD_API_KEY"],
+        data_provided=["models", "tests", "lineage", "freshness"],
+        icon="dbt",
+    ),
+    Connector(
+        "fivetran", "Fivetran", "Automated data integration and ETL pipelines",
+        ConnectorCategory.DATA_PLATFORM, ["COO"],
+        ["FIVETRAN_API_KEY", "FIVETRAN_API_SECRET"],
+        data_provided=["connectors", "sync_status", "data_pipelines"],
+        icon="FT",
+    ),
+    Connector(
+        "airbyte", "Airbyte", "Open-source ELT data integration platform",
+        ConnectorCategory.DATA_PLATFORM, ["COO"],
+        ["AIRBYTE_URL", "AIRBYTE_API_KEY"],
+        data_provided=["connections", "sync_status", "sources", "destinations"],
+        icon="AB",
+    ),
+
+    # ── DevOps / Infrastructure ──────────────────────────────
+    Connector(
+        "datadog", "Datadog", "Infrastructure monitoring, APM, logs",
+        ConnectorCategory.DEVOPS, ["COO"],
+        ["DATADOG_API_KEY", "DATADOG_APP_KEY"],
+        data_provided=["monitors", "incidents", "apm", "logs", "costs"],
+        icon="DD",
+    ),
+    Connector(
+        "pagerduty", "PagerDuty", "Incident management, on-call scheduling",
+        ConnectorCategory.DEVOPS, ["COO"],
+        ["PAGERDUTY_API_KEY"],
+        data_provided=["incidents", "oncall", "services"],
+        icon="PD",
+    ),
+    Connector(
+        "sentry", "Sentry", "Application error tracking and performance monitoring",
+        ConnectorCategory.DEVOPS, ["COO"],
+        ["SENTRY_AUTH_TOKEN", "SENTRY_ORG"],
+        data_provided=["errors", "performance", "releases"],
+        icon="SN",
+    ),
+    Connector(
+        "gitlab", "GitLab", "DevOps platform: code, CI/CD, security",
+        ConnectorCategory.DEVOPS, ["COO", "CHRO"],
+        ["GITLAB_URL", "GITLAB_TOKEN"],
+        data_provided=["repos", "pipelines", "merge_requests", "issues"],
+        icon="GL",
+    ),
+    Connector(
+        "bitbucket", "Bitbucket", "Git repository hosting and CI/CD",
+        ConnectorCategory.DEVOPS, ["COO"],
+        ["BITBUCKET_USERNAME", "BITBUCKET_APP_PASSWORD"],
+        data_provided=["repos", "pipelines", "pull_requests"],
+        icon="BB",
+    ),
+    Connector(
+        "vercel", "Vercel", "Frontend deployment and hosting platform",
+        ConnectorCategory.DEVOPS, ["COO"],
+        ["VERCEL_TOKEN"],
+        data_provided=["deployments", "domains", "analytics"],
+        icon="V",
+    ),
+    Connector(
+        "cloudflare", "Cloudflare", "CDN, DNS, security, Workers",
+        ConnectorCategory.DEVOPS, ["COO"],
+        ["CLOUDFLARE_API_TOKEN"],
+        data_provided=["dns", "analytics", "security_events", "workers"],
+        icon="CF",
+    ),
+
+    # ── Customer Support ─────────────────────────────────────
+    Connector(
+        "zendesk", "Zendesk", "Customer support tickets, help center, chat",
+        ConnectorCategory.CUSTOMER_SUPPORT, ["COO", "CMO"],
+        ["ZENDESK_SUBDOMAIN", "ZENDESK_API_TOKEN", "ZENDESK_EMAIL"],
+        data_provided=["tickets", "satisfaction", "agents", "help_center"],
+        icon="ZD",
+    ),
+    Connector(
+        "intercom", "Intercom", "Customer messaging, support, product tours",
+        ConnectorCategory.CUSTOMER_SUPPORT, ["CMO", "COO"],
+        ["INTERCOM_ACCESS_TOKEN"],
+        data_provided=["conversations", "contacts", "articles", "product_tours"],
+        icon="IC",
+    ),
+    Connector(
+        "freshdesk", "Freshdesk", "Customer support and helpdesk",
+        ConnectorCategory.CUSTOMER_SUPPORT, ["COO"],
+        ["FRESHDESK_DOMAIN", "FRESHDESK_API_KEY"],
+        data_provided=["tickets", "contacts", "satisfaction", "sla"],
+        icon="FD",
+    ),
+    Connector(
+        "servicenow", "ServiceNow",
+        "Enterprise IT service management, workflows, and operations",
+        ConnectorCategory.CUSTOMER_SUPPORT, ["COO"],
+        ["SERVICENOW_INSTANCE", "SERVICENOW_USER", "SERVICENOW_PASS"],
+        data_provided=["incidents", "changes", "requests", "cmdb", "workflows"],
+        icon="SN",
+    ),
+
+    # ── E-commerce ───────────────────────────────────────────
+    Connector(
+        "shopify", "Shopify", "E-commerce: orders, products, customers, analytics",
+        ConnectorCategory.ECOMMERCE, ["CFO", "CMO", "COO"],
+        ["SHOPIFY_STORE_URL", "SHOPIFY_ACCESS_TOKEN"],
+        data_provided=["orders", "products", "customers", "analytics", "inventory"],
+        icon="SH",
+    ),
+    Connector(
+        "woocommerce", "WooCommerce", "WordPress e-commerce plugin",
+        ConnectorCategory.ECOMMERCE, ["CFO", "CMO"],
+        ["WOOCOMMERCE_URL", "WOOCOMMERCE_KEY", "WOOCOMMERCE_SECRET"],
+        data_provided=["orders", "products", "customers", "reports"],
+        icon="WC",
+    ),
+    Connector(
+        "amazon_seller", "Amazon Seller Central",
+        "Amazon marketplace: orders, inventory, advertising, reports",
+        ConnectorCategory.ECOMMERCE, ["CFO", "CMO", "COO"],
+        ["AMAZON_SP_CLIENT_ID", "AMAZON_SP_CLIENT_SECRET", "AMAZON_SP_REFRESH_TOKEN"],
+        data_provided=["orders", "inventory", "advertising", "reports", "fba"],
+        icon="AMZ",
+    ),
+
+    # ── Security & Compliance ────────────────────────────────
+    Connector(
+        "okta", "Okta", "Identity and access management, SSO",
+        ConnectorCategory.SECURITY, ["CLO", "COO"],
+        ["OKTA_DOMAIN", "OKTA_API_TOKEN"],
+        data_provided=["users", "groups", "apps", "logs", "mfa"],
+        icon="OK",
+    ),
+    Connector(
+        "onelogin", "OneLogin", "Identity management and SSO",
+        ConnectorCategory.SECURITY, ["CLO", "COO"],
+        ["ONELOGIN_CLIENT_ID", "ONELOGIN_CLIENT_SECRET"],
+        data_provided=["users", "apps", "events"],
+        icon="1L",
+    ),
+    Connector(
+        "vanta", "Vanta", "Automated security compliance (SOC 2, ISO 27001)",
+        ConnectorCategory.SECURITY, ["CLO"],
+        ["VANTA_API_KEY"],
+        data_provided=["compliance_status", "controls", "evidence", "vendors"],
+        icon="VT",
+    ),
+    Connector(
+        "drata", "Drata", "Continuous compliance automation",
+        ConnectorCategory.SECURITY, ["CLO"],
+        ["DRATA_API_KEY"],
+        data_provided=["compliance", "controls", "audit_evidence"],
+        icon="DR",
+    ),
+
+    # ── Additional Finance ───────────────────────────────────
+    Connector(
+        "bill_com", "Bill.com", "Accounts payable/receivable automation",
+        ConnectorCategory.FINANCE, ["CFO"],
+        ["BILL_COM_ORG_ID", "BILL_COM_API_KEY"],
+        data_provided=["payables", "receivables", "approvals", "vendors"],
+        icon="BC",
+    ),
+    Connector(
+        "ramp", "Ramp", "Corporate card, expense management, bill pay",
+        ConnectorCategory.FINANCE, ["CFO"],
+        ["RAMP_API_KEY"],
+        data_provided=["transactions", "expenses", "budgets", "vendors"],
+        icon="RP",
+    ),
+    Connector(
+        "mercury", "Mercury", "Startup banking, treasury, venture debt",
+        ConnectorCategory.FINANCE, ["CFO"],
+        ["MERCURY_API_KEY"],
+        data_provided=["accounts", "transactions", "treasury"],
+        icon="MR",
+    ),
+    Connector(
+        "wise", "Wise (TransferWise)",
+        "International payments, multi-currency accounts",
+        ConnectorCategory.FINANCE, ["CFO"],
+        ["WISE_API_KEY"],
+        data_provided=["transfers", "balances", "exchange_rates"],
+        icon="WS",
+    ),
+
+    # ── Additional Sales / CRM ───────────────────────────────
+    Connector(
+        "pipedrive", "Pipedrive", "Sales CRM for small teams",
+        ConnectorCategory.SALES, ["CSO"],
+        ["PIPEDRIVE_API_TOKEN"],
+        data_provided=["deals", "contacts", "activities", "pipeline"],
+        icon="PD",
+    ),
+    Connector(
+        "close_crm", "Close CRM", "Inside sales CRM with calling and email",
+        ConnectorCategory.SALES, ["CSO"],
+        ["CLOSE_API_KEY"],
+        data_provided=["leads", "opportunities", "calls", "emails"],
+        icon="CL",
+    ),
+    Connector(
+        "gong", "Gong", "Revenue intelligence, call recording, deal analytics",
+        ConnectorCategory.SALES, ["CSO"],
+        ["GONG_ACCESS_KEY", "GONG_ACCESS_KEY_SECRET"],
+        data_provided=["calls", "deal_intelligence", "coaching", "forecasting"],
+        icon="GG",
+    ),
+    Connector(
+        "outreach", "Outreach", "Sales engagement, sequences, analytics",
+        ConnectorCategory.SALES, ["CSO"],
+        ["OUTREACH_API_KEY"],
+        oauth=True,
+        data_provided=["sequences", "prospects", "analytics", "tasks"],
+        icon="OR",
+    ),
+
+    # ── Additional Marketing ─────────────────────────────────
+    Connector(
+        "mixpanel", "Mixpanel", "Product analytics, user behavior, funnels",
+        ConnectorCategory.MARKETING, ["CMO"],
+        ["MIXPANEL_PROJECT_TOKEN", "MIXPANEL_API_SECRET"],
+        data_provided=["events", "funnels", "retention", "users"],
+        icon="MP",
+    ),
+    Connector(
+        "amplitude", "Amplitude", "Product analytics, experimentation",
+        ConnectorCategory.MARKETING, ["CMO"],
+        ["AMPLITUDE_API_KEY", "AMPLITUDE_SECRET_KEY"],
+        data_provided=["events", "cohorts", "funnels", "experiments"],
+        icon="AM",
+    ),
+    Connector(
+        "segment", "Segment (Twilio)", "Customer data platform, event routing",
+        ConnectorCategory.MARKETING, ["CMO"],
+        ["SEGMENT_WRITE_KEY"],
+        data_provided=["events", "sources", "destinations", "profiles"],
+        icon="SG",
+    ),
+    Connector(
+        "klaviyo", "Klaviyo", "E-commerce email/SMS marketing automation",
+        ConnectorCategory.MARKETING, ["CMO"],
+        ["KLAVIYO_API_KEY"],
+        data_provided=["campaigns", "flows", "lists", "metrics"],
+        icon="KL",
+    ),
+    Connector(
+        "hootsuite", "Hootsuite", "Social media management, scheduling, analytics",
+        ConnectorCategory.SOCIAL_MEDIA, ["CMO"],
+        ["HOOTSUITE_API_KEY"],
+        oauth=True,
+        data_provided=["scheduling", "analytics", "streams", "publishing"],
+        icon="HS",
+    ),
+    Connector(
+        "buffer", "Buffer", "Social media scheduling and analytics",
+        ConnectorCategory.SOCIAL_MEDIA, ["CMO"],
+        ["BUFFER_ACCESS_TOKEN"],
+        data_provided=["scheduling", "analytics", "publishing"],
+        icon="BF",
+    ),
+
+    # ── Additional Storage / Collaboration ───────────────────
+    Connector(
+        "sharepoint", "SharePoint", "Enterprise document management, intranets",
+        ConnectorCategory.STORAGE, ["COO", "CLO", "CFO"],
+        ["SHAREPOINT_SITE_URL", "SHAREPOINT_CLIENT_ID", "SHAREPOINT_CLIENT_SECRET"],
+        oauth=True,
+        data_provided=["documents", "lists", "sites", "workflows"],
+        icon="SP",
+    ),
+    Connector(
+        "box", "Box", "Enterprise content management and collaboration",
+        ConnectorCategory.STORAGE, ["COO", "CLO"],
+        ["BOX_CLIENT_ID", "BOX_CLIENT_SECRET"],
+        oauth=True,
+        data_provided=["files", "folders", "metadata", "workflows"],
+        icon="BX",
+    ),
+    Connector(
+        "airtable", "Airtable", "Spreadsheet-database hybrid, project tracking",
+        ConnectorCategory.STORAGE, ["COO"],
+        ["AIRTABLE_API_KEY"],
+        data_provided=["bases", "tables", "records", "views"],
+        icon="AT",
+    ),
+    Connector(
+        "monday_com", "Monday.com", "Work OS: project management, workflows",
+        ConnectorCategory.OPERATIONS, ["COO"],
+        ["MONDAY_API_KEY"],
+        data_provided=["boards", "items", "updates", "automations"],
+        icon="MN",
+    ),
+    Connector(
+        "clickup", "ClickUp", "All-in-one project management",
+        ConnectorCategory.OPERATIONS, ["COO"],
+        ["CLICKUP_API_KEY"],
+        data_provided=["tasks", "spaces", "goals", "time_tracking"],
+        icon="CU",
+    ),
+    Connector(
+        "basecamp", "Basecamp", "Project management and team communication",
+        ConnectorCategory.OPERATIONS, ["COO"],
+        ["BASECAMP_ACCOUNT_ID", "BASECAMP_ACCESS_TOKEN"],
+        data_provided=["projects", "todos", "messages", "schedule"],
+        icon="BC",
+    ),
+
+    # ── Communication (Enterprise) ───────────────────────────
+    Connector(
+        "twilio", "Twilio", "SMS, voice, WhatsApp messaging APIs",
+        ConnectorCategory.COMMUNICATION, ["CMO", "CSO", "COO"],
+        ["TWILIO_ACCOUNT_SID", "TWILIO_AUTH_TOKEN"],
+        data_provided=["sms", "voice", "whatsapp", "messaging"],
+        icon="TW",
+    ),
+    Connector(
+        "whatsapp_business", "WhatsApp Business",
+        "Customer messaging via WhatsApp Business API",
+        ConnectorCategory.COMMUNICATION, ["CMO", "CSO"],
+        ["WHATSAPP_PHONE_ID", "WHATSAPP_ACCESS_TOKEN"],
+        data_provided=["messaging", "templates", "contacts"],
+        icon="WA",
+    ),
+    Connector(
+        "discord", "Discord", "Community management, server monitoring",
+        ConnectorCategory.COMMUNICATION, ["CMO"],
+        ["DISCORD_BOT_TOKEN"],
+        data_provided=["messaging", "channels", "members"],
+        icon="DC",
+    ),
+    Connector(
+        "zoom", "Zoom", "Video meetings, webinars, recordings",
+        ConnectorCategory.COMMUNICATION, ["COO", "CSO"],
+        ["ZOOM_CLIENT_ID", "ZOOM_CLIENT_SECRET"],
+        oauth=True,
+        data_provided=["meetings", "recordings", "webinars", "reports"],
+        icon="ZM",
+    ),
+    Connector(
+        "google_meet", "Google Meet", "Video conferencing via Google Workspace",
+        ConnectorCategory.COMMUNICATION, ["COO"],
+        ["GOOGLE_WORKSPACE_CREDENTIALS_JSON"],
+        oauth=True,
+        data_provided=["meetings", "calendar_integration"],
+        icon="GM",
     ),
 ]
 
