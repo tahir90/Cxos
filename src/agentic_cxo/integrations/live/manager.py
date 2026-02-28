@@ -43,6 +43,19 @@ from agentic_cxo.integrations.live.cfo_clients import (
     XeroClient,
 )
 from agentic_cxo.integrations.live.chargebee_client import ChargebeeClient
+from agentic_cxo.integrations.live.chro_clients import (
+    BambooHRClient,
+    DeelClient,
+    GreenhouseClient,
+    LatticeClient,
+)
+from agentic_cxo.integrations.live.clo_clients import (
+    DocuSignClient,
+    DrataClient,
+    OktaClient,
+    PandaDocCLOClient,
+    VantaClient,
+)
 from agentic_cxo.integrations.live.cmo_clients import (
     CloudinaryClient,
     ContentfulClient,
@@ -178,6 +191,17 @@ LIVE_CLIENTS: dict[str, BaseConnectorClient] = {
     "zapier": ZapierClient(),
     "make": MakeClient(),
     "confluence": ConfluenceClient(),
+    # CLO Production
+    "docusign": DocuSignClient(),
+    "pandadoc_clo": PandaDocCLOClient(),
+    "vanta": VantaClient(),
+    "drata": DrataClient(),
+    "okta": OktaClient(),
+    # CHRO Production
+    "bamboohr": BambooHRClient(),
+    "greenhouse": GreenhouseClient(),
+    "lattice": LatticeClient(),
+    "deel": DeelClient(),
 }
 
 
