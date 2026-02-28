@@ -44,6 +44,11 @@ from typing import Any
 
 import tiktoken
 
+from agentic_cxo.conversation.long_term_memory import (
+    LongTermMemory,
+    MemoryCategory,
+    MemoryRetriever,
+)
 from agentic_cxo.conversation.memory import (
     BusinessProfileStore,
     ConversationMemory,
@@ -137,6 +142,8 @@ class ContextAssembler:
         default_factory=BusinessProfileStore
     )
     reminder_store: ReminderStore = field(default_factory=ReminderStore)
+    ltm: LongTermMemory = field(default_factory=LongTermMemory)
+    retriever: MemoryRetriever = field(default_factory=MemoryRetriever)
     budget: TokenBudget = field(default_factory=TokenBudget)
     _conversation_summary: str = field(default="", init=False)
     _summary_at_count: int = field(default=0, init=False)
@@ -177,6 +184,7 @@ class ContextAssembler:
         5. Active reminders (critical/due-soon, ~200 tokens)
         """
         identity = self._build_identity(agent_role, agent_instruction)
+        long_term = self._build_long_term_memory(user_message, agent_role)
         conv_summary = self._build_conversation_summary()
         recent = self._build_recent_messages()
         vault_data = self._build_vault_context(
@@ -186,7 +194,8 @@ class ContextAssembler:
 
         system_prompt = "\n\n".join(
             section for section in [
-                identity, conv_summary, vault_data, reminders,
+                identity, long_term, conv_summary,
+                vault_data, reminders,
             ]
             if section
         )
@@ -247,6 +256,42 @@ class ContextAssembler:
 
         text = "\n".join(parts)
         return self._truncate_to_budget(text, self.budget.identity)
+
+    # ── Layer 1.5: Long-Term Memory ────────────────────────────
+
+    def _build_long_term_memory(
+        self, user_message: str, agent_role: str
+    ) -> str:
+        """
+        Retrieve the most relevant memories for this query.
+
+        Not top-N. Fills a budget with the highest-scoring items,
+        ranked by relevance × importance × recency × frequency.
+        """
+        memories = self.ltm.active_memories
+        if not memories:
+            return ""
+
+        boost = {
+            "CFO": [MemoryCategory.FINANCIAL, MemoryCategory.DEADLINE],
+            "COO": [MemoryCategory.VENDOR, MemoryCategory.PROCESS],
+            "CMO": [MemoryCategory.GOAL, MemoryCategory.PRODUCT],
+            "CLO": [MemoryCategory.DEADLINE, MemoryCategory.DECISION],
+            "CHRO": [MemoryCategory.PERSON, MemoryCategory.PAIN_POINT],
+            "CSO": [MemoryCategory.COMPANY, MemoryCategory.ACTION_ITEM],
+        }
+
+        retrieved = self.retriever.retrieve(
+            query=user_message,
+            memories=memories,
+            token_budget=self.budget.conversation_summary,
+            boost_categories=boost.get(agent_role),
+        )
+
+        if not retrieved:
+            return ""
+
+        return self.retriever.format_for_prompt(retrieved)
 
     # ── Layer 2: Conversation Summary ───────────────────────────
 

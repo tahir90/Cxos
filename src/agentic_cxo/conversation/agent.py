@@ -21,6 +21,10 @@ from openai import OpenAI
 
 from agentic_cxo.config import settings
 from agentic_cxo.conversation.context import ContextAssembler, TokenBudget
+from agentic_cxo.conversation.long_term_memory import (
+    LongTermMemory,
+    MemoryExtractor,
+)
 from agentic_cxo.conversation.memory import (
     BusinessProfileStore,
     ConversationMemory,
@@ -94,6 +98,10 @@ class CoFounderAgent:
     )
     reminder_store: ReminderStore = field(default_factory=ReminderStore)
     router: IntentRouter = field(default_factory=IntentRouter)
+    ltm: LongTermMemory = field(default_factory=LongTermMemory)
+    memory_extractor: MemoryExtractor = field(
+        default_factory=MemoryExtractor
+    )
     context_assembler: ContextAssembler | None = field(
         default=None, init=False
     )
@@ -105,6 +113,7 @@ class CoFounderAgent:
             memory=self.memory,
             profile_store=self.profile_store,
             reminder_store=self.reminder_store,
+            ltm=self.ltm,
             budget=TokenBudget.for_model(settings.llm.model),
         )
 
@@ -141,6 +150,11 @@ class CoFounderAgent:
         self.memory.add(user_msg)
 
         self.profile_store.extract_and_update(message)
+        extracted = self.memory_extractor.extract(
+            message, role="user", source="conversation"
+        )
+        if extracted:
+            self.ltm.add_many(extracted)
 
         route = self.router.route(message, has_attachment=has_attach)
 
