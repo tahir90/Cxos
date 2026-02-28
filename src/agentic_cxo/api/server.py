@@ -227,6 +227,11 @@ class QueryRequest(BaseModel):
 
 # ── Dashboard ────────────────────────────────────────────────────
 
+@app.get("/health")
+async def health():
+    return {"status": "ok"}
+
+
 @app.get("/")
 async def dashboard():
     return FileResponse(str(STATIC_DIR / "index.html"))
