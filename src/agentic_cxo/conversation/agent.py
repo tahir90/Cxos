@@ -40,6 +40,11 @@ from agentic_cxo.conversation.models import (
     Reminder,
     ReminderPriority,
 )
+from agentic_cxo.conversation.pattern_engine import (
+    EventExtractor,
+    EventStore,
+    ProactiveAlertEngine,
+)
 from agentic_cxo.conversation.router import IntentRouter, RoutingResult
 from agentic_cxo.memory.vault import ContextVault
 from agentic_cxo.pipeline.refinery import ContextRefinery
@@ -102,12 +107,20 @@ class CoFounderAgent:
     memory_extractor: MemoryExtractor = field(
         default_factory=MemoryExtractor
     )
+    event_store: EventStore = field(default_factory=EventStore)
+    event_extractor: EventExtractor = field(default_factory=EventExtractor)
+    alert_engine: ProactiveAlertEngine | None = field(
+        default=None, init=False
+    )
     context_assembler: ContextAssembler | None = field(
         default=None, init=False
     )
     _client: OpenAI | None = field(default=None, init=False, repr=False)
 
     def __post_init__(self) -> None:
+        self.alert_engine = ProactiveAlertEngine(
+            event_store=self.event_store,
+        )
         self.context_assembler = ContextAssembler(
             vault=self.vault,
             memory=self.memory,
@@ -156,9 +169,23 @@ class CoFounderAgent:
         if extracted:
             self.ltm.add_many(extracted)
 
+        events = self.event_extractor.extract(message)
+        for ev in events:
+            self.event_store.record(ev)
+
         route = self.router.route(message, has_attachment=has_attach)
 
         responses: list[ChatMessage] = []
+
+        alerts = self.alert_engine.check(message)
+        if alerts:
+            alert_text = self.alert_engine.format_alerts(alerts)
+            if alert_text:
+                responses.append(ChatMessage(
+                    role=MessageRole.AGENT,
+                    content=alert_text,
+                    metadata={"type": "pattern_alert"},
+                ))
 
         if attachments:
             for att in attachments:
