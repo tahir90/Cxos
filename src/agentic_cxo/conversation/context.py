@@ -54,6 +54,7 @@ from agentic_cxo.conversation.memory import (
     ConversationMemory,
     ReminderStore,
 )
+from agentic_cxo.conversation.self_awareness import build_self_awareness
 from agentic_cxo.memory.vault import ContextVault
 
 logger = logging.getLogger(__name__)
@@ -145,6 +146,7 @@ class ContextAssembler:
     ltm: LongTermMemory = field(default_factory=LongTermMemory)
     retriever: MemoryRetriever = field(default_factory=MemoryRetriever)
     budget: TokenBudget = field(default_factory=TokenBudget)
+    _self_awareness: str = field(default="", init=False)
     _conversation_summary: str = field(default="", init=False)
     _summary_at_count: int = field(default=0, init=False)
     _enc: Any = field(default=None, init=False, repr=False)
@@ -154,6 +156,7 @@ class ContextAssembler:
             self._enc = tiktoken.encoding_for_model("gpt-4o")
         except Exception:
             self._enc = tiktoken.get_encoding("cl100k_base")
+        self._self_awareness = build_self_awareness()
 
     def _count_tokens(self, text: str) -> int:
         return len(self._enc.encode(text))
@@ -194,7 +197,8 @@ class ContextAssembler:
 
         system_prompt = "\n\n".join(
             section for section in [
-                identity, long_term, conv_summary,
+                identity, self._self_awareness,
+                long_term, conv_summary,
                 vault_data, reminders,
             ]
             if section
