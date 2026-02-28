@@ -40,11 +40,21 @@
         <p class="text-[10px] text-gray-500 tracking-wider">YOUR AI CO-FOUNDER</p>
       </div>
     </div>
-    <div class="flex items-center gap-2">
-      <button onclick="getBriefing()" class="px-3 py-1.5 bg-gray-800/60 hover:bg-gray-700/60 text-gray-300 text-xs rounded-lg transition border border-gray-700/30">Briefing</button>
+    <div class="flex items-center gap-1.5 sm:gap-2">
+      <button onclick="getBriefing()" class="hidden sm:block px-3 py-1.5 bg-gray-800/60 hover:bg-gray-700/60 text-gray-300 text-xs rounded-lg transition border border-gray-700/30">Briefing</button>
+      <button onclick="loadNotifications()" class="relative px-2 py-1.5 bg-gray-800/60 hover:bg-gray-700/60 text-gray-300 text-xs rounded-lg transition border border-gray-700/30">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/></svg>
+        <span id="notif-badge" class="hidden absolute -top-1 -right-1 w-4 h-4 bg-red-500 rounded-full text-[9px] text-white flex items-center justify-center font-bold"></span>
+      </button>
       <span id="reminder-badge" class="hidden px-2 py-1 bg-red-500/20 text-red-400 text-[11px] font-semibold rounded-lg border border-red-500/30 cursor-pointer" onclick="getBriefing()"></span>
-      <button onclick="openSettings()" class="px-3 py-1.5 bg-gray-800/60 hover:bg-gray-700/60 text-gray-300 text-xs rounded-lg transition border border-gray-700/30">Settings</button>
-      <button onclick="seedData()" id="seed-btn" class="px-3 py-1.5 bg-indigo-600/80 hover:bg-indigo-500/80 text-white text-xs rounded-lg transition font-medium">Load Demo</button>
+      <button onclick="openSettings()" class="hidden sm:block px-3 py-1.5 bg-gray-800/60 hover:bg-gray-700/60 text-gray-300 text-xs rounded-lg transition border border-gray-700/30">Settings</button>
+      <button onclick="toggleSidebar()" class="lg:hidden px-2 py-1.5 bg-gray-800/60 hover:bg-gray-700/60 text-gray-300 text-xs rounded-lg transition border border-gray-700/30">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/></svg>
+      </button>
+      <button onclick="seedData()" id="seed-btn" class="px-2 sm:px-3 py-1.5 bg-indigo-600/80 hover:bg-indigo-500/80 text-white text-[11px] sm:text-xs rounded-lg transition font-medium">Demo</button>
+      <button onclick="logout()" class="px-2 py-1.5 bg-gray-800/60 hover:bg-red-600/40 text-gray-400 hover:text-red-300 text-xs rounded-lg transition border border-gray-700/30" title="Logout">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/></svg>
+      </button>
     </div>
   </header>
 
@@ -82,7 +92,7 @@
     </div>
 
     <!-- Sidebar -->
-    <div id="sidebar" class="w-72 border-l border-gray-800/40 bg-[#0b0f1a] overflow-y-auto hidden lg:block">
+    <div id="sidebar" class="w-72 border-l border-gray-800/40 bg-[#0b0f1a] overflow-y-auto hidden lg:block fixed lg:static right-0 top-[57px] bottom-0 z-40">
       <div class="p-4">
         <!-- Profile -->
         <div id="profile-section" class="mb-5">
@@ -353,6 +363,45 @@ async function boot(){
   }
   refreshSidebar();
 }
+function toggleSidebar(){
+  const s=document.getElementById('sidebar');
+  s.classList.toggle('hidden');
+  s.classList.toggle('lg:block');
+}
+
+function logout(){
+  localStorage.removeItem('cxo_token');
+  localStorage.removeItem('cxo_user');
+  window.location.href='/login';
+}
+
+async function loadNotifications(){
+  try{
+    const res=await fetch(API+'/notifications');
+    const data=await res.json();
+    const badge=document.getElementById('notif-badge');
+    if(data.unread_count>0){
+      badge.textContent=data.unread_count;
+      badge.classList.remove('hidden');
+    }else{badge.classList.add('hidden');}
+
+    if(data.unread.length){
+      let msg='### Notifications\n\n';
+      data.unread.forEach(n=>{
+        const icon=n.priority==='urgent'||n.priority==='high'?'🔴':'🔵';
+        msg+=`${icon} **${n.title}**\n${n.message}\n\n`;
+      });
+      addMessage('system',msg);
+      fetch(API+'/notifications/read-all',{method:'POST'});
+      setTimeout(()=>{
+        document.getElementById('notif-badge').classList.add('hidden');
+      },1000);
+    }else{
+      addMessage('system','No new notifications. All clear.');
+    }
+  }catch(e){console.error(e);}
+}
+
 boot();
 
 // ═══ SETTINGS & CONNECTORS ═══════════════════════════════════
