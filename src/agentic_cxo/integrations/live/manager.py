@@ -15,12 +15,21 @@ from __future__ import annotations
 import logging
 from typing import Any
 
+from agentic_cxo.integrations.live.analytics_clients import (
+    AmplitudeClient,
+    AvalaraClient,
+    IntercomClient,
+    MixpanelClient,
+    WebhooksClient,
+    ZendeskClient,
+)
 from agentic_cxo.integrations.live.base import (
     BaseConnectorClient,
     ConnectionResult,
     ConnectorData,
     CredentialStore,
 )
+from agentic_cxo.integrations.live.chargebee_client import ChargebeeClient
 from agentic_cxo.integrations.live.drive_client import (
     GoogleDriveClient,
     OneDriveClient,
@@ -29,6 +38,11 @@ from agentic_cxo.integrations.live.github_client import (
     BitbucketClient,
     GitHubClient,
 )
+from agentic_cxo.integrations.live.gmail_client import GmailClient
+from agentic_cxo.integrations.live.hubspot_client import HubSpotClient
+from agentic_cxo.integrations.live.jira_client import JiraClient
+from agentic_cxo.integrations.live.notion_client import NotionClient
+from agentic_cxo.integrations.live.shopify_client import ShopifyClient
 from agentic_cxo.integrations.live.slack_client import SlackClient
 from agentic_cxo.integrations.live.stripe_client import StripeClient
 
@@ -36,12 +50,26 @@ logger = logging.getLogger(__name__)
 
 
 LIVE_CLIENTS: dict[str, BaseConnectorClient] = {
+    # Original 6
     "slack": SlackClient(),
     "stripe": StripeClient(),
     "github": GitHubClient(),
     "bitbucket": BitbucketClient(),
     "google_drive": GoogleDriveClient(),
     "onedrive": OneDriveClient(),
+    # Tier 1 (12 new)
+    "gmail": GmailClient(),
+    "hubspot": HubSpotClient(),
+    "jira": JiraClient(),
+    "notion": NotionClient(),
+    "shopify": ShopifyClient(),
+    "chargebee": ChargebeeClient(),
+    "mixpanel": MixpanelClient(),
+    "amplitude": AmplitudeClient(),
+    "zendesk": ZendeskClient(),
+    "intercom": IntercomClient(),
+    "avalara": AvalaraClient(),
+    "webhooks": WebhooksClient(),
 }
 
 
