@@ -490,6 +490,8 @@ The server is production-grade with 40+ endpoints:
 
 ### Priority Next Steps
 
+> **Full roadmap with weekly breakdown:** See [NEXT_STEPS.md](./NEXT_STEPS.md) for the detailed implementation plan with 5 priority tiers and a 6-week recommended schedule.
+
 1. **Persist the Approval Gate** — swap in-memory dict for database or JSON storage so pending approvals survive restarts.
 2. **Wire Stripe billing** — connect the existing `stripe_client.py` connector to `BillingManager` for actual subscription charges and webhook handling.
 3. **Add CORS middleware** — required for any browser-based frontend to work cross-origin.
