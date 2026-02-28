@@ -48,6 +48,11 @@ from agentic_cxo.conversation.pattern_engine import (
 from agentic_cxo.conversation.router import IntentRouter, RoutingResult
 from agentic_cxo.memory.vault import ContextVault
 from agentic_cxo.pipeline.refinery import ContextRefinery
+from agentic_cxo.tools.cost_analyzer import CostAnalyzerTool
+from agentic_cxo.tools.framework import ToolExecutor, ToolRegistry
+from agentic_cxo.tools.travel_analyzer import TravelAnalyzerTool
+from agentic_cxo.tools.vendor_diligence import VendorDueDiligenceTool
+from agentic_cxo.tools.web_search import WebSearchTool
 
 logger = logging.getLogger(__name__)
 
@@ -123,6 +128,18 @@ class CoFounderAgent:
         self.alert_engine = ProactiveAlertEngine(
             event_store=self.event_store,
         )
+
+        self._tool_registry = ToolRegistry()
+        self._tool_registry.register(WebSearchTool())
+        self._tool_registry.register(
+            CostAnalyzerTool(vault=self.vault, event_store=self.event_store)
+        )
+        self._tool_registry.register(VendorDueDiligenceTool(vault=self.vault))
+        self._tool_registry.register(TravelAnalyzerTool(vault=self.vault))
+        self._tool_executor = ToolExecutor(
+            registry=self._tool_registry, use_llm=self.use_llm
+        )
+
         self.context_assembler = ContextAssembler(
             vault=self.vault,
             memory=self.memory,
@@ -198,6 +215,20 @@ class CoFounderAgent:
             reminder_resp = self._handle_reminder(message)
             if reminder_resp:
                 responses.append(reminder_resp)
+
+        tool_results = self._tool_executor.decide_and_execute(message)
+        for tr in tool_results:
+            if tr.success and tr.summary:
+                responses.append(ChatMessage(
+                    role=MessageRole.AGENT,
+                    content=f"**{tr.tool_name.replace('_', ' ').title()}:**\n\n{tr.summary}",
+                    actions=[AgentActionRef(
+                        action_type=f"tool_{tr.tool_name}",
+                        description=tr.summary,
+                        details=tr.data,
+                    )],
+                    metadata={"type": "tool_result", "tool": tr.tool_name},
+                ))
 
         if route.intent == "onboarding" or (
             not self.profile_store.profile.onboarding_complete
