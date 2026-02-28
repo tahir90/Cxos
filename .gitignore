@@ -5,6 +5,7 @@ __pycache__/
 dist/
 build/
 .vault/
+.cxo_data/
 .env
 .pytest_cache/
 .ruff_cache/

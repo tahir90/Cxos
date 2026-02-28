@@ -48,11 +48,24 @@ class GuardrailConfig:
 
 
 @dataclass
+class AuthConfig:
+    admin_password: str = field(
+        default_factory=lambda: os.getenv("CXO_ADMIN_PASSWORD", "")
+    )
+    jwt_secret: str = field(
+        default_factory=lambda: os.getenv(
+            "CXO_JWT_SECRET", "cxo-secret-change-in-production-use-env-var"
+        )
+    )
+
+
+@dataclass
 class Settings:
     llm: LLMConfig = field(default_factory=LLMConfig)
     chunking: ChunkingConfig = field(default_factory=ChunkingConfig)
     memory: MemoryConfig = field(default_factory=MemoryConfig)
     guardrails: GuardrailConfig = field(default_factory=GuardrailConfig)
+    auth: AuthConfig = field(default_factory=AuthConfig)
 
 
 settings = Settings()

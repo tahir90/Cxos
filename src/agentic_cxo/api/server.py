@@ -1,9 +1,14 @@
 """
 FastAPI server — Conversational AI Co-Founder interface.
 
-Chat-first API: the founder talks, the AI co-founder routes to CXO agents.
+Three-page URL structure:
 
-  GET  /                   — Chat dashboard
+  GET  /welcome            — Landing page (pricing, features, CTA)
+  GET  /login              — Signup / signin page
+  GET  /                   — Chat dashboard (requires auth)
+
+API endpoints:
+
   POST /chat               — Send a message, get CXO responses
   POST /upload             — Upload a document into chat
   GET  /briefing           — Morning briefing with critical reminders
@@ -215,10 +220,23 @@ class QueryRequest(BaseModel):
     top_k: int = 5
 
 
-# ── Dashboard ────────────────────────────────────────────────────
+# ── Pages ─────────────────────────────────────────────────────────
+
+@app.get("/welcome")
+async def welcome_page():
+    """Landing page — pricing, features, CTA."""
+    return FileResponse(str(STATIC_DIR / "welcome.html"))
+
+
+@app.get("/login")
+async def login_page():
+    """Signup / signin page."""
+    return FileResponse(str(STATIC_DIR / "login.html"))
+
 
 @app.get("/")
 async def dashboard():
+    """Chat dashboard — requires auth (enforced client-side via JWT in localStorage)."""
     return FileResponse(str(STATIC_DIR / "index.html"))
 
 

@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sign In — Agentic CXO</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+    *{font-family:'Inter',system-ui,sans-serif}
+    body{background:#0a0e1a}
+    .fade-in{animation:fadeIn .4s ease-out}
+    @keyframes fadeIn{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
+  </style>
+</head>
+<body class="text-gray-300 min-h-screen flex items-center justify-center">
+  <div class="w-full max-w-sm mx-auto px-6 fade-in">
+    <!-- Logo -->
+    <div class="text-center mb-8">
+      <a href="/welcome" class="inline-flex items-center gap-3 mb-4">
+        <div class="w-10 h-10 bg-gradient-to-br from-indigo-500 to-violet-600 rounded-xl flex items-center justify-center text-white font-bold text-sm shadow-lg shadow-indigo-500/20">CXO</div>
+        <span class="text-white font-bold text-lg tracking-tight">Agentic CXO</span>
+      </a>
+      <p id="form-subtitle" class="text-sm text-gray-500">Sign in to your AI co-founder</p>
+    </div>
+
+    <!-- Error banner -->
+    <div id="error-banner" class="hidden mb-4 px-4 py-3 bg-red-500/10 border border-red-500/20 rounded-xl text-sm text-red-400"></div>
+
+    <!-- Form -->
+    <form id="auth-form" onsubmit="handleSubmit(event)" class="space-y-4">
+      <!-- Name field (signup only) -->
+      <div id="name-field" class="hidden">
+        <label class="block text-xs text-gray-500 font-medium mb-1.5">Full Name</label>
+        <input id="name-input" type="text" class="w-full bg-[#111827] border border-gray-700/50 rounded-xl px-4 py-3 text-white text-sm placeholder-gray-600 focus:ring-2 focus:ring-indigo-500/40 focus:border-indigo-500/40 outline-none transition" placeholder="Jane Doe">
+      </div>
+
+      <div>
+        <label class="block text-xs text-gray-500 font-medium mb-1.5">Email</label>
+        <input id="email-input" type="email" required class="w-full bg-[#111827] border border-gray-700/50 rounded-xl px-4 py-3 text-white text-sm placeholder-gray-600 focus:ring-2 focus:ring-indigo-500/40 focus:border-indigo-500/40 outline-none transition" placeholder="you@company.com" autofocus>
+      </div>
+
+      <div>
+        <label class="block text-xs text-gray-500 font-medium mb-1.5">Password</label>
+        <input id="password-input" type="password" required minlength="6" class="w-full bg-[#111827] border border-gray-700/50 rounded-xl px-4 py-3 text-white text-sm placeholder-gray-600 focus:ring-2 focus:ring-indigo-500/40 focus:border-indigo-500/40 outline-none transition" placeholder="Minimum 6 characters">
+      </div>
+
+      <button id="submit-btn" type="submit" class="w-full bg-indigo-600 hover:bg-indigo-500 text-white py-3 rounded-xl text-sm font-semibold transition shadow-lg shadow-indigo-500/20">
+        Sign In
+      </button>
+    </form>
+
+    <!-- Toggle -->
+    <p class="text-center text-sm text-gray-500 mt-6">
+      <span id="toggle-text">Don't have an account?</span>
+      <button id="toggle-btn" onclick="toggleMode()" class="text-indigo-400 hover:text-indigo-300 ml-1 transition font-medium">Sign up</button>
+    </p>
+
+    <!-- Back link -->
+    <p class="text-center mt-4">
+      <a href="/welcome" class="text-xs text-gray-600 hover:text-gray-400 transition">&larr; Back to home</a>
+    </p>
+  </div>
+
+<script>
+let isSignup = false;
+
+function toggleMode() {
+  isSignup = !isSignup;
+  const nameField = document.getElementById('name-field');
+  const submitBtn = document.getElementById('submit-btn');
+  const toggleText = document.getElementById('toggle-text');
+  const toggleBtn = document.getElementById('toggle-btn');
+  const subtitle = document.getElementById('form-subtitle');
+
+  if (isSignup) {
+    nameField.classList.remove('hidden');
+    submitBtn.textContent = 'Create Account';
+    toggleText.textContent = 'Already have an account?';
+    toggleBtn.textContent = 'Sign in';
+    subtitle.textContent = 'Create your AI co-founder account';
+  } else {
+    nameField.classList.add('hidden');
+    submitBtn.textContent = 'Sign In';
+    toggleText.textContent = "Don't have an account?";
+    toggleBtn.textContent = 'Sign up';
+    subtitle.textContent = 'Sign in to your AI co-founder';
+  }
+  hideError();
+}
+
+function showError(msg) {
+  const banner = document.getElementById('error-banner');
+  banner.textContent = msg;
+  banner.classList.remove('hidden');
+}
+
+function hideError() {
+  document.getElementById('error-banner').classList.add('hidden');
+}
+
+async function handleSubmit(e) {
+  e.preventDefault();
+  hideError();
+
+  const email = document.getElementById('email-input').value.trim();
+  const password = document.getElementById('password-input').value;
+  const name = document.getElementById('name-input').value.trim();
+  const btn = document.getElementById('submit-btn');
+
+  btn.disabled = true;
+  btn.textContent = isSignup ? 'Creating account...' : 'Signing in...';
+
+  try {
+    const endpoint = isSignup ? '/auth/signup' : '/auth/login';
+    const body = isSignup
+      ? { email, password, name }
+      : { email, password };
+
+    const res = await fetch(endpoint, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+
+    const data = await res.json();
+
+    if (!res.ok) {
+      showError(data.detail || 'Authentication failed');
+      btn.disabled = false;
+      btn.textContent = isSignup ? 'Create Account' : 'Sign In';
+      return;
+    }
+
+    const token = data.token || (data.user && data.token);
+    if (token) {
+      localStorage.setItem('cxo_token', token);
+      if (data.user) {
+        localStorage.setItem('cxo_user', JSON.stringify(data.user));
+      }
+      window.location.href = '/';
+    } else {
+      showError('No token received. Please try again.');
+    }
+  } catch (err) {
+    showError('Connection error: ' + err.message);
+  }
+
+  btn.disabled = false;
+  btn.textContent = isSignup ? 'Create Account' : 'Sign In';
+}
+
+// If already logged in, redirect to dashboard
+if (localStorage.getItem('cxo_token')) {
+  window.location.href = '/';
+}
+</script>
+</body>
+</html>

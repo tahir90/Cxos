@@ -17,9 +17,11 @@ from typing import Any
 from jose import JWTError, jwt
 from passlib.context import CryptContext
 
+from agentic_cxo.config import settings as app_settings
+
 logger = logging.getLogger(__name__)
 
-SECRET_KEY = "cxo-secret-change-in-production-use-env-var"
+SECRET_KEY = app_settings.auth.jwt_secret
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_HOURS = 72
 

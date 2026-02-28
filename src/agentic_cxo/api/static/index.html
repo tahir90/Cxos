@@ -45,6 +45,7 @@
       <span id="reminder-badge" class="hidden px-2 py-1 bg-red-500/20 text-red-400 text-[11px] font-semibold rounded-lg border border-red-500/30 cursor-pointer" onclick="getBriefing()"></span>
       <button onclick="openSettings()" class="px-3 py-1.5 bg-gray-800/60 hover:bg-gray-700/60 text-gray-300 text-xs rounded-lg transition border border-gray-700/30">Settings</button>
       <button onclick="seedData()" id="seed-btn" class="px-3 py-1.5 bg-indigo-600/80 hover:bg-indigo-500/80 text-white text-xs rounded-lg transition font-medium">Load Demo</button>
+      <button onclick="logout()" class="px-3 py-1.5 bg-gray-800/60 hover:bg-red-600/30 text-gray-400 hover:text-red-300 text-xs rounded-lg transition border border-gray-700/30" title="Sign out">Logout</button>
     </div>
   </header>
 
@@ -165,6 +166,12 @@
 const API='';
 const ROLE_COLORS={agent:'indigo',cfo:'emerald',coo:'blue',cmo:'pink',clo:'amber',chro:'cyan',cso:'violet',system:'gray',user:'gray'};
 const ROLE_LABELS={agent:'Co-Founder',cfo:'CFO',coo:'COO',cmo:'CMO',clo:'CLO',chro:'CHRO',cso:'CSO',system:'System'};
+
+// Auth check — redirect to /login if no token
+const cxoToken = localStorage.getItem('cxo_token');
+if (!cxoToken) { window.location.href = '/login'; }
+function authHeaders() { return cxoToken ? { 'Authorization': 'Bearer ' + cxoToken } : {}; }
+function logout() { localStorage.removeItem('cxo_token'); localStorage.removeItem('cxo_user'); window.location.href = '/login'; }
 
 function autoResize(el){el.style.height='auto';el.style.height=Math.min(el.scrollHeight,120)+'px';}
 function scrollBottom(){const a=document.getElementById('chat-area');setTimeout(()=>a.scrollTop=a.scrollHeight,50);}

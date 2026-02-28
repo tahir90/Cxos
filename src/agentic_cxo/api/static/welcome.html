@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Agentic CXO — Your AI Co-Founder</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap');
+    *{font-family:'Inter',system-ui,sans-serif}
+    body{background:#0a0e1a}
+    .glow{box-shadow:0 0 60px rgba(99,102,241,.15)}
+    .card-hover:hover{transform:translateY(-2px);box-shadow:0 8px 30px rgba(99,102,241,.1)}
+    .fade-in{animation:fadeIn .6s ease-out}
+    @keyframes fadeIn{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:translateY(0)}}
+    .gradient-text{background:linear-gradient(135deg,#818cf8,#a78bfa,#c084fc);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+  </style>
+</head>
+<body class="text-gray-300">
+
+  <!-- Nav -->
+  <nav class="border-b border-gray-800/40 bg-[#0a0e1a]/90 backdrop-blur-xl sticky top-0 z-50">
+    <div class="max-w-6xl mx-auto px-6 py-4 flex items-center justify-between">
+      <div class="flex items-center gap-3">
+        <div class="w-9 h-9 bg-gradient-to-br from-indigo-500 to-violet-600 rounded-xl flex items-center justify-center text-white font-bold text-xs shadow-lg shadow-indigo-500/20">CXO</div>
+        <span class="text-white font-bold tracking-tight">Agentic CXO</span>
+      </div>
+      <div class="flex items-center gap-3">
+        <a href="/login" class="text-sm text-gray-400 hover:text-white transition px-3 py-1.5">Sign in</a>
+        <a href="/login" class="text-sm bg-indigo-600 hover:bg-indigo-500 text-white px-4 py-2 rounded-lg transition font-medium">Get Started</a>
+      </div>
+    </div>
+  </nav>
+
+  <!-- Hero -->
+  <section class="max-w-6xl mx-auto px-6 pt-20 pb-16 text-center fade-in">
+    <div class="inline-flex items-center gap-2 px-3 py-1 bg-indigo-500/10 border border-indigo-500/20 rounded-full text-xs text-indigo-300 mb-6">
+      <span class="w-2 h-2 bg-emerald-500 rounded-full animate-pulse"></span>
+      AI-powered C-suite for every startup
+    </div>
+    <h1 class="text-4xl md:text-6xl font-black text-white leading-tight mb-6">
+      Your AI <span class="gradient-text">Co-Founder</span><br>
+      Never Sleeps
+    </h1>
+    <p class="text-lg md:text-xl text-gray-400 max-w-2xl mx-auto mb-10 leading-relaxed">
+      Six AI executives — CFO, COO, CMO, CLO, CHRO, CSO — that reason, plan, and act on your business data.
+      With human-in-the-loop guardrails and 14 pre-built business workflows.
+    </p>
+    <div class="flex items-center justify-center gap-4">
+      <a href="/login" class="bg-indigo-600 hover:bg-indigo-500 text-white px-8 py-3.5 rounded-xl text-sm font-semibold transition shadow-lg shadow-indigo-500/20">
+        Start Free &rarr;
+      </a>
+      <a href="#scenarios" class="border border-gray-700/50 hover:border-gray-600 text-gray-300 px-6 py-3.5 rounded-xl text-sm transition">
+        See Scenarios
+      </a>
+    </div>
+  </section>
+
+  <!-- Agents Grid -->
+  <section class="max-w-6xl mx-auto px-6 py-16">
+    <h2 class="text-2xl font-bold text-white text-center mb-3">Your C-Suite Team</h2>
+    <p class="text-gray-500 text-center mb-10 text-sm">Six specialized AI agents working together on your business</p>
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+      <div class="bg-[#111827] border border-gray-800/40 rounded-2xl p-6 card-hover transition-all duration-200">
+        <div class="w-10 h-10 bg-emerald-500/10 rounded-xl flex items-center justify-center mb-4">
+          <span class="text-emerald-400 font-bold text-sm">CFO</span>
+        </div>
+        <h3 class="text-white font-semibold mb-1">AI CFO</h3>
+        <p class="text-sm text-gray-500">Expense auditing, tax strategy, cash flow forecasting, collections enforcement. Watches every dollar.</p>
+      </div>
+      <div class="bg-[#111827] border border-gray-800/40 rounded-2xl p-6 card-hover transition-all duration-200">
+        <div class="w-10 h-10 bg-blue-500/10 rounded-xl flex items-center justify-center mb-4">
+          <span class="text-blue-400 font-bold text-sm">COO</span>
+        </div>
+        <h3 class="text-white font-semibold mb-1">AI COO</h3>
+        <p class="text-sm text-gray-500">Supply chain optimization, vendor management, logistics. Keeps operations running smoothly.</p>
+      </div>
+      <div class="bg-[#111827] border border-gray-800/40 rounded-2xl p-6 card-hover transition-all duration-200">
+        <div class="w-10 h-10 bg-pink-500/10 rounded-xl flex items-center justify-center mb-4">
+          <span class="text-pink-400 font-bold text-sm">CMO</span>
+        </div>
+        <h3 class="text-white font-semibold mb-1">AI CMO</h3>
+        <p class="text-sm text-gray-500">Campaigns, churn prevention, localization, viral response. Grows your brand and revenue.</p>
+      </div>
+      <div class="bg-[#111827] border border-gray-800/40 rounded-2xl p-6 card-hover transition-all duration-200">
+        <div class="w-10 h-10 bg-amber-500/10 rounded-xl flex items-center justify-center mb-4">
+          <span class="text-amber-400 font-bold text-sm">CLO</span>
+        </div>
+        <h3 class="text-white font-semibold mb-1">AI CLO</h3>
+        <p class="text-sm text-gray-500">Contract scanning, IP defense, regulatory audits. Protects your business legally.</p>
+      </div>
+      <div class="bg-[#111827] border border-gray-800/40 rounded-2xl p-6 card-hover transition-all duration-200">
+        <div class="w-10 h-10 bg-cyan-500/10 rounded-xl flex items-center justify-center mb-4">
+          <span class="text-cyan-400 font-bold text-sm">CHRO</span>
+        </div>
+        <h3 class="text-white font-semibold mb-1">AI CHRO</h3>
+        <p class="text-sm text-gray-500">Recruiting, culture health, automated onboarding. Builds and retains your dream team.</p>
+      </div>
+      <div class="bg-[#111827] border border-gray-800/40 rounded-2xl p-6 card-hover transition-all duration-200">
+        <div class="w-10 h-10 bg-violet-500/10 rounded-xl flex items-center justify-center mb-4">
+          <span class="text-violet-400 font-bold text-sm">CSO</span>
+        </div>
+        <h3 class="text-white font-semibold mb-1">AI CSO</h3>
+        <p class="text-sm text-gray-500">Deal recovery, pipeline optimization, re-engagement. Closes more deals faster.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- Scenarios -->
+  <section id="scenarios" class="max-w-6xl mx-auto px-6 py-16">
+    <h2 class="text-2xl font-bold text-white text-center mb-3">14 Pre-Built Scenarios</h2>
+    <p class="text-gray-500 text-center mb-10 text-sm">Multi-step workflows with dependency resolution, risk assessment, and human-in-the-loop guardrails</p>
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+      <div class="flex items-start gap-3 bg-[#111827]/60 border border-gray-800/30 rounded-xl px-5 py-4">
+        <span class="text-emerald-400 text-xs font-bold mt-0.5 shrink-0 w-8">CFO</span>
+        <div><p class="text-sm text-white font-medium">The Cash-Flow Guardian</p><p class="text-xs text-gray-500">Detects expense spikes, audits vendors, re-forecasts runway</p></div>
+      </div>
+      <div class="flex items-start gap-3 bg-[#111827]/60 border border-gray-800/30 rounded-xl px-5 py-4">
+        <span class="text-emerald-400 text-xs font-bold mt-0.5 shrink-0 w-8">CFO</span>
+        <div><p class="text-sm text-white font-medium">The Tax Strategist</p><p class="text-xs text-gray-500">Scans for R&D keywords, generates IRS-compliant credit report</p></div>
+      </div>
+      <div class="flex items-start gap-3 bg-[#111827]/60 border border-gray-800/30 rounded-xl px-5 py-4">
+        <span class="text-emerald-400 text-xs font-bold mt-0.5 shrink-0 w-8">CFO</span>
+        <div><p class="text-sm text-white font-medium">The Collections Enforcer</p><p class="text-xs text-gray-500">Flags overdue invoices, drafts escalating reminders</p></div>
+      </div>
+      <div class="flex items-start gap-3 bg-[#111827]/60 border border-gray-800/30 rounded-xl px-5 py-4">
+        <span class="text-pink-400 text-xs font-bold mt-0.5 shrink-0 w-8">CMO</span>
+        <div><p class="text-sm text-white font-medium">The Viral Responder</p><p class="text-xs text-gray-500">Monitors competitor outages, builds comparison landing page</p></div>
+      </div>
+      <div class="flex items-start gap-3 bg-[#111827]/60 border border-gray-800/30 rounded-xl px-5 py-4">
+        <span class="text-pink-400 text-xs font-bold mt-0.5 shrink-0 w-8">CMO</span>
+        <div><p class="text-sm text-white font-medium">The Churn Architect</p><p class="text-xs text-gray-500">Flags inactive users, analyzes pain points, sends outreach</p></div>
+      </div>
+      <div class="flex items-start gap-3 bg-[#111827]/60 border border-gray-800/30 rounded-xl px-5 py-4">
+        <span class="text-pink-400 text-xs font-bold mt-0.5 shrink-0 w-8">CMO</span>
+        <div><p class="text-sm text-white font-medium">The Global Localizer</p><p class="text-xs text-gray-500">Localizes top creative for new markets via PPP pricing</p></div>
+      </div>
+      <div class="flex items-start gap-3 bg-[#111827]/60 border border-gray-800/30 rounded-xl px-5 py-4">
+        <span class="text-cyan-400 text-xs font-bold mt-0.5 shrink-0 w-8">CHRO</span>
+        <div><p class="text-sm text-white font-medium">The Headhunter</p><p class="text-xs text-gray-500">Scrapes GitHub for specialists, enriches profiles, drafts outreach</p></div>
+      </div>
+      <div class="flex items-start gap-3 bg-[#111827]/60 border border-gray-800/30 rounded-xl px-5 py-4">
+        <span class="text-cyan-400 text-xs font-bold mt-0.5 shrink-0 w-8">CHRO</span>
+        <div><p class="text-sm text-white font-medium">The Culture Pulse</p><p class="text-xs text-gray-500">Runs sentiment analysis on Slack, builds action plan</p></div>
+      </div>
+      <div class="flex items-start gap-3 bg-[#111827]/60 border border-gray-800/30 rounded-xl px-5 py-4">
+        <span class="text-cyan-400 text-xs font-bold mt-0.5 shrink-0 w-8">CHRO</span>
+        <div><p class="text-sm text-white font-medium">The Automated Onboarder</p><p class="text-xs text-gray-500">Provisions accounts, builds curriculum, schedules intros</p></div>
+      </div>
+      <div class="flex items-start gap-3 bg-[#111827]/60 border border-gray-800/30 rounded-xl px-5 py-4">
+        <span class="text-amber-400 text-xs font-bold mt-0.5 shrink-0 w-8">CLO</span>
+        <div><p class="text-sm text-white font-medium">The Contract Sentinel</p><p class="text-xs text-gray-500">Parses MSA, flags risky clauses, generates redlined version</p></div>
+      </div>
+      <div class="flex items-start gap-3 bg-[#111827]/60 border border-gray-800/30 rounded-xl px-5 py-4">
+        <span class="text-amber-400 text-xs font-bold mt-0.5 shrink-0 w-8">CLO</span>
+        <div><p class="text-sm text-white font-medium">The IP Defender</p><p class="text-xs text-gray-500">Sweeps app stores for trademark violations, drafts C&D</p></div>
+      </div>
+      <div class="flex items-start gap-3 bg-[#111827]/60 border border-gray-800/30 rounded-xl px-5 py-4">
+        <span class="text-amber-400 text-xs font-bold mt-0.5 shrink-0 w-8">CLO</span>
+        <div><p class="text-sm text-white font-medium">The Regulatory Auditor</p><p class="text-xs text-gray-500">Maps data flows, flags non-compliant agents, builds remediation</p></div>
+      </div>
+      <div class="flex items-start gap-3 bg-[#111827]/60 border border-gray-800/30 rounded-xl px-5 py-4">
+        <span class="text-violet-400 text-xs font-bold mt-0.5 shrink-0 w-8">CSO</span>
+        <div><p class="text-sm text-white font-medium">The Ghostbuster</p><p class="text-xs text-gray-500">Identifies stalled deals, researches prospects, drafts follow-ups</p></div>
+      </div>
+      <div class="flex items-start gap-3 bg-[#111827]/60 border border-gray-800/30 rounded-xl px-5 py-4">
+        <span class="text-violet-400 text-xs font-bold mt-0.5 shrink-0 w-8">CSO</span>
+        <div><p class="text-sm text-white font-medium">The Pipeline Optimizer</p><p class="text-xs text-gray-500">Analyzes lost deals, finds feature gaps, re-engages prospects</p></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Integrations -->
+  <section class="max-w-6xl mx-auto px-6 py-16">
+    <h2 class="text-2xl font-bold text-white text-center mb-3">239+ Integrations</h2>
+    <p class="text-gray-500 text-center mb-10 text-sm">Connect every tool your business runs on</p>
+    <div class="flex flex-wrap justify-center gap-3">
+      <span class="px-3 py-1.5 bg-[#111827] border border-gray-800/40 rounded-lg text-xs text-gray-400">Slack</span>
+      <span class="px-3 py-1.5 bg-[#111827] border border-gray-800/40 rounded-lg text-xs text-gray-400">Stripe</span>
+      <span class="px-3 py-1.5 bg-[#111827] border border-gray-800/40 rounded-lg text-xs text-gray-400">GitHub</span>
+      <span class="px-3 py-1.5 bg-[#111827] border border-gray-800/40 rounded-lg text-xs text-gray-400">Google Drive</span>
+      <span class="px-3 py-1.5 bg-[#111827] border border-gray-800/40 rounded-lg text-xs text-gray-400">HubSpot</span>
+      <span class="px-3 py-1.5 bg-[#111827] border border-gray-800/40 rounded-lg text-xs text-gray-400">Jira</span>
+      <span class="px-3 py-1.5 bg-[#111827] border border-gray-800/40 rounded-lg text-xs text-gray-400">Salesforce</span>
+      <span class="px-3 py-1.5 bg-[#111827] border border-gray-800/40 rounded-lg text-xs text-gray-400">Notion</span>
+      <span class="px-3 py-1.5 bg-[#111827] border border-gray-800/40 rounded-lg text-xs text-gray-400">Shopify</span>
+      <span class="px-3 py-1.5 bg-[#111827] border border-gray-800/40 rounded-lg text-xs text-gray-400">QuickBooks</span>
+      <span class="px-3 py-1.5 bg-[#111827] border border-gray-800/40 rounded-lg text-xs text-gray-400">Gmail</span>
+      <span class="px-3 py-1.5 bg-[#111827] border border-gray-800/40 rounded-lg text-xs text-gray-400">Zendesk</span>
+      <span class="px-3 py-1.5 bg-[#111827] border border-gray-800/40 rounded-lg text-xs text-gray-400">Intercom</span>
+      <span class="px-3 py-1.5 bg-[#111827] border border-gray-800/40 rounded-lg text-xs text-gray-400">Mixpanel</span>
+      <span class="px-3 py-1.5 bg-[#111827] border border-gray-800/40 rounded-lg text-xs text-gray-400">Chargebee</span>
+      <span class="px-3 py-1.5 bg-[#111827] border border-gray-800/40 rounded-lg text-xs text-gray-400">+ 224 more</span>
+    </div>
+  </section>
+
+  <!-- Pricing -->
+  <section id="pricing" class="max-w-6xl mx-auto px-6 py-16">
+    <h2 class="text-2xl font-bold text-white text-center mb-3">Simple Pricing</h2>
+    <p class="text-gray-500 text-center mb-10 text-sm">Start free. Scale when you're ready.</p>
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-4xl mx-auto">
+      <div class="bg-[#111827] border border-gray-800/40 rounded-2xl p-6">
+        <h3 class="text-white font-semibold mb-1">Starter</h3>
+        <p class="text-3xl font-black text-white mb-1">Free</p>
+        <p class="text-xs text-gray-500 mb-6">For solo founders</p>
+        <ul class="space-y-2 text-sm text-gray-400 mb-6">
+          <li class="flex items-center gap-2"><span class="text-emerald-400">&#10003;</span> 6 AI agents</li>
+          <li class="flex items-center gap-2"><span class="text-emerald-400">&#10003;</span> 14 scenarios</li>
+          <li class="flex items-center gap-2"><span class="text-emerald-400">&#10003;</span> Rule-based mode</li>
+          <li class="flex items-center gap-2"><span class="text-emerald-400">&#10003;</span> 5 connectors</li>
+        </ul>
+        <a href="/login" class="block text-center bg-gray-800 hover:bg-gray-700 text-white py-2.5 rounded-xl text-sm transition">Get Started</a>
+      </div>
+      <div class="bg-[#111827] border-2 border-indigo-500/30 rounded-2xl p-6 glow relative">
+        <span class="absolute -top-3 left-1/2 -translate-x-1/2 text-[10px] bg-indigo-600 text-white px-3 py-0.5 rounded-full font-semibold">POPULAR</span>
+        <h3 class="text-white font-semibold mb-1">Pro</h3>
+        <p class="text-3xl font-black text-white mb-1">$49<span class="text-sm font-normal text-gray-500">/mo</span></p>
+        <p class="text-xs text-gray-500 mb-6">For growing teams</p>
+        <ul class="space-y-2 text-sm text-gray-400 mb-6">
+          <li class="flex items-center gap-2"><span class="text-emerald-400">&#10003;</span> Everything in Starter</li>
+          <li class="flex items-center gap-2"><span class="text-emerald-400">&#10003;</span> GPT-4o LLM mode</li>
+          <li class="flex items-center gap-2"><span class="text-emerald-400">&#10003;</span> Unlimited connectors</li>
+          <li class="flex items-center gap-2"><span class="text-emerald-400">&#10003;</span> Team collaboration</li>
+        </ul>
+        <a href="/login" class="block text-center bg-indigo-600 hover:bg-indigo-500 text-white py-2.5 rounded-xl text-sm font-medium transition">Start Free Trial</a>
+      </div>
+      <div class="bg-[#111827] border border-gray-800/40 rounded-2xl p-6">
+        <h3 class="text-white font-semibold mb-1">Enterprise</h3>
+        <p class="text-3xl font-black text-white mb-1">Custom</p>
+        <p class="text-xs text-gray-500 mb-6">For large organizations</p>
+        <ul class="space-y-2 text-sm text-gray-400 mb-6">
+          <li class="flex items-center gap-2"><span class="text-emerald-400">&#10003;</span> Everything in Pro</li>
+          <li class="flex items-center gap-2"><span class="text-emerald-400">&#10003;</span> SSO / SAML</li>
+          <li class="flex items-center gap-2"><span class="text-emerald-400">&#10003;</span> Dedicated support</li>
+          <li class="flex items-center gap-2"><span class="text-emerald-400">&#10003;</span> On-premise option</li>
+        </ul>
+        <a href="mailto:sales@agenticcxo.com" class="block text-center bg-gray-800 hover:bg-gray-700 text-white py-2.5 rounded-xl text-sm transition">Contact Sales</a>
+      </div>
+    </div>
+  </section>
+
+  <!-- CTA -->
+  <section class="max-w-6xl mx-auto px-6 py-20 text-center">
+    <h2 class="text-3xl font-bold text-white mb-4">Ready to hire your AI C-suite?</h2>
+    <p class="text-gray-500 mb-8 max-w-lg mx-auto">Join founders who run their business with an AI co-founder that never sleeps, never forgets, and always has your back.</p>
+    <a href="/login" class="inline-block bg-indigo-600 hover:bg-indigo-500 text-white px-10 py-4 rounded-xl text-sm font-semibold transition shadow-lg shadow-indigo-500/20">
+      Get Started Free &rarr;
+    </a>
+  </section>
+
+  <!-- Footer -->
+  <footer class="border-t border-gray-800/40 py-8">
+    <div class="max-w-6xl mx-auto px-6 flex items-center justify-between text-xs text-gray-600">
+      <span>&copy; 2026 Agentic CXO. All rights reserved.</span>
+      <div class="flex gap-4">
+        <a href="#" class="hover:text-gray-400 transition">Privacy</a>
+        <a href="#" class="hover:text-gray-400 transition">Terms</a>
+        <a href="#" class="hover:text-gray-400 transition">Docs</a>
+      </div>
+    </div>
+  </footer>
+</body>
+</html>
