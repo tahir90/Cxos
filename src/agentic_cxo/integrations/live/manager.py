@@ -36,6 +36,22 @@ from agentic_cxo.integrations.live.base import (
     CredentialStore,
 )
 from agentic_cxo.integrations.live.chargebee_client import ChargebeeClient
+from agentic_cxo.integrations.live.cmo_clients import (
+    CloudinaryClient,
+    ContentfulClient,
+    CustomerIOClient,
+    G2Client,
+    KlaviyoClient,
+    LinkedInAdsClient,
+    MailchimpClient,
+    SegmentClient,
+    SemrushClient,
+    TikTokAdsClient,
+    TrustpilotClient,
+    TwitterClient,
+    TypeformClient,
+    WordPressClient,
+)
 from agentic_cxo.integrations.live.drive_client import (
     GoogleDriveClient,
     OneDriveClient,
@@ -88,6 +104,21 @@ LIVE_CLIENTS: dict[str, BaseConnectorClient] = {
     "apple_app_store": AppleAppStoreClient(),
     "google_play": GooglePlayClient(),
     "firebase": FirebaseClient(),
+    # CMO Production
+    "mailchimp": MailchimpClient(),
+    "klaviyo": KlaviyoClient(),
+    "segment": SegmentClient(),
+    "semrush": SemrushClient(),
+    "tiktok_ads": TikTokAdsClient(),
+    "linkedin_ads": LinkedInAdsClient(),
+    "trustpilot": TrustpilotClient(),
+    "g2": G2Client(),
+    "typeform": TypeformClient(),
+    "contentful": ContentfulClient(),
+    "wordpress": WordPressClient(),
+    "twitter_x": TwitterClient(),
+    "customer_io": CustomerIOClient(),
+    "cloudinary": CloudinaryClient(),
 }
 
 
