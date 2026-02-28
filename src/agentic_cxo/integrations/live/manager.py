@@ -46,14 +46,20 @@ from agentic_cxo.integrations.live.github_client import (
     GitHubClient,
 )
 from agentic_cxo.integrations.live.gmail_client import GmailClient
+from agentic_cxo.integrations.live.hotjar_client import HotjarClient
 from agentic_cxo.integrations.live.hubspot_client import HubSpotClient
 from agentic_cxo.integrations.live.jira_client import JiraClient
+from agentic_cxo.integrations.live.linkedin_ads_client import LinkedInAdsClient
+from agentic_cxo.integrations.live.mailchimp_client import MailchimpClient
 from agentic_cxo.integrations.live.notion_client import NotionClient
 from agentic_cxo.integrations.live.quickbooks_client import QuickBooksClient
 from agentic_cxo.integrations.live.salesforce_client import SalesforceClient
+from agentic_cxo.integrations.live.semrush_client import SemrushClient
 from agentic_cxo.integrations.live.shopify_client import ShopifyClient
 from agentic_cxo.integrations.live.slack_client import SlackClient
 from agentic_cxo.integrations.live.stripe_client import StripeClient
+from agentic_cxo.integrations.live.tiktok_ads_client import TikTokAdsClient
+from agentic_cxo.integrations.live.twitter_client import TwitterClient
 
 logger = logging.getLogger(__name__)
 
@@ -88,6 +94,13 @@ LIVE_CLIENTS: dict[str, BaseConnectorClient] = {
     "apple_app_store": AppleAppStoreClient(),
     "google_play": GooglePlayClient(),
     "firebase": FirebaseClient(),
+    # CMO Marketing Suite (6)
+    "mailchimp": MailchimpClient(),
+    "twitter_x": TwitterClient(),
+    "semrush": SemrushClient(),
+    "linkedin_ads": LinkedInAdsClient(),
+    "tiktok_ads": TikTokAdsClient(),
+    "hotjar": HotjarClient(),
 }
 
 
