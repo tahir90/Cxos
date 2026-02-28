@@ -118,6 +118,8 @@ class CoFounderAgent:
     _client: OpenAI | None = field(default=None, init=False, repr=False)
 
     def __post_init__(self) -> None:
+        self.router = IntentRouter(use_llm=self.use_llm)
+        self.memory_extractor = MemoryExtractor(use_llm=self.use_llm)
         self.alert_engine = ProactiveAlertEngine(
             event_store=self.event_store,
         )

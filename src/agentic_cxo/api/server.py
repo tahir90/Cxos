@@ -21,6 +21,7 @@ Chat-first API: the founder talks, the AI co-founder routes to CXO agents.
 
 from __future__ import annotations
 
+import logging
 from pathlib import Path
 from typing import Any
 
@@ -29,6 +30,7 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
+from agentic_cxo.config import settings
 from agentic_cxo.conversation.agent import CoFounderAgent
 from agentic_cxo.memory.vault import ContextVault
 from agentic_cxo.pipeline.enricher import MetadataEnricher
@@ -42,6 +44,9 @@ from agentic_cxo.scenarios.registry import (
     list_scenarios,
 )
 
+logging.basicConfig(level=logging.INFO)
+_logger = logging.getLogger(__name__)
+
 STATIC_DIR = Path(__file__).parent / "static"
 
 app = FastAPI(
@@ -51,14 +56,19 @@ app = FastAPI(
 )
 app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 
+HAS_LLM = bool(settings.llm.api_key)
+_logger.info(
+    "LLM mode: %s (model: %s)", "ON" if HAS_LLM else "OFF", settings.llm.model
+)
+
 vault = ContextVault()
 refinery = ContextRefinery(
     enricher=MetadataEnricher(use_llm=False),
     summarizer=RecursiveSummarizer(use_llm=False),
 )
 
-agent = CoFounderAgent(vault=vault, refinery=refinery, use_llm=False)
-analyst = ScenarioAnalyst(vault=vault, use_llm=False)
+agent = CoFounderAgent(vault=vault, refinery=refinery, use_llm=HAS_LLM)
+analyst = ScenarioAnalyst(vault=vault, use_llm=HAS_LLM)
 scenario_engine = ScenarioEngine(vault=vault)
 
 SAMPLE_DOCS = [
