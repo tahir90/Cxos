@@ -67,6 +67,8 @@ select = ["E", "F", "I", "W"]
 "src/agentic_cxo/integrations/live/cmo_write_clients.py" = ["E501"]
 "src/agentic_cxo/tools/image_generator.py" = ["E501"]
 "src/agentic_cxo/integrations/live/cso_clients.py" = ["E501"]
+"src/agentic_cxo/integrations/live/cfo_clients.py" = ["E501"]
+"src/agentic_cxo/integrations/live/coo_clients.py" = ["E501"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

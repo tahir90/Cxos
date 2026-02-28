@@ -33,6 +33,15 @@ from agentic_cxo.integrations.live.base import (
     ConnectorData,
     CredentialStore,
 )
+from agentic_cxo.integrations.live.cfo_clients import (
+    BillComClient,
+    BrexClient,
+    MercuryClient,
+    PlaidClient,
+    RampClient,
+    WiseClient,
+    XeroClient,
+)
 from agentic_cxo.integrations.live.chargebee_client import ChargebeeClient
 from agentic_cxo.integrations.live.cmo_clients import (
     CloudinaryClient,
@@ -58,6 +67,13 @@ from agentic_cxo.integrations.live.cmo_write_clients import (
     MixpanelRealClient,
     NanoBananaClient,
     TwitterWriteClient,
+)
+from agentic_cxo.integrations.live.coo_clients import (
+    AsanaClient,
+    ConfluenceClient,
+    MakeClient,
+    N8nClient,
+    ZapierClient,
 )
 from agentic_cxo.integrations.live.cso_clients import (
     CalendlyClient,
@@ -148,6 +164,20 @@ LIVE_CLIENTS: dict[str, BaseConnectorClient] = {
     "outreach": OutreachClient(),
     "calendly": CalendlyClient(),
     "pandadoc": PandaDocClient(),
+    # CFO Production
+    "plaid": PlaidClient(),
+    "brex": BrexClient(),
+    "ramp": RampClient(),
+    "xero": XeroClient(),
+    "bill_com": BillComClient(),
+    "mercury": MercuryClient(),
+    "wise": WiseClient(),
+    # COO Production
+    "asana": AsanaClient(),
+    "n8n": N8nClient(),
+    "zapier": ZapierClient(),
+    "make": MakeClient(),
+    "confluence": ConfluenceClient(),
 }
 
 
