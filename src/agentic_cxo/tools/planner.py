@@ -397,6 +397,42 @@ def _build_fallback_plan(message: str, intent_info: dict[str, Any]) -> Execution
     )
 
 
+def _load_plan_history(max_entries: int = 5) -> list[dict[str, Any]]:
+    """Load recent plan history for learning."""
+    from pathlib import Path
+    try:
+        p = Path(".cxo_data") / "plan_history.json"
+        if p.exists():
+            data = json.loads(p.read_text())
+            return data[-max_entries:]
+    except Exception:
+        pass
+    return []
+
+
+def _format_history_for_prompt(history: list[dict[str, Any]]) -> str:
+    """Format plan history as context for the LLM planner."""
+    if not history:
+        return ""
+    lines = ["PAST PLAN HISTORY (learn from these):"]
+    for h in history:
+        status = "SUCCESS" if h.get("success") else "PARTIAL"
+        lines.append(
+            f"- Intent: {h.get('intent', '?')[:80]} | "
+            f"Complexity: {h.get('complexity', '?')} | "
+            f"Steps: {h.get('total_steps', 0)} | "
+            f"Result: {status} ({h.get('completed_steps', 0)}/{h.get('total_steps', 0)} completed)"
+        )
+        failed = h.get("failed_steps", 0)
+        if failed > 0:
+            failed_details = [
+                s for s in h.get("step_details", []) if s.get("status") == "failed"
+            ]
+            for fd in failed_details[:2]:
+                lines.append(f"  FAILED: {fd.get('action', '?')} agent={fd.get('agent', '?')} tool={fd.get('tool', '?')}")
+    return "\n".join(lines)
+
+
 @dataclass
 class PlannerTool:
     """Generates structured execution plans for complex requests."""
@@ -451,12 +487,18 @@ class PlannerTool:
         business_profile: str,
     ) -> ExecutionPlan:
         client = self._get_client()
+
+        history = _load_plan_history(max_entries=5)
+        history_text = _format_history_for_prompt(history)
+
         user_content = (
             f"USER MESSAGE: {message}\n\n"
             f"BUSINESS CONTEXT: {business_profile[:500] if business_profile else 'Not provided'}\n\n"
             f"CONVERSATION CONTEXT: {context[:500] if context else 'None'}\n\n"
-            "Create an execution plan."
         )
+        if history_text:
+            user_content += f"{history_text}\n\n"
+        user_content += "Create an execution plan. Learn from past plan outcomes above — avoid patterns that failed and repeat patterns that succeeded."
 
         from agentic_cxo.infrastructure.llm_retry import with_retry
 

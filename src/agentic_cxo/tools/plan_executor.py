@@ -145,11 +145,15 @@ class PlanExecutor:
                 "total": len(group_steps),
             }
 
-            if group_failed > 0 and group_completed > 0:
-                yield {
-                    "type": "narration",
-                    "message": f"Some tasks in group {group} had issues. Continuing with available results.",
-                }
+            if group_failed > 0:
+                replan_result = self._attempt_replan(plan, group, results, group_steps)
+                if replan_result:
+                    yield replan_result
+                elif group_completed > 0:
+                    yield {
+                        "type": "narration",
+                        "message": f"Some tasks in group {group} had issues. Continuing with available results.",
+                    }
 
             transition_key = f"after_group_{group}"
             transition = plan.narration.get("transitions", {}).get(transition_key, "")
@@ -222,6 +226,131 @@ class PlanExecutor:
             history_path.write_text(json.dumps(existing, indent=2))
         except Exception:
             logger.debug("Failed to persist plan history", exc_info=True)
+
+    def _attempt_replan(
+        self,
+        plan: ExecutionPlan,
+        failed_group: str,
+        results: dict[int, StepResult],
+        group_steps: list[PlanStep],
+    ) -> dict[str, Any] | None:
+        """When a group has failures, use LLM to decide how to adapt remaining steps."""
+        if not self.use_llm or not settings.llm.api_key:
+            return None
+
+        failed = [s for s in group_steps if s.status == "failed"]
+        succeeded = [s for s in group_steps if s.status == "completed"]
+        remaining_groups = [
+            g for g in plan.parallel_groups
+            if g > failed_group
+        ]
+        if not remaining_groups:
+            return None
+
+        try:
+            client = self._get_client()
+            from agentic_cxo.infrastructure.llm_retry import with_retry
+
+            failed_desc = "; ".join(f"Step {s.id} ({s.description}): {results.get(s.id, StepResult(s.id, False)).error}" for s in failed)
+            succeeded_desc = "; ".join(f"Step {s.id} ({s.description})" for s in succeeded)
+            remaining_desc = "; ".join(
+                f"Step {s.id} ({s.description}, group={s.parallel_group})"
+                for s in plan.steps if s.parallel_group in remaining_groups
+            )
+
+            resp = with_retry(
+                lambda: client.chat.completions.create(
+                    model=settings.llm.model,
+                    temperature=0.1,
+                    max_tokens=512,
+                    messages=[
+                        {"role": "system", "content": "You are a plan executor. A step group had failures. Decide how to adapt. Return a short narration message explaining the adjustment."},
+                        {"role": "user", "content": (
+                            f"Plan intent: {plan.intent}\n"
+                            f"Failed steps: {failed_desc}\n"
+                            f"Succeeded steps: {succeeded_desc}\n"
+                            f"Remaining steps: {remaining_desc}\n"
+                            "Explain briefly how you'll adapt the remaining work given the failures. 1-2 sentences."
+                        )},
+                    ],
+                )
+            )
+            msg = (resp.choices[0].message.content or "").strip()
+            if msg:
+                return {"type": "narration", "message": f"Adapting plan: {msg}"}
+        except Exception:
+            logger.debug("Replan LLM call failed", exc_info=True)
+        return None
+
+    # ── Agent-to-Agent Messaging ─────────────────────────────────
+
+    def request_cross_agent_input(
+        self,
+        requesting_agent: str,
+        target_agent: str,
+        question: str,
+        context: str = "",
+        plan: ExecutionPlan | None = None,
+    ) -> StepResult:
+        """Allow one CXO to request input from another CXO mid-execution.
+
+        Example: CFO asks CLO about tax compliance implications.
+        """
+        logger.info("Cross-agent request: %s -> %s: %s", requesting_agent, target_agent, question[:80])
+
+        step = PlanStep(
+            id=0,
+            action="consult_agent",
+            agent=target_agent,
+            description=f"{requesting_agent} asks {target_agent}: {question}",
+            params={"task": question},
+        )
+
+        dummy_plan = plan or ExecutionPlan(
+            intent=question, complexity="simple",
+            document_type=None, quality_bar="Quick expert input",
+            steps=[step],
+        )
+
+        if target_agent == "CD":
+            return self._consult_cd(step, dummy_plan)
+        elif target_agent in CXO_CONSULT_PROMPTS or target_agent:
+            prompt_override = (
+                f"You are the AI {target_agent}. "
+                f"The AI {requesting_agent} is asking for your input on: {question}\n"
+                f"Context from {requesting_agent}: {context[:500]}\n"
+                "Provide a concise, actionable response addressing their specific question."
+            )
+            if self.use_llm and settings.llm.api_key:
+                try:
+                    client = self._get_client()
+                    from agentic_cxo.infrastructure.llm_retry import with_retry
+                    resp = with_retry(
+                        lambda: client.chat.completions.create(
+                            model=settings.llm.model,
+                            temperature=0.3,
+                            max_tokens=1000,
+                            messages=[
+                                {"role": "system", "content": f"You are the AI {target_agent}. Another C-suite officer needs your expertise."},
+                                {"role": "user", "content": prompt_override},
+                            ],
+                        )
+                    )
+                    content = (resp.choices[0].message.content or "").strip()
+                    return StepResult(
+                        step_id=0, success=True,
+                        data={"agent": target_agent, "requesting_agent": requesting_agent, "response": content, "cross_agent": True},
+                        summary=f"{target_agent} (requested by {requesting_agent}): {content[:300]}",
+                    )
+                except Exception:
+                    logger.warning("Cross-agent LLM call failed", exc_info=True)
+
+            return StepResult(
+                step_id=0, success=True,
+                data={"agent": target_agent, "requesting_agent": requesting_agent, "cross_agent": True},
+                summary=f"{target_agent} (requested by {requesting_agent}): Expert input on {question[:80]}",
+            )
+        return StepResult(step_id=0, success=False, error=f"Unknown agent: {target_agent}")
 
     def _execute_group_parallel(
         self,
@@ -414,7 +543,11 @@ class PlanExecutor:
     def _consult_cxo(
         self, step: PlanStep, plan: ExecutionPlan, results: dict[int, StepResult]
     ) -> StepResult:
-        """Consult a CXO agent (CFO, CMO, COO, CSO, CLO, CHRO) via LLM."""
+        """Consult a CXO agent (CFO, CMO, COO, CSO, CLO, CHRO) via LLM.
+
+        Supports cross-agent messaging: if the CXO's response indicates it needs
+        input from another CXO, the executor automatically makes that cross-call.
+        """
         agent_role = step.agent or "COO"
         task_desc = step.description or step.params.get("task", plan.intent)
 
@@ -423,6 +556,9 @@ class PlanExecutor:
             sr = results.get(sid)
             if sr and sr.success and sr.summary:
                 context_parts.append(sr.summary[:300])
+        for sr in results.values():
+            if sr.data.get("cxo_insight") and sr.summary:
+                context_parts.append(sr.summary[:200])
 
         business_context = "\n".join(context_parts) if context_parts else "No prior context."
 
@@ -436,6 +572,15 @@ class PlanExecutor:
 
         prompt = prompt_template.format(task=task_desc, context=business_context)
 
+        cross_agent_note = (
+            "\n\nIMPORTANT: If you need input from another C-suite officer to give a "
+            "complete answer, end your response with a line like:\n"
+            "NEED_INPUT_FROM: <ROLE> | <specific question>\n"
+            "For example: NEED_INPUT_FROM: CLO | What are the tax compliance requirements?\n"
+            "Available roles: CFO, COO, CMO, CLO, CHRO, CSO, CD\n"
+            "Only request this if truly needed; otherwise just give your analysis."
+        )
+
         if self.use_llm and settings.llm.api_key:
             try:
                 client = self._get_client()
@@ -447,16 +592,23 @@ class PlanExecutor:
                         temperature=0.3,
                         max_tokens=1500,
                         messages=[
-                            {"role": "system", "content": f"You are the AI {agent_role} for a business co-founder system. Be concise, data-driven, and actionable."},
+                            {"role": "system", "content": f"You are the AI {agent_role} for a business co-founder system. Be concise, data-driven, and actionable." + cross_agent_note},
                             {"role": "user", "content": prompt},
                         ],
                     )
                 )
                 content = (resp.choices[0].message.content or "").strip()
+
+                cross_input = self._handle_cross_agent_request(content, agent_role, plan)
+                if cross_input:
+                    content = content.split("NEED_INPUT_FROM:")[0].strip()
+                    content += f"\n\n**{cross_input.data.get('agent', '')} input** (requested by {agent_role}):\n{cross_input.summary}"
+
                 return StepResult(
                     step_id=step.id,
                     success=True,
-                    data={"agent": agent_role, "response": content, "cxo_insight": True},
+                    data={"agent": agent_role, "response": content, "cxo_insight": True,
+                          "cross_agent_used": cross_input is not None},
                     summary=f"{agent_role}: {content[:300]}",
                 )
             except Exception:
@@ -477,6 +629,31 @@ class PlanExecutor:
             success=True,
             data={"agent": agent_role, "response": fallback, "cxo_insight": True},
             summary=f"{agent_role}: {fallback}",
+        )
+
+    def _handle_cross_agent_request(
+        self, content: str, requesting_agent: str, plan: ExecutionPlan
+    ) -> StepResult | None:
+        """Parse NEED_INPUT_FROM directive and make the cross-agent call."""
+        import re
+        match = re.search(r"NEED_INPUT_FROM:\s*(\w+)\s*\|\s*(.+)", content)
+        if not match:
+            return None
+
+        target = match.group(1).strip().upper()
+        question = match.group(2).strip()
+
+        valid_agents = {"CFO", "COO", "CMO", "CLO", "CHRO", "CSO", "CD"}
+        if target not in valid_agents or target == requesting_agent:
+            return None
+
+        logger.info("Cross-agent: %s -> %s: %s", requesting_agent, target, question[:80])
+        return self.request_cross_agent_input(
+            requesting_agent=requesting_agent,
+            target_agent=target,
+            question=question,
+            context=content[:500],
+            plan=plan,
         )
 
     def _synthesize(
