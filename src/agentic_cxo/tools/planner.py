@@ -203,6 +203,13 @@ def _build_fallback_plan(message: str, intent_info: dict[str, Any]) -> Execution
     if len(topic) < 5:
         topic = message[:80]
 
+    is_finance = any(kw in msg_lower for kw in ["financial", "investor", "revenue", "budget", "cost", "funding", "series"])
+    is_marketing = any(kw in msg_lower for kw in ["marketing", "campaign", "brand", "growth", "audience", "market"])
+    is_sales = any(kw in msg_lower for kw in ["sales", "pipeline", "deal", "prospect", "proposal", "client"])
+    is_hr = any(kw in msg_lower for kw in ["hiring", "culture", "team", "talent", "onboarding", "employee"])
+    is_legal = any(kw in msg_lower for kw in ["legal", "compliance", "contract", "regulation", "ip"])
+    is_ops = any(kw in msg_lower for kw in ["operations", "process", "vendor", "supply", "logistics"])
+
     if is_ppt or is_pitch or is_report or is_proposal:
         if is_pitch:
             doc_type = "pitch_deck"
@@ -213,53 +220,132 @@ def _build_fallback_plan(message: str, intent_info: dict[str, Any]) -> Execution
         else:
             doc_type = "presentation"
 
-        steps = [
-            PlanStep(
-                id=1, action="research",
-                description=f"Research: {topic[:60]}",
-                tool="researcher",
-                params={"topic": topic, "focus": "general"},
+        step_id = 0
+
+        step_id += 1
+        steps.append(PlanStep(
+            id=step_id, action="research",
+            description=f"Research: {topic[:60]}",
+            tool="researcher",
+            params={"topic": topic, "focus": "general"},
+            parallel_group="A",
+        ))
+        step_id += 1
+        steps.append(PlanStep(
+            id=step_id, action="research",
+            description=f"Research industry data and trends for {topic[:40]}",
+            tool="researcher",
+            params={"topic": topic, "focus": "market"},
+            parallel_group="A",
+        ))
+        step_id += 1
+        steps.append(PlanStep(
+            id=step_id, action="consult_agent",
+            description="Get visual direction from Creative Director",
+            agent="CD",
+            params={"task": "visual_brief", "document_type": doc_type},
+            parallel_group="A",
+        ))
+
+        cxo_step_ids = []
+
+        if is_finance or is_pitch:
+            step_id += 1
+            steps.append(PlanStep(
+                id=step_id, action="consult_agent",
+                description="Consult CFO for financial analysis and projections",
+                agent="CFO",
+                params={"task": f"Financial analysis for {topic[:60]}"},
                 parallel_group="A",
-            ),
-            PlanStep(
-                id=2, action="research",
-                description=f"Research industry data and trends for {topic[:40]}",
-                tool="researcher",
-                params={"topic": topic, "focus": "market"},
+            ))
+            cxo_step_ids.append(step_id)
+
+        if is_marketing or is_pitch or doc_type == "presentation":
+            step_id += 1
+            steps.append(PlanStep(
+                id=step_id, action="consult_agent",
+                description="Consult CMO for market positioning and growth strategy",
+                agent="CMO",
+                params={"task": f"Marketing strategy for {topic[:60]}"},
                 parallel_group="A",
-            ),
-            PlanStep(
-                id=3, action="consult_agent",
-                description="Get visual direction from Creative Director",
-                agent="CD",
-                params={"task": "visual_brief", "document_type": doc_type},
+            ))
+            cxo_step_ids.append(step_id)
+
+        if is_sales or is_proposal:
+            step_id += 1
+            steps.append(PlanStep(
+                id=step_id, action="consult_agent",
+                description="Consult CSO for sales positioning and deal strategy",
+                agent="CSO",
+                params={"task": f"Sales strategy for {topic[:60]}"},
                 parallel_group="A",
-            ),
-            PlanStep(
-                id=4, action="synthesize",
-                description="Synthesize research into structured outline",
-                tool="llm_synthesis",
-                params={"input_steps": [1, 2]},
-                parallel_group="B",
-                depends_on=[1, 2, 3],
-            ),
-            PlanStep(
-                id=5, action="generate",
-                description=f"Generate {doc_type} with CD visual direction",
-                tool="presentation_generator",
-                params={"document_type": doc_type, "topic": topic},
-                parallel_group="C",
-                depends_on=[3, 4],
-            ),
-            PlanStep(
-                id=6, action="validate",
-                description="Validate visual quality and completeness",
-                agent="CD",
-                params={"validation_type": "post_production"},
-                parallel_group="D",
-                depends_on=[5],
-            ),
-        ]
+            ))
+            cxo_step_ids.append(step_id)
+
+        if is_ops:
+            step_id += 1
+            steps.append(PlanStep(
+                id=step_id, action="consult_agent",
+                description="Consult COO for operational feasibility and process design",
+                agent="COO",
+                params={"task": f"Operational analysis for {topic[:60]}"},
+                parallel_group="A",
+            ))
+            cxo_step_ids.append(step_id)
+
+        if is_legal:
+            step_id += 1
+            steps.append(PlanStep(
+                id=step_id, action="consult_agent",
+                description="Consult CLO for legal and compliance considerations",
+                agent="CLO",
+                params={"task": f"Legal review for {topic[:60]}"},
+                parallel_group="A",
+            ))
+            cxo_step_ids.append(step_id)
+
+        if is_hr:
+            step_id += 1
+            steps.append(PlanStep(
+                id=step_id, action="consult_agent",
+                description="Consult CHRO for talent and organizational insights",
+                agent="CHRO",
+                params={"task": f"People strategy for {topic[:60]}"},
+                parallel_group="A",
+            ))
+            cxo_step_ids.append(step_id)
+
+        all_a_ids = list(range(1, step_id + 1))
+
+        step_id += 1
+        synthesis_id = step_id
+        steps.append(PlanStep(
+            id=step_id, action="synthesize",
+            description="Synthesize research and CXO insights into structured outline",
+            tool="llm_synthesis",
+            params={"input_steps": all_a_ids},
+            parallel_group="B",
+            depends_on=all_a_ids,
+        ))
+        step_id += 1
+        generate_id = step_id
+        steps.append(PlanStep(
+            id=step_id, action="generate",
+            description=f"Generate {doc_type} with CD visual direction",
+            tool="presentation_generator",
+            params={"document_type": doc_type, "topic": topic},
+            parallel_group="C",
+            depends_on=[3, synthesis_id],
+        ))
+        step_id += 1
+        steps.append(PlanStep(
+            id=step_id, action="validate",
+            description="Validate visual quality and completeness",
+            agent="CD",
+            params={"validation_type": "post_production"},
+            parallel_group="D",
+            depends_on=[generate_id],
+        ))
     elif is_strategy:
         doc_type = "general"
         steps = [

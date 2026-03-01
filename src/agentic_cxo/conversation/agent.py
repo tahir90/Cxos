@@ -280,23 +280,56 @@ class CoFounderAgent:
             if reminder_resp:
                 responses.append(reminder_resp)
 
-        topic, brand = self._extract_presentation_request(message)
-        if topic:
-            tool_results = self._run_presentation_workflow(topic, brand)
+        intent_info = self.planner.should_plan(message) if self.planner else {}
+        if intent_info.get("needs_planning") and self.planner and self.plan_executor:
+            plan = self.planner.create_plan(message=message)
+            if plan.steps:
+                for event in self.plan_executor.execute_plan(plan):
+                    if event.get("type") == "plan_complete":
+                        combined = event.get("combined_summary", "")
+                        if combined:
+                            responses.append(ChatMessage(
+                                role=MessageRole.AGENT,
+                                content=combined,
+                                actions=[AgentActionRef(
+                                    action_type="plan_execution",
+                                    description=plan.intent,
+                                    details=event.get("combined_data", {}),
+                                )],
+                                metadata={"type": "plan_result"},
+                            ))
+            else:
+                tool_results = self._tool_executor.decide_and_execute(message)
+                for tr in tool_results:
+                    if tr.success and tr.summary:
+                        responses.append(ChatMessage(
+                            role=MessageRole.AGENT,
+                            content=f"**{tr.tool_name.replace('_', ' ').title()}:**\n\n{tr.summary}",
+                            actions=[AgentActionRef(
+                                action_type=f"tool_{tr.tool_name}",
+                                description=tr.summary,
+                                details=tr.data,
+                            )],
+                            metadata={"type": "tool_result", "tool": tr.tool_name},
+                        ))
         else:
-            tool_results = self._tool_executor.decide_and_execute(message)
-        for tr in tool_results:
-            if tr.success and tr.summary:
-                responses.append(ChatMessage(
-                    role=MessageRole.AGENT,
-                    content=f"**{tr.tool_name.replace('_', ' ').title()}:**\n\n{tr.summary}",
-                    actions=[AgentActionRef(
-                        action_type=f"tool_{tr.tool_name}",
-                        description=tr.summary,
-                        details=tr.data,
-                    )],
-                    metadata={"type": "tool_result", "tool": tr.tool_name},
-                ))
+            topic, brand = self._extract_presentation_request(message)
+            if topic:
+                tool_results = self._run_presentation_workflow(topic, brand)
+            else:
+                tool_results = self._tool_executor.decide_and_execute(message)
+            for tr in tool_results:
+                if tr.success and tr.summary:
+                    responses.append(ChatMessage(
+                        role=MessageRole.AGENT,
+                        content=f"**{tr.tool_name.replace('_', ' ').title()}:**\n\n{tr.summary}",
+                        actions=[AgentActionRef(
+                            action_type=f"tool_{tr.tool_name}",
+                            description=tr.summary,
+                            details=tr.data,
+                        )],
+                        metadata={"type": "tool_result", "tool": tr.tool_name},
+                    ))
 
         is_first_message = self.memory.message_count <= 1
 

@@ -32,6 +32,46 @@ class StepResult:
     error: str = ""
 
 
+CXO_CONSULT_PROMPTS: dict[str, str] = {
+    "CFO": (
+        "You are the AI CFO. Given this task: {task}\n"
+        "Business context: {context}\n"
+        "Provide a concise financial analysis, key metrics, projections, "
+        "or budget insights relevant to this request. Be specific with numbers."
+    ),
+    "COO": (
+        "You are the AI COO. Given this task: {task}\n"
+        "Business context: {context}\n"
+        "Provide operational insights, process recommendations, vendor considerations, "
+        "or supply chain analysis relevant to this request."
+    ),
+    "CMO": (
+        "You are the AI CMO. Given this task: {task}\n"
+        "Business context: {context}\n"
+        "Provide marketing insights, positioning strategy, audience analysis, "
+        "campaign recommendations, or growth tactics relevant to this request."
+    ),
+    "CLO": (
+        "You are the AI CLO. Given this task: {task}\n"
+        "Business context: {context}\n"
+        "Provide legal considerations, compliance requirements, risk factors, "
+        "or contractual guidance relevant to this request."
+    ),
+    "CHRO": (
+        "You are the AI CHRO. Given this task: {task}\n"
+        "Business context: {context}\n"
+        "Provide people & culture insights, talent strategy, team structure, "
+        "or organizational recommendations relevant to this request."
+    ),
+    "CSO": (
+        "You are the AI CSO. Given this task: {task}\n"
+        "Business context: {context}\n"
+        "Provide sales strategy, pipeline insights, deal positioning, "
+        "or revenue optimization recommendations relevant to this request."
+    ),
+}
+
+
 @dataclass
 class PlanExecutor:
     """Executes plans, yielding structured events for UI transparency."""
@@ -39,6 +79,7 @@ class PlanExecutor:
     tool_registry: Any = None
     creative_director: Any = None
     use_llm: bool = False
+    plan_history: list[dict[str, Any]] = field(default_factory=list)
     _client: Any = field(default=None, init=False, repr=False)
 
     def _get_client(self):
@@ -95,12 +136,20 @@ class PlanExecutor:
             else:
                 yield from self._execute_group_parallel(group_steps, results, plan)
 
+            group_completed = len([s for s in group_steps if s.status == "completed"])
+            group_failed = len([s for s in group_steps if s.status == "failed"])
             yield {
                 "type": "step_group_complete",
                 "group": group,
-                "completed": len([s for s in group_steps if s.status == "completed"]),
+                "completed": group_completed,
                 "total": len(group_steps),
             }
+
+            if group_failed > 0 and group_completed > 0:
+                yield {
+                    "type": "narration",
+                    "message": f"Some tasks in group {group} had issues. Continuing with available results.",
+                }
 
             transition_key = f"after_group_{group}"
             transition = plan.narration.get("transitions", {}).get(transition_key, "")
@@ -115,14 +164,64 @@ class PlanExecutor:
                 if sr.summary:
                     all_summaries.append(sr.summary)
 
+        success = all(r.success for r in results.values()) if results else False
+        completed = sum(1 for r in results.values() if r.success)
+
+        self._record_plan_history(plan, results, success)
+
         yield {
             "type": "plan_complete",
-            "success": all(r.success for r in results.values()),
+            "success": success,
             "total_steps": len(results),
-            "completed": sum(1 for r in results.values() if r.success),
+            "completed": completed,
             "combined_data": all_data,
             "combined_summary": "\n\n".join(all_summaries),
         }
+
+    def _record_plan_history(
+        self,
+        plan: ExecutionPlan,
+        results: dict[int, StepResult],
+        success: bool,
+    ) -> None:
+        """Store plan execution history for future learning."""
+        import json
+        from pathlib import Path
+        from datetime import datetime, timezone
+
+        record = {
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "intent": plan.intent,
+            "complexity": plan.complexity,
+            "document_type": plan.document_type,
+            "total_steps": plan.total_steps,
+            "success": success,
+            "completed_steps": sum(1 for r in results.values() if r.success),
+            "failed_steps": sum(1 for r in results.values() if not r.success),
+            "step_details": [
+                {
+                    "id": s.id,
+                    "action": s.action,
+                    "tool": s.tool,
+                    "agent": s.agent,
+                    "status": s.status,
+                }
+                for s in plan.steps
+            ],
+        }
+        self.plan_history.append(record)
+
+        try:
+            history_path = Path(".cxo_data") / "plan_history.json"
+            history_path.parent.mkdir(exist_ok=True)
+            existing: list = []
+            if history_path.exists():
+                existing = json.loads(history_path.read_text())
+            existing.append(record)
+            existing = existing[-50:]
+            history_path.write_text(json.dumps(existing, indent=2))
+        except Exception:
+            logger.debug("Failed to persist plan history", exc_info=True)
 
     def _execute_group_parallel(
         self,
@@ -230,6 +329,8 @@ class PlanExecutor:
             return self._run_research(step)
         elif step.action == "consult_agent" and step.agent == "CD":
             return self._consult_cd(step, plan)
+        elif step.action == "consult_agent" and step.agent in CXO_CONSULT_PROMPTS:
+            return self._consult_cxo(step, plan, results)
         elif step.action == "synthesize":
             return self._synthesize(step, results, plan)
         elif step.action == "generate":
@@ -240,6 +341,8 @@ class PlanExecutor:
             return self._run_tool(step)
         elif step.action in ("research",) and step.tool == "web_search":
             return self._run_web_search(step)
+        elif step.action == "consult_agent" and step.agent:
+            return self._consult_cxo(step, plan, results)
         else:
             return self._run_tool(step)
 
@@ -307,6 +410,74 @@ class PlanExecutor:
                         + (f". Issues: {', '.join(validation['issues'])}" if validation.get("issues") else ""),
             )
         return StepResult(step.id, True, summary="CD consulted")
+
+    def _consult_cxo(
+        self, step: PlanStep, plan: ExecutionPlan, results: dict[int, StepResult]
+    ) -> StepResult:
+        """Consult a CXO agent (CFO, CMO, COO, CSO, CLO, CHRO) via LLM."""
+        agent_role = step.agent or "COO"
+        task_desc = step.description or step.params.get("task", plan.intent)
+
+        context_parts = []
+        for sid in step.depends_on:
+            sr = results.get(sid)
+            if sr and sr.success and sr.summary:
+                context_parts.append(sr.summary[:300])
+
+        business_context = "\n".join(context_parts) if context_parts else "No prior context."
+
+        prompt_template = CXO_CONSULT_PROMPTS.get(agent_role)
+        if not prompt_template:
+            prompt_template = (
+                f"You are the AI {agent_role}. Given this task: {{task}}\n"
+                f"Business context: {{context}}\n"
+                "Provide your expert analysis and recommendations."
+            )
+
+        prompt = prompt_template.format(task=task_desc, context=business_context)
+
+        if self.use_llm and settings.llm.api_key:
+            try:
+                client = self._get_client()
+                from agentic_cxo.infrastructure.llm_retry import with_retry
+
+                resp = with_retry(
+                    lambda: client.chat.completions.create(
+                        model=settings.llm.model,
+                        temperature=0.3,
+                        max_tokens=1500,
+                        messages=[
+                            {"role": "system", "content": f"You are the AI {agent_role} for a business co-founder system. Be concise, data-driven, and actionable."},
+                            {"role": "user", "content": prompt},
+                        ],
+                    )
+                )
+                content = (resp.choices[0].message.content or "").strip()
+                return StepResult(
+                    step_id=step.id,
+                    success=True,
+                    data={"agent": agent_role, "response": content, "cxo_insight": True},
+                    summary=f"{agent_role}: {content[:300]}",
+                )
+            except Exception:
+                logger.warning("CXO %s consultation LLM failed, using fallback", agent_role, exc_info=True)
+
+        fallback_insights = {
+            "CFO": f"Financial analysis for '{task_desc[:60]}': Review cost structure, revenue projections, and cash flow impact. Recommend budget allocation and ROI targets.",
+            "CMO": f"Marketing perspective for '{task_desc[:60]}': Consider brand positioning, target audience segments, channel strategy, and competitive differentiation.",
+            "COO": f"Operational view for '{task_desc[:60]}': Assess process requirements, vendor dependencies, timeline feasibility, and resource allocation.",
+            "CSO": f"Sales strategy for '{task_desc[:60]}': Evaluate pipeline impact, deal positioning, pricing strategy, and customer acquisition approach.",
+            "CLO": f"Legal considerations for '{task_desc[:60]}': Review compliance requirements, risk factors, contractual obligations, and regulatory landscape.",
+            "CHRO": f"People perspective for '{task_desc[:60]}': Consider talent requirements, team structure, culture impact, and organizational readiness.",
+        }
+
+        fallback = fallback_insights.get(agent_role, f"{agent_role} analysis for '{task_desc[:60]}': Expert input on relevant domain areas.")
+        return StepResult(
+            step_id=step.id,
+            success=True,
+            data={"agent": agent_role, "response": fallback, "cxo_insight": True},
+            summary=f"{agent_role}: {fallback}",
+        )
 
     def _synthesize(
         self, step: PlanStep, results: dict[int, StepResult], plan: ExecutionPlan

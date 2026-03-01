@@ -507,3 +507,74 @@ class CreativeDirectorAgent:
             "cxo_rules": rules.get("rules", []),
             "brand_identity": self._design_tokens.get("brand_identity", {}),
         }
+
+    # ── Document Formatter ──────────────────────────────────────
+
+    def format_document_tokens(
+        self, doc_type: str, cxo_source: str = ""
+    ) -> dict[str, Any]:
+        """Return complete formatting tokens for any document output."""
+        template = self.get_document_template(doc_type)
+        brief = self.get_visual_brief(doc_type, cxo_source)
+        return {
+            "template": template,
+            "brief": brief,
+            "colors": self.colors,
+            "typography": self.typography,
+            "layout": self.layout_config,
+            "slide_layouts": {k: v for k, v in SLIDE_LAYOUTS.items()},
+        }
+
+    # ── Color Harmonizer ────────────────────────────────────────
+
+    def harmonize_colors(self, base_hex: str) -> dict[str, str]:
+        """Generate a harmonious palette from a base color."""
+        r, g, b = int(base_hex[1:3], 16), int(base_hex[3:5], 16), int(base_hex[5:7], 16)
+        lighter = f"#{min(r+40,255):02x}{min(g+40,255):02x}{min(b+40,255):02x}"
+        darker = f"#{max(r-40,0):02x}{max(g-40,0):02x}{max(b-40,0):02x}"
+        complement = f"#{255-r:02x}{255-g:02x}{255-b:02x}"
+        analogous = f"#{min(r+30,255):02x}{g:02x}{max(b-30,0):02x}"
+        return {
+            "base": base_hex,
+            "lighter": lighter,
+            "darker": darker,
+            "complement": complement,
+            "analogous": analogous,
+        }
+
+    # ── Trend Monitor ───────────────────────────────────────────
+
+    def check_brand_freshness(self) -> dict[str, Any]:
+        """Assess whether the brand design tokens feel current."""
+        issues: list[str] = []
+        suggestions: list[str] = []
+
+        identity = self._design_tokens.get("brand_identity", {})
+        colors = self.colors
+        typo = self.typography
+
+        heading_font = typo.get("heading", {}).get("family", "")
+        if heading_font.lower() in ("arial", "times new roman", "comic sans ms", "courier"):
+            issues.append(f"Heading font '{heading_font}' feels dated — consider modern alternatives")
+
+        primary = colors.get("primary", {}).get("hex", "")
+        if primary.lower() in ("#0000ff", "#ff0000", "#00ff00", "#ffff00"):
+            suggestions.append(f"Primary color {primary} is a raw primary — consider a more nuanced palette")
+
+        if not identity.get("personality"):
+            suggestions.append("Brand personality is undefined — this weakens visual consistency")
+
+        if not identity.get("voice"):
+            suggestions.append("Brand voice is undefined — outputs may lack tonal consistency")
+
+        data_viz = colors.get("data_viz", [])
+        if len(data_viz) < 4:
+            suggestions.append("Data visualization palette has fewer than 4 colors — charts may lack distinction")
+
+        score = max(0, 100 - len(issues) * 25 - len(suggestions) * 10)
+        return {
+            "freshness_score": score,
+            "issues": issues,
+            "suggestions": suggestions,
+            "status": "fresh" if score >= 80 else "aging" if score >= 50 else "needs_refresh",
+        }
