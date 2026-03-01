@@ -64,9 +64,9 @@
   </button>
   <button onclick="seedData()" id="seed-btn" class="h-7 px-2.5 text-[11px] bg-indigo-600 hover:bg-indigo-500 text-white rounded-md transition font-medium">Demo</button>
   <div class="w-px h-5 bg-zinc-800 mx-1"></div>
-  <button onclick="logout()" class="h-7 w-7 flex items-center justify-center text-zinc-600 hover:text-red-400 hover:bg-zinc-800 rounded-md transition" title="Sign out">
+  <a href="/login" onclick="try{localStorage.removeItem('cxo_token');localStorage.removeItem('cxo_user')}catch(e){};return true" class="h-7 w-7 flex items-center justify-center text-zinc-600 hover:text-red-400 hover:bg-zinc-800 rounded-md transition" title="Sign out" id="logout-btn">
     <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/></svg>
-  </button>
+  </a>
 </header>
 
 <!-- Main -->
@@ -83,10 +83,10 @@
 
   <!-- Chat -->
   <div class="flex-1 flex flex-col min-w-0 bg-zinc-950">
-    <div id="chat-area" class="flex-1 overflow-y-auto"></div>
+    <div id="chat-area" class="flex-1 overflow-y-auto hidden"></div>
 
-    <!-- Empty state -->
-    <div id="empty-state" class="flex-1 flex items-center justify-center hidden">
+    <!-- Empty state (visible by default so welcome shows even if JS fails) -->
+    <div id="empty-state" class="flex-1 flex items-center justify-center">
       <div class="text-center max-w-md px-6">
         <div class="w-12 h-12 mx-auto mb-4 bg-gradient-to-br from-indigo-500/20 to-violet-500/20 rounded-2xl flex items-center justify-center border border-indigo-500/10">
           <svg class="w-6 h-6 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.4-4 8-9 8a9.9 9.9 0 01-4-.8L3 21l1.8-5A8 8 0 013 12c0-4.4 4-8 9-8s9 3.6 9 8z"/></svg>
@@ -403,14 +403,11 @@ async function boot(){
       document.getElementById('empty-state')?.classList.add('hidden');
       document.getElementById('chat-area')?.classList.remove('hidden');
       for(const m of msgs){addMessage(m.role,m.content,m.actions)}
-    }else{
-      document.getElementById('chat-area')?.classList.add('hidden');
-      document.getElementById('empty-state')?.classList.remove('hidden');
     }
     refreshSidebar();loadSessions();
-  }catch(e){console.error('boot error',e);document.getElementById('empty-state')?.classList.remove('hidden');}
+  }catch(e){console.error('boot error',e);}
 }
-boot();
+if(document.readyState==='loading'){document.addEventListener('DOMContentLoaded',boot);}else{boot();}
 
 // ── Sessions ──
 let activeSessionId='';
