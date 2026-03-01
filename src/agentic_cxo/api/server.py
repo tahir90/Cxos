@@ -31,7 +31,7 @@ from pathlib import Path
 from typing import Any
 
 from fastapi import FastAPI, HTTPException, UploadFile
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from sse_starlette.sse import EventSourceResponse
@@ -65,6 +65,7 @@ from agentic_cxo.scenarios.registry import (
     get_scenario,
     list_scenarios,
 )
+from agentic_cxo.tools.presentation import generate_pptx
 
 logging.basicConfig(level=logging.INFO)
 _logger = logging.getLogger(__name__)
@@ -416,6 +417,47 @@ async def run_scenario(scenario_id: str) -> dict[str, Any]:
         "analysis": analysis,
         "summary": result.summary(),
     }
+
+
+# ── Presentation Generation ──────────────────────────────────────
+
+@app.post("/scenarios/{scenario_id}/ppt")
+async def generate_scenario_ppt(scenario_id: str):
+    """Run a scenario and generate a .pptx slide deck from the analysis report."""
+    scenario = get_scenario(scenario_id)
+    if not scenario:
+        raise HTTPException(404, f"Scenario '{scenario_id}' not found")
+    result = scenario_engine.execute(scenario)
+    analysis = analyst.analyze(scenario, result)
+    report = analysis.get("report", "")
+    if not report:
+        raise HTTPException(500, "Scenario produced no report")
+    filepath = generate_pptx(
+        scenario_name=scenario.name,
+        report=report,
+        agent_role=scenario.agent_role,
+        sources=analysis.get("sources"),
+    )
+    return StreamingResponse(
+        open(str(filepath), "rb"),
+        media_type="application/vnd.openxmlformats-officedocument.presentationml.presentation",
+        headers={"Content-Disposition": f'attachment; filename="{filepath.name}"'},
+    )
+
+
+@app.post("/generate-ppt")
+async def generate_ppt_from_text(req: ChatRequest):
+    """Generate a .pptx slide deck from arbitrary text/report content."""
+    filepath = generate_pptx(
+        scenario_name="Custom Report",
+        report=req.message,
+        agent_role="CXO",
+    )
+    return StreamingResponse(
+        open(str(filepath), "rb"),
+        media_type="application/vnd.openxmlformats-officedocument.presentationml.presentation",
+        headers={"Content-Disposition": f'attachment; filename="{filepath.name}"'},
+    )
 
 
 # ── Seed & Reset ─────────────────────────────────────────────────
