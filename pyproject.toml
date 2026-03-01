@@ -82,6 +82,7 @@ select = ["E", "F", "I", "W"]
 "src/agentic_cxo/tools/strategy_planner.py" = ["E501"]
 "src/agentic_cxo/tools/brand_intelligence.py" = ["E501"]
 "src/agentic_cxo/tools/presentation_generator.py" = ["E501"]
+"src/agentic_cxo/tools/presentation.py" = ["E501"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

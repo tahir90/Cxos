@@ -28,7 +28,7 @@ from pathlib import Path
 from typing import Any
 
 from fastapi import Depends, FastAPI, HTTPException, Request, UploadFile
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from slowapi import Limiter, _rate_limit_exceeded_handler
@@ -68,6 +68,7 @@ from agentic_cxo.scenarios.registry import (
     get_scenario,
     list_scenarios,
 )
+from agentic_cxo.tools.presentation import generate_pptx
 
 logging.basicConfig(level=logging.INFO)
 _logger = logging.getLogger(__name__)
@@ -517,6 +518,74 @@ async def run_scenario(scenario_id: str, user=Depends(get_current_user)) -> dict
         "analysis": analysis,
         "summary": result.summary(),
     }
+
+
+@app.post("/scenarios/{scenario_id}/ppt")
+async def generate_scenario_ppt(
+    scenario_id: str, user=Depends(get_current_user)
+) -> StreamingResponse:
+    """Run a scenario and return a downloadable .pptx slide deck from the analysis."""
+    agent = agent_pool.get_agent(user.user_id)
+    scenario = get_scenario(scenario_id)
+    if not scenario:
+        raise HTTPException(404, f"Scenario '{scenario_id}' not found")
+    scenario_engine = ScenarioEngine(vault=agent.vault)
+    analyst_instance = ScenarioAnalyst(vault=agent.vault, use_llm=HAS_LLM)
+    result = scenario_engine.execute(scenario)
+    analysis = analyst_instance.analyze(scenario, result)
+    report = analysis.get("report", "")
+    if not report:
+        raise HTTPException(500, "Scenario produced no report")
+    filepath = generate_pptx(
+        report,
+        title=scenario.name,
+        theme="dark",
+        agent_role=scenario.agent_role,
+        sources=analysis.get("sources"),
+        add_title_slide=True,
+        add_closing_slide=True,
+    )
+
+    def iterfile():
+        with open(str(filepath), "rb") as f:
+            while chunk := f.read(8192):
+                yield chunk
+
+    return StreamingResponse(
+        iterfile(),
+        media_type="application/vnd.openxmlformats-officedocument.presentationml.presentation",
+        headers={"Content-Disposition": f'attachment; filename="{filepath.name}"'},
+    )
+
+
+class GeneratePptRequest(BaseModel):
+    message: str
+
+
+@app.post("/generate-ppt")
+async def generate_ppt_from_text(
+    req: GeneratePptRequest, user=Depends(get_current_user)
+) -> StreamingResponse:
+    """Generate a .pptx slide deck from arbitrary text/report content."""
+    filepath = generate_pptx(
+        req.message,
+        title="Custom Report",
+        theme="dark",
+        agent_role="CXO",
+        add_title_slide=True,
+        add_closing_slide=True,
+    )
+
+    def iterfile():
+        with open(str(filepath), "rb") as f:
+            while chunk := f.read(8192):
+                yield chunk
+
+    return StreamingResponse(
+        iterfile(),
+        media_type="application/vnd.openxmlformats-officedocument.presentationml.presentation",
+        headers={"Content-Disposition": f'attachment; filename="{filepath.name}"'},
+    )
 
 
 # ── Seed & Reset ─────────────────────────────────────────────────
