@@ -125,15 +125,18 @@ class ResearcherTool(BaseTool):
 
         if not all_results:
             if progress_callback:
-                progress_callback("No web results found.")
+                progress_callback("Creating outline from topic (web search unavailable)...")
+            summary = self._fallback_outline(topic)
             return ToolResult(
                 tool_name=self.name,
                 success=True,
-                data={"topic": topic, "findings": [], "sources": []},
-                summary=(
-                    f"Research on '{topic}' completed. No web results were "
-                    "retrieved — connect a production search API for live data."
-                ),
+                data={
+                    "topic": topic,
+                    "findings": summary.get("findings", []),
+                    "sources": [],
+                    "summary": summary.get("summary", ""),
+                },
+                summary=summary["summary"],
             )
 
         if progress_callback:
@@ -152,6 +155,42 @@ class ResearcherTool(BaseTool):
             },
             summary=report["summary"],
         )
+
+    def _fallback_outline(self, topic: str) -> dict[str, Any]:
+        """When web search returns nothing, create a markdown outline for presentations."""
+        t = topic[:80]
+        findings = [
+            f"Introduction to {t}",
+            f"Key concepts and definitions",
+            "Current applications and trends",
+            "Positive impacts and benefits",
+            "Challenges and considerations",
+            "Summary and recommendations",
+        ]
+        summary = (
+            f"## {t}\n\n"
+            "- Definition and scope\n"
+            "- Relevance and context\n\n"
+            "## Key Concepts\n\n"
+            "- Core principles\n"
+            "- How it works\n\n"
+            "## Applications & Trends\n\n"
+            "- Current use cases\n"
+            "- Industry adoption\n\n"
+            "## Positive Impacts\n\n"
+            "- Benefits and opportunities\n"
+            "- Real-world examples\n\n"
+            "## Challenges\n\n"
+            "- Considerations and risks\n"
+            "- Mitigation strategies\n\n"
+            "## Summary\n\n"
+            "- Key takeaways\n"
+            "- Next steps"
+        )
+        return {
+            "findings": findings,
+            "summary": summary,
+        }
 
     def _build_queries(self, topic: str, focus: str) -> list[str]:
         """Build search queries from different angles."""

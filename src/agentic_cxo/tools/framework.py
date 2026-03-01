@@ -203,6 +203,8 @@ class ToolExecutor:
             "on a topic, ALWAYS use the researcher tool first to gather content, "
             "then use presentation_generator with that research as the outline. "
             "Never ask 'would you like me to research?' - just do it. "
+            "NEVER say 'connect your presentation tool' or 'connect a search API' - "
+            "researcher and presentation_generator are BUILT-IN and work immediately. "
             "Decide which tool(s) to call based on the user's request. "
             "If no tool is needed, respond normally."
             f"\n\nBusiness context: {context[:300]}"

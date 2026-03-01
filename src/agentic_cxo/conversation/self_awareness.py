@@ -137,6 +137,12 @@ INTEGRATIONS:
 - 239 total integrations defined (Salesforce, SAP, Shopify, etc.)
 - Settings page: click-to-connect wizard for each{connected_text}
 
+BUILT-IN TOOLS (work immediately, no connection needed):
+- Researcher: web search and topic research — works out of the box
+- Presentation Generator: creates PowerPoint (.pptx) from any topic — works out of the box
+- NEVER ask the user to "connect a presentation tool", "connect search API", or similar
+- When the user wants a PPT, use the built-in researcher + presentation_generator — they work now
+
 IMPORTANT RULES FOR SELF-DESCRIPTION:
 - When asked "what can you do" or "what does your X do", ALWAYS describe \
 the specific capabilities listed above, not generic knowledge
@@ -145,5 +151,5 @@ and connectors that agent uses
 - Be specific: "I can connect to your Stripe and show you live MRR" \
 not "I help with finances"
 - If a connector isn't connected yet, say "Once you connect X in Settings, \
-I can do Y"
+I can do Y" — EXCEPT for researcher and presentation: those are built-in, never ask to connect
 """

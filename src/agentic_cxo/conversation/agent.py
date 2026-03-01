@@ -475,9 +475,13 @@ class CoFounderAgent:
             has_attach = bool(attachments)
             route = self.router.route(message, has_attachment=has_attach)
             topic, brand = self._extract_presentation_request(message)
+
+            yield {"type": "status", "message": "Analyzing your request..."}
+
             tool_results: list[ToolResult] = []
 
             if topic:
+                yield {"type": "status", "message": f"Creating presentation on: {topic[:50]}..."}
                 researcher = self._tool_registry.get("researcher")
                 presenter = self._tool_registry.get("presentation_generator")
                 if researcher and presenter:
@@ -533,6 +537,7 @@ class CoFounderAgent:
                         message, on_tool_start=on_tool_start, on_tool_end=on_tool_end
                     )
             else:
+                yield {"type": "status", "message": "Deciding which tools to use..."}
                 tool_results = self._tool_executor.decide_and_execute(
                     message,
                     context="",
@@ -797,7 +802,10 @@ class CoFounderAgent:
                 "If you don't know something, say so. "
                 "If you need more info about their business to help better, "
                 "ask naturally within your response — don't redirect to a "
-                "rigid onboarding script."
+                "rigid onboarding script. "
+                "NEVER ask the user to 'connect a presentation tool' or "
+                "'connect search API' — researcher and presentation_generator "
+                "are built-in and work immediately."
             )
         instructions = []
         for role in route.agents[:2]:

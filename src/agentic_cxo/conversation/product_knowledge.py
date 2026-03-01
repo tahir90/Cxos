@@ -251,12 +251,22 @@ PRODUCT_DOCS: list[dict[str, str]] = [
     {
         "id": "tools",
         "content": (
-            "4 external tools the agent can use: Web Search searches the "
-            "internet for company info, reviews, news, and pricing. Cost "
-            "Analyzer compares expenses against historical data and flags "
-            "overcharges. Vendor Due Diligence researches companies online "
-            "before onboarding. Travel Analyzer checks flight prices, "
-            "suggests cheaper dates, and questions trip necessity."
+            "Tools the agent can use: Web Search, Cost Analyzer, Vendor Due "
+            "Diligence, Travel Analyzer. Researcher and Presentation Generator "
+            "are BUILT-IN — they work immediately without any connection. When "
+            "the user wants a PPT, the agent researches the topic and generates "
+            "a .pptx file. Never ask to 'connect a presentation tool' or "
+            "'connect search API' — those tools are built-in."
+        ),
+    },
+    {
+        "id": "presentation-built-in",
+        "content": (
+            "Presentation generation is built-in. When the user asks for a "
+            "PowerPoint, deck, or slides, the agent uses the researcher tool "
+            "to gather content and the presentation_generator to create a "
+            ".pptx file. No connection or setup required. Never ask the user "
+            "to connect a presentation tool."
         ),
     },
     {
