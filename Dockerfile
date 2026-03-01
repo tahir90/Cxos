@@ -9,8 +9,13 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY pyproject.toml README.md ./
 COPY src/ src/
 
-RUN pip install --no-cache-dir -e "." && \
-    pip install --no-cache-dir gunicorn
+# Retries and timeout help with flaky network during Docker builds
+ENV PIP_RETRIES=5
+ENV PIP_TIMEOUT=120
+
+RUN pip install --upgrade pip && \
+    pip install --no-cache-dir --retries 5 --timeout 120 -e "." && \
+    pip install --no-cache-dir --retries 5 --timeout 120 gunicorn
 
 # Pre-download ChromaDB ONNX model so startup is instant
 RUN python -c "import chromadb; c=chromadb.Client(); c.get_or_create_collection('warmup'); c.delete_collection('warmup')"
