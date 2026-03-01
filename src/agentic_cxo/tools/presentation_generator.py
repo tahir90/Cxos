@@ -1,8 +1,8 @@
 """
 Presentation Generator Tool — agent interface for PPT creation.
 
-Thin wrapper over presentation.generate_pptx(). Invoked when user asks
-to create presentations, pitch decks, or slides via chat.
+Now integrates with the Creative Director for professional design,
+supports multiple document types, and generates title/closing slides.
 """
 
 from __future__ import annotations
@@ -16,9 +16,16 @@ from agentic_cxo.tools.presentation import _parse_markdown_sections, generate_pp
 
 logger = logging.getLogger(__name__)
 
+_cd_instance = None
+
+
+def set_creative_director(cd) -> None:
+    global _cd_instance
+    _cd_instance = cd
+
 
 class PresentationGeneratorTool(BaseTool):
-    """Create PowerPoint presentations via chat. Uses presentation.generate_pptx()."""
+    """Create professional PowerPoint presentations with CD integration."""
 
     def __init__(self) -> None:
         self._store = BrandStore()
@@ -30,10 +37,10 @@ class PresentationGeneratorTool(BaseTool):
     @property
     def description(self) -> str:
         return (
-            "Create a PowerPoint (.pptx) presentation with modern slides. "
-            "Uses company brand guidelines from BrandStore when available. "
-            "Provide a title and outline: use ## for slide titles, - or 1. for bullets. "
-            "Use for: marketing decks, investor pitches, internal briefings."
+            "Create a professional PowerPoint (.pptx) presentation with "
+            "branded design, multiple slide layouts (title, agenda, content, "
+            "data highlights, two-column, closing), and Creative Director "
+            "visual governance. Provide a title and outline in markdown."
         )
 
     @property
@@ -42,9 +49,11 @@ class PresentationGeneratorTool(BaseTool):
             ToolParam(name="title", description="Presentation title"),
             ToolParam(
                 name="outline",
-                description="Slide outline: ## Title, - bullets. Example: ## Intro\n- Point 1\n## Next\n- Item",
+                description="Slide outline in markdown: ## for titles, - for bullets",
             ),
-            ToolParam(name="brand_domain", description="Optional: company domain for brand", required=False),
+            ToolParam(name="brand_domain", description="Company domain for brand styling", required=False),
+            ToolParam(name="document_type", description="presentation, pitch_deck, report, proposal", required=False),
+            ToolParam(name="subtitle", description="Subtitle for title slide", required=False),
         ]
 
     @property
@@ -59,32 +68,61 @@ class PresentationGeneratorTool(BaseTool):
         title: str = "",
         outline: str = "",
         brand_domain: str = "",
+        document_type: str = "presentation",
+        subtitle: str = "",
         progress_callback=None,
         **kwargs: object,
     ) -> ToolResult:
         if not title and not outline:
             return ToolResult(
-                tool_name=self.name,
-                success=False,
-                error="Provide at least a title or outline for the presentation.",
+                tool_name=self.name, success=False,
+                error="Provide at least a title or outline.",
             )
         title = (title or "Presentation").strip()
         if not outline:
-            outline = f"## {title}\n- Key points to cover\n\n## Next Steps\n- Action items"
+            outline = (
+                f"## {title}\n- Key points to cover\n- Context and background\n\n"
+                f"## Analysis\n- Key findings\n- Data insights\n\n"
+                f"## Recommendations\n- Action items\n- Next steps\n\n"
+                f"## Summary\n- Key takeaways\n- Conclusions"
+            )
 
         if progress_callback:
-            progress_callback(f"Generating slides for: {title[:40]}...")
+            progress_callback(f"Preparing presentation: {title[:40]}...")
 
-        brand = self._store.get(brand_domain.strip().replace("www.", "")) if brand_domain else self._store.primary_brand
+        brand = None
+        if brand_domain:
+            brand = self._store.get(brand_domain.strip().replace("www.", ""))
+        if not brand:
+            brand = self._store.primary_brand
+
+        cd = _cd_instance
+        if brand and cd:
+            cd.update_from_brand(brand)
+
+        source_list = []
+        if "Sources" in outline or "sources" in outline:
+            for line in outline.split("\n"):
+                if line.strip().startswith("- ["):
+                    import re
+                    m = re.search(r"\[([^\]]+)\]\(([^)]+)\)", line)
+                    if m:
+                        source_list.append(m.group(2))
 
         try:
             if progress_callback:
-                progress_callback("Creating PowerPoint file...")
+                progress_callback("Generating professional slides with CD design tokens...")
             pptx_path = generate_pptx(
                 outline,
                 title=title,
                 theme="light",
                 brand=brand,
+                add_title_slide=True,
+                add_closing_slide=True,
+                creative_director=cd,
+                document_type=document_type,
+                subtitle=subtitle,
+                sources=source_list[:5] if source_list else None,
             )
         except ImportError as e:
             return ToolResult(self.name, False, error=f"python-pptx not installed: {e}")
@@ -94,26 +132,31 @@ class PresentationGeneratorTool(BaseTool):
 
         static_path = self._copy_to_static(pptx_path)
         section_count = len(_parse_markdown_sections(outline))
+        total_slides = section_count + 2  # title + closing
+
+        if progress_callback:
+            progress_callback(f"Created {total_slides}-slide presentation")
+
         return ToolResult(
-            self.name,
-            True,
+            self.name, True,
             data={
                 "title": title,
-                "slides_count": section_count,
+                "slides_count": total_slides,
                 "path": str(pptx_path),
                 "url": static_path,
                 "brand_used": brand.company_name or brand.domain if brand else None,
+                "document_type": document_type,
             },
             summary=(
                 f"## Presentation Created: {title}\n\n"
-                f"**Slides** generated with {'brand guidelines' if brand else 'default styling'}.\n\n"
-                f"📄 **[Download PowerPoint]({static_path})**"
+                f"**{total_slides} slides** with title, agenda, content, and closing slides.\n"
+                f"{'Brand: ' + (brand.company_name or brand.domain) + ' guidelines applied.' if brand else 'Default professional styling.'}\n\n"
+                f"\U0001F4C4 **[Download PowerPoint]({static_path})**"
             ),
         )
 
     def _copy_to_static(self, pptx_path: Path) -> str:
         import shutil
-
         static_dir = Path("src/agentic_cxo/api/static/presentations")
         static_dir.mkdir(parents=True, exist_ok=True)
         shutil.copy2(str(pptx_path), str(static_dir / pptx_path.name))

@@ -44,6 +44,60 @@
     .msg-copy{opacity:0;transition:opacity .15s}
     textarea{scrollbar-width:none}
     textarea::-webkit-scrollbar{display:none}
+
+    /* Plan & Step Progressive Disclosure */
+    .plan-container{margin:6px 0}
+    .plan-header{display:flex;align-items:center;gap:8px;padding:8px 12px;background:#18181b;border:1px solid #27272a;border-radius:10px;cursor:pointer;transition:all .2s}
+    .plan-header:hover{background:#1f1f23;border-color:#3f3f46}
+    .plan-header .chevron{transition:transform .2s;color:#71717a;font-size:10px}
+    .plan-header.open .chevron{transform:rotate(90deg)}
+    .plan-body{overflow:hidden;max-height:0;transition:max-height .3s ease;padding:0 12px}
+    .plan-body.open{max-height:2000px}
+    .step-item{display:flex;align-items:flex-start;gap:8px;padding:6px 0;border-bottom:1px solid #1f1f23}
+    .step-item:last-child{border-bottom:none}
+    .step-icon{width:18px;height:18px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:9px;flex-shrink:0;margin-top:2px}
+    .step-icon.pending{background:#27272a;color:#71717a}
+    .step-icon.running{background:#6366f1/20;color:#818cf8;animation:pulse 1.5s infinite}
+    .step-icon.done{background:rgba(34,197,94,.15);color:#22c55e}
+    .step-icon.failed{background:rgba(239,68,68,.15);color:#ef4444}
+
+    /* Source Cards */
+    .source-card{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;background:#18181b;border:1px solid #27272a;border-radius:8px;font-size:11px;color:#a1a1aa;text-decoration:none;transition:all .15s}
+    .source-card:hover{border-color:#6366f1;color:#c7d2fe;background:#1a1a2e}
+    .source-dot{width:6px;height:6px;border-radius:50%;flex-shrink:0}
+
+    /* Step Group */
+    .step-group{margin:4px 0;padding:8px 16px;background:#0f0f14;border-left:2px solid #6366f1;border-radius:0 8px 8px 0}
+    .step-group-header{display:flex;align-items:center;gap:8px;cursor:pointer;padding:4px 0}
+    .step-group-header .label{font-size:12px;font-weight:600;color:#a1a1aa}
+    .step-group-header .badge{font-size:10px;background:#27272a;color:#71717a;padding:1px 6px;border-radius:10px}
+    .step-group-body{padding-left:8px;overflow:hidden;max-height:0;transition:max-height .3s ease}
+    .step-group-body.open{max-height:1500px}
+
+    /* Narration */
+    .narration{padding:8px 16px;margin:4px 0;font-size:13px;color:#d4d4d8;font-style:italic;border-left:2px solid #8b5cf6;background:#0f0f14;border-radius:0 8px 8px 0}
+
+    /* Document Ready Card */
+    .doc-card{display:flex;align-items:center;gap:12px;padding:12px 16px;background:#18181b;border:1px solid #27272a;border-radius:12px;margin:8px 0;transition:all .2s}
+    .doc-card:hover{border-color:#6366f1}
+    .doc-icon{width:40px;height:40px;background:linear-gradient(135deg,#6366f1,#8b5cf6);border-radius:10px;display:flex;align-items:center;justify-content:center;color:white;font-size:16px;flex-shrink:0}
+    .doc-info{flex:1;min-width:0}
+    .doc-title{font-size:13px;font-weight:600;color:#e4e4e7}
+    .doc-meta{font-size:11px;color:#71717a;margin-top:2px}
+    .doc-actions{display:flex;gap:6px}
+    .doc-btn{padding:5px 12px;border-radius:8px;font-size:11px;font-weight:500;cursor:pointer;transition:all .15s;border:1px solid #27272a;background:#09090b;color:#a1a1aa}
+    .doc-btn:hover{background:#18181b;color:#e4e4e7;border-color:#3f3f46}
+    .doc-btn.primary{background:#6366f1;color:white;border-color:#6366f1}
+    .doc-btn.primary:hover{background:#818cf8}
+
+    /* Document Preview Panel */
+    #doc-preview-panel{position:fixed;top:48px;right:0;width:0;height:calc(100vh - 48px);background:#09090b;border-left:1px solid #27272a;z-index:40;transition:width .3s ease;overflow:hidden}
+    #doc-preview-panel.open{width:420px}
+    .preview-header{display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-bottom:1px solid #27272a}
+    .preview-content{height:calc(100% - 50px);display:flex;align-items:center;justify-content:center;padding:16px}
+    .preview-placeholder{text-align:center;color:#52525b}
+
+    @keyframes pulse{0%,100%{opacity:1}50%{opacity:.5}}
   </style>
 </head>
 <body class="text-zinc-400 h-screen flex flex-col">
@@ -91,8 +145,8 @@
         <div class="w-12 h-12 mx-auto mb-4 bg-gradient-to-br from-indigo-500/20 to-violet-500/20 rounded-2xl flex items-center justify-center border border-indigo-500/10">
           <svg class="w-6 h-6 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.4-4 8-9 8a9.9 9.9 0 01-4-.8L3 21l1.8-5A8 8 0 013 12c0-4.4 4-8 9-8s9 3.6 9 8z"/></svg>
         </div>
-        <h3 class="text-lg font-semibold text-zinc-200 mb-2">Your AI C-Suite</h3>
-        <p class="text-sm text-zinc-500 mb-6 leading-relaxed">6 AI officers ready to help. Ask anything about your business, drop documents, or try a quick action below.</p>
+        <h3 class="text-lg font-semibold text-zinc-200 mb-2">Your AI C-Suite + Creative Director</h3>
+        <p class="text-sm text-zinc-500 mb-6 leading-relaxed">7 AI specialists ready to help. I plan before I act — you'll see every step. Ask anything, drop documents, or try a quick action.</p>
         <div class="flex flex-wrap gap-2 justify-center">
           <button onclick="quickSend('What can your team do for my business?')" class="px-3 py-1.5 text-xs bg-zinc-900 hover:bg-zinc-800 text-zinc-400 hover:text-zinc-200 rounded-lg transition border border-zinc-800">What can you do?</button>
           <button onclick="quickSend('Our burn rate spiked 12%. Where can we cut costs?')" class="px-3 py-1.5 text-xs bg-zinc-900 hover:bg-zinc-800 text-zinc-400 hover:text-zinc-200 rounded-lg transition border border-zinc-800">Cut costs</button>
@@ -136,7 +190,7 @@
         <div id="upcoming-body" class="space-y-1"></div>
       </div>
       <div>
-        <p class="text-[10px] font-semibold text-zinc-600 uppercase tracking-widest mb-2">C-Suite</p>
+        <p class="text-[10px] font-semibold text-zinc-600 uppercase tracking-widest mb-2">C-Suite + CD</p>
         <div class="grid grid-cols-3 gap-1">
           <div class="text-center p-1.5 rounded-lg bg-zinc-900/50"><span class="text-[10px] font-semibold text-emerald-400">CFO</span></div>
           <div class="text-center p-1.5 rounded-lg bg-zinc-900/50"><span class="text-[10px] font-semibold text-blue-400">COO</span></div>
@@ -144,12 +198,32 @@
           <div class="text-center p-1.5 rounded-lg bg-zinc-900/50"><span class="text-[10px] font-semibold text-amber-400">CLO</span></div>
           <div class="text-center p-1.5 rounded-lg bg-zinc-900/50"><span class="text-[10px] font-semibold text-cyan-400">CHRO</span></div>
           <div class="text-center p-1.5 rounded-lg bg-zinc-900/50"><span class="text-[10px] font-semibold text-violet-400">CSO</span></div>
+          <div class="text-center p-1.5 rounded-lg bg-zinc-900/50 col-span-3 border border-indigo-500/10"><span class="text-[10px] font-semibold text-indigo-400">Creative Director</span></div>
         </div>
       </div>
       <div>
         <p class="text-[10px] font-semibold text-zinc-600 uppercase tracking-widest mb-1">Vault</p>
         <p id="vault-stat" class="text-[11px] text-zinc-600">0 chunks</p>
       </div>
+    </div>
+  </div>
+</div>
+
+<!-- Document Preview Panel -->
+<div id="doc-preview-panel">
+  <div class="preview-header">
+    <div>
+      <p id="preview-title" class="text-sm font-semibold text-zinc-200">Document Preview</p>
+      <p id="preview-meta" class="text-[10px] text-zinc-500 mt-0.5"></p>
+    </div>
+    <div class="flex items-center gap-2">
+      <a id="preview-download" href="#" download class="doc-btn text-[10px]">⬇ Download</a>
+      <button onclick="closeDocPreview()" class="text-zinc-500 hover:text-white text-lg transition">&times;</button>
+    </div>
+  </div>
+  <div class="preview-content">
+    <div id="preview-body" class="preview-placeholder">
+      <p class="text-sm text-zinc-500">Select a document to preview</p>
     </div>
   </div>
 </div>
@@ -204,9 +278,10 @@ async function authFetch(u,o={}){
 }
 function safeMd(t){try{return(typeof marked!=='undefined'&&marked.parse)?marked.parse(t):t}catch(e){return t}}
 
-const COLORS={agent:'indigo',cfo:'emerald',coo:'blue',cmo:'pink',clo:'amber',chro:'cyan',cso:'violet',system:'zinc'};
-const LABELS={agent:'Co-Founder',cfo:'CFO',coo:'COO',cmo:'CMO',clo:'CLO',chro:'CHRO',cso:'CSO',system:'System'};
-const ICONS={agent:'CX',cfo:'$',coo:'\u2699',cmo:'\u26A1',clo:'\u2696',chro:'\u263A',cso:'\u2191',system:'\u2022'};
+const COLORS={agent:'indigo',cfo:'emerald',coo:'blue',cmo:'pink',clo:'amber',chro:'cyan',cso:'violet',cd:'indigo',system:'zinc'};
+const LABELS={agent:'Co-Founder',cfo:'CFO',coo:'COO',cmo:'CMO',clo:'CLO',chro:'CHRO',cso:'CSO',cd:'Creative Director',system:'System'};
+const ICONS={agent:'CX',cfo:'$',coo:'\u2699',cmo:'\u26A1',clo:'\u2696',chro:'\u263A',cso:'\u2191',cd:'\u2728',system:'\u2022'};
+const SOURCE_COLORS=['#ef4444','#22c55e','#3b82f6','#f59e0b','#8b5cf6','#ec4899','#06b6d4','#f97316'];
 
 function autoResize(el){el.style.height='auto';el.style.height=Math.min(el.scrollHeight,128)+'px'}
 function scrollBottom(){const a=document.getElementById('chat-area');if(a)setTimeout(()=>{a.scrollTop=a.scrollHeight},80)}
@@ -297,10 +372,178 @@ function addAgentActivity(msg,icon='\u2699',rawHtml=false){
   scrollBottom();
 }
 
+/* ── Plan UI State ── */
+let _planSteps={};
+let _planEl=null;
+let _currentGroupEl=null;
+let _sourceCount=0;
+
+function _createPlanUI(ev){
+  const area=document.getElementById('chat-area');
+  document.getElementById('empty-state').classList.add('hidden');
+  area.classList.remove('hidden');
+  _planSteps={};_sourceCount=0;
+
+  const container=document.createElement('div');
+  container.className='px-4 sm:px-6 py-2 fade-up';
+  container.innerHTML=`
+    <div class="max-w-2xl">
+      <div class="plan-container">
+        <div class="plan-header open" onclick="this.classList.toggle('open');this.nextElementSibling.classList.toggle('open')">
+          <span class="chevron">\u25B6</span>
+          <div class="w-5 h-5 rounded-md bg-indigo-500/15 flex items-center justify-center"><span class="text-indigo-400 text-[9px]">\u{1F4CB}</span></div>
+          <span class="text-[12px] font-semibold text-zinc-300">Plan: ${escHtml(ev.intent||'')}</span>
+          <span class="text-[10px] text-zinc-600 ml-auto">${ev.total_steps||0} steps</span>
+        </div>
+        <div class="plan-body open" id="plan-steps-container">
+          ${(ev.steps||[]).map(s=>{
+            _planSteps[s.id]='pending';
+            const icon=s.agent==='CD'?'\u2728':s.tool?'\u2699':s.agent?'\u{1F464}':'\u2022';
+            return `<div class="step-item" id="plan-step-${s.id}">
+              <div class="step-icon pending" id="plan-step-icon-${s.id}">\u25CB</div>
+              <div class="flex-1 min-w-0">
+                <span class="text-[11px] text-zinc-400" id="plan-step-text-${s.id}">${escHtml(s.description)}</span>
+                <div class="text-[10px] text-zinc-600 mt-0.5">${s.tool?'Tool: '+s.tool:s.agent?'Agent: '+s.agent:''} \u2022 Group ${s.group||'A'}</div>
+                <div id="plan-step-detail-${s.id}" class="mt-1"></div>
+              </div>
+            </div>`;
+          }).join('')}
+        </div>
+      </div>
+    </div>`;
+  area.appendChild(container);
+  _planEl=container;
+  scrollBottom();
+}
+
+function _updateStepIcon(stepId,status){
+  const icon=document.getElementById('plan-step-icon-'+stepId);
+  if(!icon)return;
+  icon.className='step-icon '+status;
+  if(status==='done')icon.innerHTML='\u2713';
+  else if(status==='running')icon.innerHTML='\u21BB';
+  else if(status==='failed')icon.innerHTML='\u2717';
+  _planSteps[stepId]=status;
+}
+
+function _addStepDetail(stepId,html){
+  const el=document.getElementById('plan-step-detail-'+stepId);
+  if(el)el.insertAdjacentHTML('beforeend',html);
+}
+
+function _addStepGroupUI(ev){
+  const area=document.getElementById('chat-area');
+  const group=document.createElement('div');
+  group.className='px-4 sm:px-6 fade-up';
+  group.innerHTML=`
+    <div class="max-w-2xl">
+      <div class="step-group">
+        <div class="step-group-header" onclick="this.nextElementSibling.classList.toggle('open')">
+          <span class="text-[10px] text-zinc-600">\u25BC</span>
+          <span class="label">${ev.step_count>1?'Running '+ev.step_count+' tasks in parallel':'Running task'}</span>
+          <span class="badge" id="group-badge-${ev.group}">0/${ev.step_count}</span>
+        </div>
+        <div class="step-group-body open" id="group-body-${ev.group}"></div>
+      </div>
+    </div>`;
+  area.appendChild(group);
+  _currentGroupEl=group;
+  scrollBottom();
+}
+
+function _addGroupStepActivity(groupId,text,icon){
+  const body=document.getElementById('group-body-'+groupId);
+  if(body){
+    body.insertAdjacentHTML('beforeend',
+      `<div class="flex items-center gap-2 py-1.5 text-[11px] text-zinc-500 border-b border-zinc-800/30 last:border-0">
+        <span>${icon}</span><span>${escHtml(text)}</span>
+      </div>`);
+    scrollBottom();
+  }
+}
+
+function _updateGroupBadge(groupId,completed,total){
+  const badge=document.getElementById('group-badge-'+groupId);
+  if(badge){
+    badge.textContent=completed+'/'+total;
+    if(completed>=total)badge.style.color='#22c55e';
+  }
+}
+
+function _addNarration(msg){
+  const area=document.getElementById('chat-area');
+  area.insertAdjacentHTML('beforeend',
+    `<div class="px-4 sm:px-6 fade-up"><div class="max-w-2xl"><div class="narration">${escHtml(msg)}</div></div></div>`);
+  scrollBottom();
+}
+
+function _addSourceCards(sources){
+  if(!sources||!sources.length)return;
+  const area=document.getElementById('chat-area');
+  const cards=sources.map((s,i)=>{
+    const color=SOURCE_COLORS[i%SOURCE_COLORS.length];
+    const domain=(s.url||'').replace(/https?:\/\/(?:www\.)?/,'').split('/')[0];
+    return `<a href="${escHtml(s.url||'#')}" target="_blank" class="source-card">
+      <span class="source-dot" style="background:${color}"></span>
+      <span class="font-medium">${escHtml(domain||'Source')}</span>
+      <span class="text-zinc-600">${escHtml((s.title||'').slice(0,40))}</span>
+    </a>`;
+  }).join('');
+  area.insertAdjacentHTML('beforeend',
+    `<div class="px-4 sm:px-6 py-1 fade-up"><div class="max-w-2xl">
+      <p class="text-[10px] text-zinc-600 mb-1.5 font-medium">Sources found:</p>
+      <div class="flex flex-wrap gap-1.5">${cards}</div>
+    </div></div>`);
+  scrollBottom();
+}
+
+function _addDocumentCard(ev){
+  const area=document.getElementById('chat-area');
+  const url=ev.url||'';
+  const title=ev.title||'Document';
+  const slides=ev.slide_count||ev.slides_count||0;
+  const type=(ev.document_type||'pptx').toUpperCase();
+  area.insertAdjacentHTML('beforeend',
+    `<div class="px-4 sm:px-6 py-1 fade-up"><div class="max-w-2xl">
+      <div class="doc-card">
+        <div class="doc-icon">\u{1F4C4}</div>
+        <div class="doc-info">
+          <div class="doc-title">${escHtml(title)}</div>
+          <div class="doc-meta">${type} \u2022 ${slides} slides</div>
+        </div>
+        <div class="doc-actions">
+          <a href="${escHtml(url)}" download class="doc-btn primary">\u2B07 Download</a>
+          <button onclick="openDocPreview('${escHtml(url)}','${escHtml(title)}','${slides} slides')" class="doc-btn">\u{1F441} Preview</button>
+        </div>
+      </div>
+    </div></div>`);
+  scrollBottom();
+}
+
+function openDocPreview(url,title,meta){
+  const panel=document.getElementById('doc-preview-panel');
+  document.getElementById('preview-title').textContent=title;
+  document.getElementById('preview-meta').textContent=meta;
+  document.getElementById('preview-download').href=url;
+  document.getElementById('preview-body').innerHTML=
+    `<div class="text-center">
+      <div class="w-16 h-16 mx-auto mb-4 bg-indigo-500/10 rounded-2xl flex items-center justify-center">
+        <span class="text-3xl">\u{1F4C4}</span>
+      </div>
+      <p class="text-sm font-semibold text-zinc-300 mb-1">${escHtml(title)}</p>
+      <p class="text-[11px] text-zinc-500 mb-4">${escHtml(meta)}</p>
+      <a href="${escHtml(url)}" download class="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-sm rounded-lg transition">\u2B07 Download PowerPoint</a>
+      <p class="text-[10px] text-zinc-600 mt-3">Download to view in PowerPoint, Keynote, or Google Slides</p>
+    </div>`;
+  panel.classList.add('open');
+}
+function closeDocPreview(){document.getElementById('doc-preview-panel').classList.remove('open')}
+
 async function sendMsg(){
   const el=document.getElementById('msg-input');
   const msg=el.value.trim();if(!msg)return;
   el.value='';el.style.height='auto';
+  _planEl=null;_currentGroupEl=null;_sourceCount=0;_planSteps={};
   addMessage('user',msg);showTyping('Co-Founder','Processing...');
   try{
     const res=await authFetch(API+'/chat/stream',{method:'POST',headers:authHeaders(),body:JSON.stringify({message:msg})});
@@ -308,7 +551,7 @@ async function sendMsg(){
     if(!res.body){hideTyping();addMessage('system','Stream not available');refreshSidebar();return;}
     const reader=res.body.getReader();
     const dec=new TextDecoder();
-    let buf='';let lastMsgRole=null;
+    let buf='';let lastMsgRole=null;let currentGroup='';let groupCompleted=0;let allSources=[];
     while(true){
       const {done,value}=await reader.read();
       if(done)break;
@@ -321,11 +564,66 @@ async function sendMsg(){
         if(!line)continue;
         try{
           const ev=JSON.parse(line.slice(6).replace(/\r$/,''));
-          if(ev.type==='llm_thinking'){if(!window._thinkingEl){window._thinkingEl=document.createElement('div');window._thinkingEl.className='agent-thinking px-4 sm:px-6 py-1.5 fade-up text-[11px] text-zinc-500';document.getElementById('chat-area').appendChild(window._thinkingEl);}window._thinkingEl.textContent=(window._thinkingEl.textContent||'')+ev.token;}
+
+          /* ── New Plan Events ── */
+          if(ev.type==='plan_created'){
+            hideTyping();
+            _createPlanUI(ev);
+          }
+          else if(ev.type==='narration'){
+            _addNarration(ev.message);
+            updateTypingStatus(ev.message);
+          }
+          else if(ev.type==='step_group_start'){
+            currentGroup=ev.group;groupCompleted=0;
+            _addStepGroupUI(ev);
+            updateTypingStatus(ev.step_count>1?'Running '+ev.step_count+' tasks in parallel...':'Running task...');
+          }
+          else if(ev.type==='step_start'){
+            _updateStepIcon(ev.step_id,'running');
+            _addGroupStepActivity(currentGroup,ev.description,'\u21BB');
+            updateTypingStatus(ev.description);
+          }
+          else if(ev.type==='step_complete'){
+            _updateStepIcon(ev.step_id,ev.success?'done':'failed');
+            groupCompleted++;
+            const badge=document.getElementById('group-badge-'+currentGroup);
+            if(badge){const total=parseInt(badge.textContent.split('/')[1])||1;_updateGroupBadge(currentGroup,groupCompleted,total);}
+            if(ev.summary){
+              _addGroupStepActivity(currentGroup,(ev.success?'\u2713 ':'\u2717 ')+(ev.summary||'').slice(0,120),ev.success?'\u2713':'\u2717');
+            }
+            if(ev.sources){allSources.push(...ev.sources);}
+            if(ev.url){_addDocumentCard(ev);}
+          }
+          else if(ev.type==='step_group_complete'){
+            if(allSources.length>_sourceCount){
+              _addSourceCards(allSources.slice(_sourceCount));
+              _sourceCount=allSources.length;
+            }
+          }
+          else if(ev.type==='source_found'){
+            allSources.push({title:ev.title,url:ev.url});
+          }
+          else if(ev.type==='agent_consulted'){
+            addAgentActivity('\u{1F464} '+ev.agent+': '+(ev.summary||'').slice(0,100),'\u{1F464}');
+          }
+          else if(ev.type==='document_ready'){
+            _addDocumentCard(ev);
+          }
+          else if(ev.type==='plan_complete'){
+            if(allSources.length>_sourceCount){
+              _addSourceCards(allSources.slice(_sourceCount));
+              _sourceCount=allSources.length;
+            }
+            hideTyping();
+          }
+
+          /* ── Legacy Events ── */
+          else if(ev.type==='llm_thinking'){if(!window._thinkingEl){window._thinkingEl=document.createElement('div');window._thinkingEl.className='agent-thinking px-4 sm:px-6 py-1.5 fade-up text-[11px] text-zinc-500';document.getElementById('chat-area').appendChild(window._thinkingEl);}window._thinkingEl.textContent=(window._thinkingEl.textContent||'')+ev.token;}
           else if(ev.type==='progress'){addAgentActivity(ev.message,'\u2022');updateTypingStatus(ev.message);}
           else if(ev.type==='token'){hideTyping();if(!window._streamEl){window._streamEl=document.createElement('div');window._streamEl.className='msg-group px-4 sm:px-6 py-2 fade-up';window._streamEl.innerHTML='<div class="max-w-2xl flex gap-3"><div class="shrink-0 w-7 h-7 rounded-lg bg-indigo-500/10 flex items-center justify-center"><span class="text-indigo-400 text-[10px] font-bold">CX</span></div><div class="flex-1"><div class="msg-md text-[13px]"></div></div></div>';document.getElementById('chat-area').appendChild(window._streamEl);}const md=window._streamEl.querySelector('.msg-md');md._raw=(md._raw||'')+ev.token;md.innerHTML=safeMd(md._raw);scrollBottom();}
           else if(ev.type==='tool_start'){delete window._thinkingEl;updateTypingStatus('Using '+ev.tool.replace('_',' ')+'...');addAgentActivity('\u2699 Using '+ev.tool.replace('_',' '),'\u2699');}
-          else if(ev.type==='tool_end'){if(ev.success&&ev.summary)addAgentActivity('\u2713 '+ev.tool.replace('_',' ')+': '+(ev.summary.length>80?ev.summary.slice(0,80)+'...':ev.summary),'\u2713');if(ev.data&&ev.data.url){const u=ev.data.url;addAgentActivity('<a href="'+u+'" class="text-indigo-400 hover:underline">\u2B07 Download PowerPoint</a>','\u2B07',true);}}
+          else if(ev.type==='tool_end'){if(ev.success&&ev.summary)addAgentActivity('\u2713 '+ev.tool.replace('_',' ')+': '+(ev.summary.length>80?ev.summary.slice(0,80)+'...':ev.summary),'\u2713');if(ev.data&&ev.data.url){_addDocumentCard({url:ev.data.url,title:ev.data.title||'Presentation',slide_count:ev.data.slides_count||0,document_type:ev.data.document_type||'pptx'});}}
           else if(ev.type==='message'){if(window._streamEl){window._streamEl.remove();delete window._streamEl;}if(window._thinkingEl){window._thinkingEl.remove();delete window._thinkingEl;}hideTyping();addMessage(ev.role,ev.content);lastMsgRole=ev.role;}
           else if(ev.type==='error'){delete window._thinkingEl;delete window._streamEl;hideTyping();addMessage('system','Error: '+ev.message);}
           else if(ev.type==='done'){delete window._thinkingEl;delete window._streamEl;hideTyping();}
@@ -334,7 +632,7 @@ async function sendMsg(){
       }
     }
     hideTyping();
-    if(!lastMsgRole)addMessage('agent','Done. Check the activity above for results.');
+    if(!lastMsgRole&&!_planEl)addMessage('agent','Done. Check the activity above for results.');
     refreshSidebar();loadSessions();
   }catch(e){
     hideTyping();

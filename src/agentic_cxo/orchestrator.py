@@ -20,6 +20,7 @@ from agentic_cxo.agents.clo import AgentCLO
 from agentic_cxo.agents.cmo import AgentCMO
 from agentic_cxo.agents.coo import AgentCOO
 from agentic_cxo.agents.cso import AgentCSO
+from agentic_cxo.agents.creative_director import CreativeDirectorAgent
 from agentic_cxo.guardrails.approval import ApprovalGate
 from agentic_cxo.guardrails.risk import RiskAssessor
 from agentic_cxo.memory.vault import ContextVault
@@ -127,8 +128,12 @@ class Cockpit:
     _scenario_results: list[ScenarioResult] = field(
         default_factory=list, init=False
     )
+    creative_director: CreativeDirectorAgent = field(
+        default_factory=CreativeDirectorAgent, init=False
+    )
 
     def __post_init__(self) -> None:
+        self.creative_director = CreativeDirectorAgent()
         self._register_default_agents()
         self._scenario_engine = ScenarioEngine(
             vault=self.vault,
