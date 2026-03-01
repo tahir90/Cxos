@@ -40,8 +40,13 @@ def with_retry(
     max_attempts: int = 3,
     min_wait: float = 1.0,
     max_wait: float = 60.0,
-) -> Callable[..., T]:
-    """Wrap an LLM call with retries and exponential backoff."""
+) -> T:
+    """Execute an LLM call with retries and exponential backoff.
+
+    Supports two calling styles:
+      resp = with_retry(lambda: client.chat.completions.create(...))
+      wrapped = with_retry(my_func); resp = wrapped(args)
+    """
 
     @retry(
         retry=retry_if_exception(_is_retryable),
@@ -56,5 +61,10 @@ def with_retry(
     )
     def _wrapped(*args: Any, **kwargs: Any) -> T:
         return fn(*args, **kwargs)
+
+    import inspect
+    params = inspect.signature(fn).parameters
+    if len(params) == 0:
+        return _wrapped()
 
     return _wrapped

@@ -359,16 +359,28 @@ class PlanExecutor:
         plan: ExecutionPlan,
     ) -> Iterator[dict[str, Any]]:
         """Execute steps in a group, collecting events."""
-        collected_events: list[dict[str, Any]] = []
         step_events_map: dict[int, list[dict[str, Any]]] = {s.id: [] for s in steps}
 
         def run_step(step: PlanStep) -> None:
-            for ev in self._execute_step(step, results, plan):
-                step_events_map[step.id].append(ev)
+            try:
+                for ev in self._execute_step(step, results, plan):
+                    step_events_map[step.id].append(ev)
+            except Exception as e:
+                logger.exception("Parallel step %d failed: %s", step.id, e)
+                step.status = "failed"
+                results[step.id] = StepResult(step_id=step.id, success=False, error=str(e))
+                step_events_map[step.id].append({
+                    "type": "step_complete", "step_id": step.id,
+                    "success": False, "error": str(e)[:200],
+                })
 
         with concurrent.futures.ThreadPoolExecutor(max_workers=4) as pool:
             futures = {pool.submit(run_step, s): s for s in steps}
-            concurrent.futures.wait(futures)
+            for future in concurrent.futures.as_completed(futures):
+                exc = future.exception()
+                if exc:
+                    step = futures[future]
+                    logger.error("Thread for step %d raised: %s", step.id, exc)
 
         for step in steps:
             for ev in step_events_map[step.id]:
@@ -392,7 +404,7 @@ class PlanExecutor:
 
         try:
             result = self._dispatch_step(step, results, plan)
-            step.status = "completed"
+            step.status = "completed" if result.success else "failed"
             step.result = result
             results[step.id] = result
 
@@ -480,17 +492,25 @@ class PlanExecutor:
         if not tool:
             return StepResult(step.id, False, error="Researcher tool not available")
 
-        result = tool.execute(
-            topic=step.params.get("topic", ""),
-            focus=step.params.get("focus", "general"),
-        )
-        return StepResult(
-            step_id=step.id,
-            success=result.success,
-            data=result.data,
-            summary=result.summary,
-            error=result.error,
-        )
+        topic = step.params.get("topic") or step.params.get("query") or ""
+        if not topic:
+            topic = step.description or "general topic"
+
+        try:
+            result = tool.execute(
+                topic=topic,
+                focus=step.params.get("focus", "general"),
+            )
+            return StepResult(
+                step_id=step.id,
+                success=result.success,
+                data=result.data,
+                summary=result.summary,
+                error=result.error,
+            )
+        except Exception as e:
+            logger.exception("Research step %d failed for topic: %s", step.id, topic[:60])
+            return StepResult(step.id, False, error=f"Research failed: {str(e)[:200]}")
 
     def _run_web_search(self, step: PlanStep) -> StepResult:
         tool = self.tool_registry.get("web_search") if self.tool_registry else None
@@ -664,7 +684,8 @@ class PlanExecutor:
         all_sources: list[dict] = []
         all_findings: list[str] = []
 
-        for sid in input_step_ids:
+        gather_ids = input_step_ids if input_step_ids else list(results.keys())
+        for sid in gather_ids:
             sr = results.get(sid)
             if sr and sr.success:
                 if sr.summary:
