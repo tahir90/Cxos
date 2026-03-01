@@ -318,7 +318,8 @@ async function sendMsg(){
       buf=parts.pop()||'';
       for(const part of parts){
         const line=part.split('\n').find(l=>l.startsWith('data: '));
-        if(line){try{
+        if(!line)continue;
+        try{
           const ev=JSON.parse(line.slice(6).replace(/\r$/,''));
           if(ev.type==='llm_thinking'){if(!window._thinkingEl){window._thinkingEl=document.createElement('div');window._thinkingEl.className='agent-thinking px-4 sm:px-6 py-1.5 fade-up text-[11px] text-zinc-500';document.getElementById('chat-area').appendChild(window._thinkingEl);}window._thinkingEl.textContent=(window._thinkingEl.textContent||'')+ev.token;}
           else if(ev.type==='progress'){addAgentActivity(ev.message,'\u2022');updateTypingStatus(ev.message);}
@@ -329,7 +330,7 @@ async function sendMsg(){
           else if(ev.type==='error'){delete window._thinkingEl;delete window._streamEl;hideTyping();addMessage('system','Error: '+ev.message);}
           else if(ev.type==='done'){delete window._thinkingEl;delete window._streamEl;hideTyping();}
           else if(ev.type==='status'){updateTypingStatus(ev.message);addAgentActivity(ev.message,'\u2022');}
-        }catch(e){}}}
+        }catch(_){}
       }
     }
     hideTyping();
