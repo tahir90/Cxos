@@ -188,22 +188,28 @@ if(!TOKEN&&!location.pathname.includes('login')){location.href='/login'}
 function authHeaders(){return{'Content-Type':'application/json','Authorization':'Bearer '+TOKEN}}
 async function authFetch(u,o={}){
   o.headers={...(o.headers||{}),'Authorization':'Bearer '+TOKEN};
-  const res=await fetch(u,o);
-  if(res.status===401){
-    localStorage.removeItem('cxo_token');
-    localStorage.removeItem('cxo_user');
-    window.location.href='/login?expired=1';
+  try{
+    const res=await fetch(u,o);
+    if(res.status===401){
+      localStorage.removeItem('cxo_token');
+      localStorage.removeItem('cxo_user');
+      window.location.href='/login?expired=1';
+      return res;
+    }
     return res;
+  }catch(e){
+    console.error('authFetch error',e);
+    throw e;
   }
-  return res;
 }
+function safeMd(t){try{return(typeof marked!=='undefined'&&marked.parse)?marked.parse(t):t}catch(e){return t}}
 
 const COLORS={agent:'indigo',cfo:'emerald',coo:'blue',cmo:'pink',clo:'amber',chro:'cyan',cso:'violet',system:'zinc'};
 const LABELS={agent:'Co-Founder',cfo:'CFO',coo:'COO',cmo:'CMO',clo:'CLO',chro:'CHRO',cso:'CSO',system:'System'};
 const ICONS={agent:'CX',cfo:'$',coo:'\u2699',cmo:'\u26A1',clo:'\u2696',chro:'\u263A',cso:'\u2191',system:'\u2022'};
 
 function autoResize(el){el.style.height='auto';el.style.height=Math.min(el.scrollHeight,128)+'px'}
-function scrollBottom(){const a=document.getElementById('chat-area');setTimeout(()=>a.scrollTop=a.scrollHeight,80)}
+function scrollBottom(){const a=document.getElementById('chat-area');if(a)setTimeout(()=>{a.scrollTop=a.scrollHeight},80)}
 
 function addMessage(role,content,actions){
   const area=document.getElementById('chat-area');
@@ -225,7 +231,7 @@ function addMessage(role,content,actions){
     }).join('');
   }
 
-  const contentHtml=isUser?`<p class="text-sm text-zinc-200 whitespace-pre-wrap">${escHtml(content)}</p>`:`<div class="msg-md text-[13px]">${marked.parse(content)}</div>`;
+  const contentHtml=isUser?`<p class="text-sm text-zinc-200 whitespace-pre-wrap">${escHtml(content)}</p>`:`<div class="msg-md text-[13px]">${safeMd(content)}</div>`;
 
   const html=isUser
     ?`<div class="flex justify-end px-4 sm:px-6 py-1 fade-up"><div class="max-w-lg"><div class="bg-indigo-600/15 border border-indigo-500/15 rounded-2xl rounded-br-sm px-4 py-2.5">${contentHtml}</div></div></div>`
@@ -298,7 +304,8 @@ async function sendMsg(){
   addMessage('user',msg);showTyping('Co-Founder','Processing...');
   try{
     const res=await authFetch(API+'/chat/stream',{method:'POST',headers:authHeaders(),body:JSON.stringify({message:msg})});
-    if(!res.ok){const d=await res.json().catch(()=>({}));hideTyping();addMessage('system','Error: '+(d.detail||res.status));refreshSidebar();return;}
+    if(!res.ok){hideTyping();const d=await res.json().catch(()=>({}));addMessage('system','Error: '+(d.detail||res.status));refreshSidebar();return;}
+    if(!res.body){hideTyping();addMessage('system','Stream not available');refreshSidebar();return;}
     const reader=res.body.getReader();
     const dec=new TextDecoder();
     let buf='';let lastMsgRole=null;
@@ -315,7 +322,7 @@ async function sendMsg(){
           const ev=JSON.parse(line.slice(6).replace(/\r$/,''));
           if(ev.type==='llm_thinking'){if(!window._thinkingEl){window._thinkingEl=document.createElement('div');window._thinkingEl.className='agent-thinking px-4 sm:px-6 py-1.5 fade-up text-[11px] text-zinc-500';document.getElementById('chat-area').appendChild(window._thinkingEl);}window._thinkingEl.textContent=(window._thinkingEl.textContent||'')+ev.token;}
           else if(ev.type==='progress'){addAgentActivity(ev.message,'\u2022');updateTypingStatus(ev.message);}
-          else if(ev.type==='token'){hideTyping();if(!window._streamEl){window._streamEl=document.createElement('div');window._streamEl.className='msg-group px-4 sm:px-6 py-2 fade-up';window._streamEl.innerHTML='<div class="max-w-2xl flex gap-3"><div class="shrink-0 w-7 h-7 rounded-lg bg-indigo-500/10 flex items-center justify-center"><span class="text-indigo-400 text-[10px] font-bold">CX</span></div><div class="flex-1"><div class="msg-md text-[13px]"></div></div></div>';document.getElementById('chat-area').appendChild(window._streamEl);}const md=window._streamEl.querySelector('.msg-md');md._raw=(md._raw||'')+ev.token;md.innerHTML=marked.parse(md._raw);scrollBottom();}
+          else if(ev.type==='token'){hideTyping();if(!window._streamEl){window._streamEl=document.createElement('div');window._streamEl.className='msg-group px-4 sm:px-6 py-2 fade-up';window._streamEl.innerHTML='<div class="max-w-2xl flex gap-3"><div class="shrink-0 w-7 h-7 rounded-lg bg-indigo-500/10 flex items-center justify-center"><span class="text-indigo-400 text-[10px] font-bold">CX</span></div><div class="flex-1"><div class="msg-md text-[13px]"></div></div></div>';document.getElementById('chat-area').appendChild(window._streamEl);}const md=window._streamEl.querySelector('.msg-md');md._raw=(md._raw||'')+ev.token;md.innerHTML=safeMd(md._raw);scrollBottom();}
           else if(ev.type==='tool_start'){delete window._thinkingEl;updateTypingStatus('Using '+ev.tool.replace('_',' ')+'...');addAgentActivity('\u2699 Using '+ev.tool.replace('_',' '),'\u2699');}
           else if(ev.type==='tool_end'){if(ev.success&&ev.summary)addAgentActivity('\u2713 '+ev.tool.replace('_',' ')+': '+(ev.summary.length>80?ev.summary.slice(0,80)+'...':ev.summary),'\u2713');if(ev.data&&ev.data.url){const u=ev.data.url;addAgentActivity('<a href="'+u+'" class="text-indigo-400 hover:underline">\u2B07 Download PowerPoint</a>','\u2B07',true);}}
           else if(ev.type==='message'){if(window._streamEl){window._streamEl.remove();delete window._streamEl;}if(window._thinkingEl){window._thinkingEl.remove();delete window._thinkingEl;}hideTyping();addMessage(ev.role,ev.content);lastMsgRole=ev.role;}
@@ -328,7 +335,16 @@ async function sendMsg(){
     hideTyping();
     if(!lastMsgRole)addMessage('agent','Done. Check the activity above for results.');
     refreshSidebar();loadSessions();
-  }catch(e){hideTyping();addMessage('system','Connection error: '+e.message);refreshSidebar()}
+  }catch(e){
+    hideTyping();
+    console.error('sendMsg error',e);
+    try{
+      const fallback=await authFetch(API+'/chat',{method:'POST',headers:authHeaders(),body:JSON.stringify({message:msg})});
+      if(fallback.ok){const d=await fallback.json();if(d.responses&&d.responses.length){for(const r of d.responses)addMessage(r.role,r.content,r.actions);refreshSidebar();loadSessions();return;}}
+    }catch(e2){}
+    addMessage('system','Connection error: '+(e.message||'Please try again.'));
+    refreshSidebar();
+  }
 }
 
 function quickSend(m){document.getElementById('msg-input').value=m;sendMsg()}
@@ -353,7 +369,7 @@ async function seedData(){const btn=document.getElementById('seed-btn');btn.text
 
 async function loadNotifications(){try{const res=await authFetch(API+'/notifications');const data=await res.json();const dot=document.getElementById('notif-dot');if(data.unread_count>0){dot.classList.remove('hidden');if(data.unread.length){let msg='### Notifications\n\n';data.unread.forEach(n=>{msg+=`\u2022 **${n.title}**\n${n.message}\n\n`});addMessage('system',msg);authFetch(API+'/notifications/read-all',{method:'POST'});setTimeout(()=>dot.classList.add('hidden'),1000)}}else{dot.classList.add('hidden');addMessage('system','No new notifications.')}}catch(e){console.error(e)}}
 
-function logout(){localStorage.removeItem('cxo_token');localStorage.removeItem('cxo_user');location.href='/login'}
+function logout(){try{localStorage.removeItem('cxo_token');localStorage.removeItem('cxo_user');}finally{window.location.href='/login';}}
 function toggleSidebar(){document.getElementById('sidebar').classList.toggle('hidden')}
 
 async function refreshSidebar(){
@@ -380,17 +396,19 @@ async function refreshSidebar(){
 
 // ── Boot ──
 async function boot(){
-  const res=await authFetch(API+'/history');
-  const msgs=await res.json();
-  if(msgs.length){
-    document.getElementById('empty-state').classList.add('hidden');
-    document.getElementById('chat-area').classList.remove('hidden');
-    for(const m of msgs){addMessage(m.role,m.content,m.actions)}
-  }else{
-    document.getElementById('chat-area').classList.add('hidden');
-    document.getElementById('empty-state').classList.remove('hidden');
-  }
-  refreshSidebar();loadSessions();
+  try{
+    const res=await authFetch(API+'/history');
+    const msgs=await res.json();
+    if(Array.isArray(msgs)&&msgs.length){
+      document.getElementById('empty-state')?.classList.add('hidden');
+      document.getElementById('chat-area')?.classList.remove('hidden');
+      for(const m of msgs){addMessage(m.role,m.content,m.actions)}
+    }else{
+      document.getElementById('chat-area')?.classList.add('hidden');
+      document.getElementById('empty-state')?.classList.remove('hidden');
+    }
+    refreshSidebar();loadSessions();
+  }catch(e){console.error('boot error',e);document.getElementById('empty-state')?.classList.remove('hidden');}
 }
 boot();
 
