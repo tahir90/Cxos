@@ -154,19 +154,39 @@ class ToolExecutor:
         self.use_llm = use_llm
 
     def decide_and_execute(
-        self, message: str, context: str = ""
+        self,
+        message: str,
+        context: str = "",
+        *,
+        on_tool_start=None,
+        on_tool_end=None,
     ) -> list[ToolResult]:
-        """Decide which tools to use and execute them."""
+        """Decide which tools to use and execute them.
+        Optionally call on_tool_start(tool_name, args) and on_tool_end(tool_name, result).
+        """
         if self.use_llm and settings.llm.api_key:
             try:
-                return self._llm_execute(message, context)
+                return self._llm_execute(
+                    message, context,
+                    on_tool_start=on_tool_start,
+                    on_tool_end=on_tool_end,
+                )
             except Exception:
                 logger.warning("LLM tool execution failed, using keyword fallback",
                                exc_info=True)
-        return self._keyword_execute(message)
+        return self._keyword_execute(
+            message,
+            on_tool_start=on_tool_start,
+            on_tool_end=on_tool_end,
+        )
 
     def _llm_execute(
-        self, message: str, context: str
+        self,
+        message: str,
+        context: str,
+        *,
+        on_tool_start=None,
+        on_tool_end=None,
     ) -> list[ToolResult]:
         from openai import OpenAI
 
@@ -177,17 +197,23 @@ class ToolExecutor:
         if not functions:
             return []
 
+        system_content = (
+            "You are an AI assistant with access to external tools. "
+            "BE PROACTIVE: when the user asks for a presentation, deck, or slides "
+            "on a topic, ALWAYS use the researcher tool first to gather content, "
+            "then use presentation_generator with that research as the outline. "
+            "Never ask 'would you like me to research?' - just do it. "
+            "Decide which tool(s) to call based on the user's request. "
+            "If no tool is needed, respond normally."
+            f"\n\nBusiness context: {context[:300]}"
+        )
+
         resp = client.chat.completions.create(
             model=settings.llm.model,
             temperature=0.0,
             max_tokens=512,
             messages=[
-                {"role": "system", "content": (
-                    "You are an AI assistant with access to external tools. "
-                    "Decide which tool(s) to call based on the user's request. "
-                    "If no tool is needed, respond normally."
-                    f"\n\nBusiness context: {context[:300]}"
-                )},
+                {"role": "system", "content": system_content},
                 {"role": "user", "content": message},
             ],
             tools=functions,
@@ -203,18 +229,31 @@ class ToolExecutor:
                 if tool:
                     try:
                         args = json.loads(tc.function.arguments)
+                        if on_tool_start:
+                            on_tool_start(tc.function.name, args)
                         result = tool.execute(**args)
                         results.append(result)
+                        if on_tool_end:
+                            on_tool_end(tc.function.name, result)
                     except Exception as e:
-                        results.append(ToolResult(
+                        result = ToolResult(
                             tool_name=tc.function.name,
                             success=False,
                             error=str(e),
-                        ))
+                        )
+                        results.append(result)
+                        if on_tool_end:
+                            on_tool_end(tc.function.name, result)
 
         return results
 
-    def _keyword_execute(self, message: str) -> list[ToolResult]:
+    def _keyword_execute(
+        self,
+        message: str,
+        *,
+        on_tool_start=None,
+        on_tool_end=None,
+    ) -> list[ToolResult]:
         """Offline fallback: match tools by keywords."""
         matched = self.registry.match_by_keywords(message)
         results: list[ToolResult] = []
@@ -222,14 +261,21 @@ class ToolExecutor:
         for tool in matched[:3]:
             kwargs = self._extract_params(message, tool)
             try:
+                if on_tool_start:
+                    on_tool_start(tool.name, kwargs)
                 result = tool.execute(**kwargs)
                 results.append(result)
+                if on_tool_end:
+                    on_tool_end(tool.name, result)
             except Exception as e:
-                results.append(ToolResult(
+                result = ToolResult(
                     tool_name=tool.name,
                     success=False,
                     error=str(e),
-                ))
+                )
+                results.append(result)
+                if on_tool_end:
+                    on_tool_end(tool.name, result)
 
         return results
 

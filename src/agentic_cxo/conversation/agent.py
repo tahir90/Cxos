@@ -13,9 +13,10 @@ This is the brain. It:
 from __future__ import annotations
 
 import logging
+import re
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
-from typing import Any
+from typing import Any, Iterator
 
 from openai import OpenAI
 
@@ -261,7 +262,11 @@ class CoFounderAgent:
             if reminder_resp:
                 responses.append(reminder_resp)
 
-        tool_results = self._tool_executor.decide_and_execute(message)
+        topic, brand = self._extract_presentation_request(message)
+        if topic:
+            tool_results = self._run_presentation_workflow(topic, brand)
+        else:
+            tool_results = self._tool_executor.decide_and_execute(message)
         for tr in tool_results:
             if tr.success and tr.summary:
                 responses.append(ChatMessage(
@@ -296,6 +301,295 @@ class CoFounderAgent:
             self.memory.add(r)
 
         return responses
+
+    def _extract_presentation_request(
+        self, message: str
+    ) -> tuple[str | None, str]:
+        """Extract topic and optional brand domain from presentation requests.
+        Handles follow-ups like 'create the ppt now' by pulling topic from conversation history.
+        """
+        msg_lower = message.lower().strip()
+        ppt_triggers = (
+            "create presentation", "make presentation", "create a presentation",
+            "create ppt", "make ppt", "creat ppt", "creat the ppt", "create powerpoint",
+            "create deck", "make deck", "create slides", "make slides",
+            "generate presentation", "generate deck", "the ppt", "ppt now",
+            "create the ppt", "generate the ppt", "do it now", "go ahead",
+        )
+        if not any(t in msg_lower for t in ppt_triggers):
+            return None, ""
+
+        topic = ""
+        for pattern in [
+            r"(?:create|make|generate)\s+(?:the\s+)?(?:a\s+)?(?:presentation|ppt|powerpoint|deck|slides)\s+(?:on|about|regarding)\s+(.+)",
+            r"(?:presentation|ppt|deck|slides)\s+(?:on|about)\s+(.+)",
+        ]:
+            m = re.search(pattern, message, re.IGNORECASE | re.DOTALL)
+            if m:
+                topic = m.group(1).strip()
+                break
+        if not topic:
+            topic = re.sub(
+                r"^(?:create|make|generate)\s+(?:the\s+)?(?:a\s+)?(?:presentation|ppt|deck|slides)\s*",
+                "",
+                message,
+                flags=re.IGNORECASE,
+            ).strip()
+        followup_stubs = ("now", "it", "the ppt", "the presentation", "go ahead")
+        if not topic or len(topic) < 5 or topic.lower() in followup_stubs:
+            topic = self._extract_topic_from_conversation()
+        if not topic or len(topic) < 5:
+            return None, ""
+        tlower = topic.lower()
+        if any(x in tlower for x in ("ppt now", "the ppt", "create ", "make ", "generate ")):
+            ctx_topic = self._extract_topic_from_conversation()
+            if ctx_topic:
+                topic = ctx_topic
+        if len(topic) < 10:
+            return None, ""
+
+        brand = ""
+        brand_match = re.search(
+            r"(?:in|with)\s+([a-z0-9][-a-z0-9]*\.?[a-z]{2,})\s*(?:branding)?",
+            message,
+            re.IGNORECASE,
+        )
+        if brand_match:
+            brand = brand_match.group(1).strip().replace(" ", "")
+        if not brand:
+            brand = self._extract_brand_from_conversation()
+
+        return topic, brand
+
+    def _extract_topic_from_conversation(self) -> str:
+        """Pull presentation topic from recent conversation (for follow-ups like 'create ppt now')."""
+        recent = self.memory.recent(15)
+        for m in reversed(recent):
+            content = (m.content or "").strip()
+            for pattern in [
+                r"(?:presentation|ppt|deck)\s+(?:on|about)\s+(.+)",
+                r"(?:on|about)\s+(?:the\s+)?(.{10,120})",
+                r"impact\s+of\s+[\w\s]+(?:\s+on\s+[\w\s]+)?",
+                r"create\s+(?:a\s+)?presentation\s+on\s+(.+)",
+            ]:
+                match = re.search(pattern, content, re.IGNORECASE | re.DOTALL)
+                if match:
+                    t = match.group(1).strip() if match.lastindex else match.group(0).strip()
+                    t = re.sub(r"[,;].*$", "", t).strip()
+                    if len(t) > 10 and "ppt" not in t.lower() and "presentation" not in t.lower():
+                        return t[:120]
+        return ""
+
+    def _extract_brand_from_conversation(self) -> str:
+        """Pull brand domain from recent conversation."""
+        recent = self.memory.recent(10)
+        for m in reversed(recent):
+            content = (m.content or "").lower()
+            if "gmg" in content and ("branding" in content or "brand" in content or "gmg.com" in content):
+                return "gmg.com"
+            match = re.search(r"([a-z0-9-]+)\.(?:com|io|co)", content)
+            if match:
+                return match.group(0)
+        return ""
+
+    def _run_presentation_workflow(
+        self, topic: str, brand_domain: str
+    ) -> list[Any]:
+        """Chain researcher -> presentation_generator for topic-based PPT requests."""
+        researcher = self._tool_registry.get("researcher")
+        presenter = self._tool_registry.get("presentation_generator")
+        if not researcher or not presenter:
+            return []
+
+        research = researcher.execute(topic=topic, focus="general")
+        if not research.success:
+            return [research]
+
+        outline = research.summary or research.data.get("summary", "")
+        if not outline and research.data.get("findings"):
+            outline = "## " + topic + "\n\n"
+            for i, f in enumerate(research.data["findings"][:8], 1):
+                outline += f"{i}. {str(f)[:200]}\n\n"
+
+        if not outline:
+            outline = f"## {topic}\n\n- Key points and discussion\n\n## Summary\n- Conclusions"
+
+        return [
+            research,
+            presenter.execute(
+                title=topic[:80],
+                outline=outline,
+                brand_domain=brand_domain,
+            ),
+        ]
+
+    def chat_stream_events(
+        self,
+        message: str,
+        attachments: list[dict[str, Any]] | None = None,
+    ) -> Iterator[dict[str, Any]]:
+        """Stream agent activity as events for transparency. Yields:
+        {type: 'status', message}, {type: 'tool_start', tool, args},
+        {type: 'tool_end', tool, result}, {type: 'message', role, content}, {type: 'done'}
+        """
+        from agentic_cxo.tools.framework import ToolResult
+
+        events: list[dict] = []
+
+        def on_tool_start(tool_name: str, args: dict) -> None:
+            events.append({
+                "type": "tool_start",
+                "tool": tool_name,
+                "args": {k: (str(v)[:80] + "..." if isinstance(v, str) and len(v) > 80 else v)
+                        for k, v in args.items()},
+            })
+
+        def on_tool_end(tool_name: str, result: ToolResult) -> None:
+            data = result.data or {}
+            safe_data = {k: v for k, v in data.items()
+                        if k in ("url", "path", "title", "slides_count") or
+                        (not isinstance(v, (list, dict)) and k != "raw_results_count")}
+            events.append({
+                "type": "tool_end",
+                "tool": tool_name,
+                "success": result.success,
+                "summary": (result.summary or "")[:500],
+                "data": safe_data,
+            })
+
+        try:
+            user_msg = ChatMessage(
+                role=MessageRole.USER,
+                content=message,
+                attachments=[
+                    Attachment(
+                        filename=a.get("filename", "file"),
+                        content_type=a.get("content_type", "text/plain"),
+                        size_bytes=a.get("size_bytes", 0),
+                    )
+                    for a in (attachments or [])
+                ],
+            )
+            self.memory.add(user_msg)
+
+            has_attach = bool(attachments)
+            route = self.router.route(message, has_attachment=has_attach)
+            topic, brand = self._extract_presentation_request(message)
+            tool_results: list[ToolResult] = []
+
+            if topic:
+                researcher = self._tool_registry.get("researcher")
+                presenter = self._tool_registry.get("presentation_generator")
+                if researcher and presenter:
+                    if self.use_llm and settings.llm.api_key:
+                        for tok in self._stream_llm_thinking(
+                            f"The user wants a presentation on: {topic}. "
+                            "In 1-2 short sentences, say what you're about to do."
+                        ):
+                            yield {"type": "llm_thinking", "token": tok}
+                    yield {"type": "tool_start", "tool": "researcher", "args": {"topic": topic}}
+                    progress_events: list[dict] = []
+
+                    def on_progress(msg: str) -> None:
+                        progress_events.append({"type": "progress", "message": msg})
+
+                    research = researcher.execute(
+                        topic=topic, focus="general", progress_callback=on_progress
+                    )
+                    for ev in progress_events:
+                        yield ev
+                    yield {"type": "tool_end", "tool": "researcher",
+                           "success": research.success, "summary": (research.summary or "")[:500],
+                           "data": {"topic": topic}}
+                    if research.success:
+                        outline = research.summary or str(research.data.get("findings", ""))[:2000]
+                        if not outline and research.data.get("findings"):
+                            outline = "## " + topic + "\n\n" + "\n".join(
+                                f"- {str(f)[:150]}" for f in research.data["findings"][:10]
+                            )
+                        if not outline:
+                            outline = f"## {topic}\n\n- Key points\n\n## Summary"
+                        yield {"type": "tool_start", "tool": "presentation_generator",
+                               "args": {"title": topic[:80], "brand_domain": brand}}
+                        progress_events = []
+
+                        def on_progress_ppt(msg: str) -> None:
+                            progress_events.append({"type": "progress", "message": msg})
+
+                        ppt = presenter.execute(
+                            title=topic[:80], outline=outline, brand_domain=brand,
+                            progress_callback=on_progress_ppt,
+                        )
+                        for ev in progress_events:
+                            yield ev
+                        yield {"type": "tool_end", "tool": "presentation_generator",
+                               "success": ppt.success, "summary": ppt.summary or "",
+                               "data": ppt.data or {}}
+                        tool_results = [research, ppt]
+                    else:
+                        tool_results = [research]
+                else:
+                    tool_results = self._tool_executor.decide_and_execute(
+                        message, on_tool_start=on_tool_start, on_tool_end=on_tool_end
+                    )
+            else:
+                tool_results = self._tool_executor.decide_and_execute(
+                    message,
+                    context="",
+                    on_tool_start=on_tool_start,
+                    on_tool_end=on_tool_end,
+                )
+
+            for ev in events:
+                yield ev
+
+            responses: list[ChatMessage] = []
+            for tr in tool_results:
+                if tr.success and tr.summary:
+                    responses.append(ChatMessage(
+                        role=MessageRole.AGENT,
+                        content=f"**{tr.tool_name.replace('_', ' ').title()}:**\n\n{tr.summary}",
+                        actions=[AgentActionRef(
+                            action_type=f"tool_{tr.tool_name}",
+                            description=tr.summary,
+                            details=tr.data or {},
+                        )],
+                        metadata={"type": "tool_result", "tool": tr.tool_name},
+                    ))
+                    yield {"type": "message", "role": "agent", "content": responses[-1].content}
+                elif not tr.success and tr.error:
+                    yield {"type": "message", "role": "system", "content": f"Tool error: {tr.error}"}
+
+            if not responses and not has_attach:
+                query_type = self.query_classifier.classify(message)
+                if self.use_llm and settings.llm.api_key:
+                    for msg, token in self._llm_natural_response_streaming(
+                        message, route, query_type
+                    ):
+                        if token:
+                            yield {"type": "token", "token": token}
+                        elif msg:
+                            responses.append(msg)
+                            yield {"type": "message", "role": msg.role.value, "content": msg.content}
+                else:
+                    main = self._respond_naturally(message, route)
+                    responses.append(main)
+                    yield {"type": "message", "role": main.role.value, "content": main.content}
+
+            if attachments:
+                for att in attachments:
+                    doc_resp = self._handle_document(att)
+                    responses.append(doc_resp)
+                    yield {"type": "message", "role": "agent", "content": doc_resp.content}
+
+            for r in responses:
+                self.memory.add(r)
+
+        except Exception as e:
+            logger.exception("Stream error")
+            yield {"type": "error", "message": str(e)[:200]}
+        finally:
+            yield {"type": "done"}
 
     # ── Core response logic ───────────────────────────────────
 
@@ -414,6 +708,85 @@ class CoFounderAgent:
                     route.agents[0], message, route
                 )
             return self._general_response(message, route)
+
+    def _llm_natural_response_streaming(
+        self,
+        message: str,
+        route: RoutingResult,
+        query_type: QueryType = QueryType.GENERAL,
+    ) -> Iterator[tuple[ChatMessage | None, str | None]]:
+        """Stream LLM response token by token. Yields (None, token) then (ChatMessage, None)."""
+        if not self.use_llm or not settings.llm.api_key:
+            msg = self._respond_naturally(message, route)
+            yield (msg, None)
+            return
+        try:
+            client = self._get_client()
+            extra_context = ""
+            if query_type in (QueryType.SELF, QueryType.MIXED):
+                hits = self.product_kb.query(message, top_k=3)
+                extra_context = self.product_kb.format_for_prompt(hits)
+            instruction = self._build_agent_instruction(route)
+            if extra_context:
+                instruction = extra_context + "\n\n" + instruction
+            assembled = self.context_assembler.assemble(
+                user_message=message,
+                agent_role=route.agents[0] if route.agents else "Co-Founder",
+                agent_instruction=instruction,
+            )
+            stream = client.chat.completions.create(
+                model=settings.llm.model,
+                temperature=settings.llm.temperature,
+                max_tokens=settings.llm.max_tokens,
+                messages=assembled.to_messages(),
+                stream=True,
+            )
+            full_content = ""
+            for chunk in stream:
+                delta = chunk.choices[0].delta if chunk.choices else None
+                if delta and delta.content:
+                    full_content += delta.content
+                    yield (None, delta.content)
+            role = (
+                MessageRole(route.agents[0].lower())
+                if route.agents
+                else MessageRole.AGENT
+            )
+            yield (
+                ChatMessage(
+                    role=role,
+                    content=full_content.strip(),
+                    metadata={"agent": route.agents[0] if route.agents else "agent"},
+                ),
+                None,
+            )
+        except Exception:
+            logger.warning("LLM streaming failed", exc_info=True)
+            msg = self._general_response(message, route)
+            yield (msg, None)
+
+    def _stream_llm_thinking(self, prompt: str) -> Iterator[str]:
+        """Stream a short LLM response token by token (for thinking/status updates)."""
+        if not self.use_llm or not settings.llm.api_key:
+            return
+        try:
+            client = self._get_client()
+            stream = client.chat.completions.create(
+                model=settings.llm.model,
+                temperature=0.3,
+                max_tokens=80,
+                messages=[
+                    {"role": "system", "content": "Respond in 1-2 short sentences. Be natural."},
+                    {"role": "user", "content": prompt},
+                ],
+                stream=True,
+            )
+            for chunk in stream:
+                delta = chunk.choices[0].delta if chunk.choices else None
+                if delta and delta.content:
+                    yield delta.content
+        except Exception:
+            logger.warning("LLM thinking stream failed", exc_info=True)
 
     def _build_agent_instruction(self, route: RoutingResult) -> str:
         """Build instruction based on which agents are involved."""

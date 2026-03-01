@@ -21,8 +21,12 @@ Chat-first API: the founder talks, the AI co-founder routes to CXO agents.
 
 from __future__ import annotations
 
+import asyncio
+import json
 import logging
 import os
+import queue
+import threading
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -347,6 +351,47 @@ async def chat(
                 }
             ]
         }
+
+
+async def _stream_chat_events(message: str, agent):
+    """Async generator that yields SSE events from agent.chat_stream_events."""
+    ev_queue = queue.Queue()
+
+    def run():
+        try:
+            for ev in agent.chat_stream_events(message):
+                ev_queue.put(ev)
+        except Exception as e:
+            ev_queue.put({"type": "error", "message": str(e)[:200]})
+        finally:
+            ev_queue.put(None)
+
+    thread = threading.Thread(target=run)
+    thread.start()
+
+    while True:
+        try:
+            ev = ev_queue.get_nowait()
+        except queue.Empty:
+            await asyncio.sleep(0.02)
+            continue
+        if ev is None:
+            break
+        yield {"data": json.dumps(ev)}
+
+
+@app.post("/chat/stream")
+@limiter.limit("60/minute")
+async def chat_stream(
+    req: ChatRequest, request: Request, user=Depends(get_current_user)
+):
+    """Stream agent activity (tool usage, research, etc.) as SSE events."""
+    agent = agent_pool.get_agent(user.user_id)
+    usage_tracker.track("messages_sent")
+    return EventSourceResponse(
+        _stream_chat_events(req.message, agent),
+        media_type="text/event-stream",
+    )
 
 
 @app.post("/upload")

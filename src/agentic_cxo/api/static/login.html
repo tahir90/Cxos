@@ -38,6 +38,7 @@
         <input id="password" type="password" class="w-full bg-[#0b0f1a] border border-gray-700/50 rounded-xl px-4 py-2.5 text-white text-sm placeholder-gray-600 focus:ring-2 focus:ring-indigo-500/40 outline-none" placeholder="Your password" onkeydown="if(event.key==='Enter')doAuth()">
       </div>
 
+      <div id="expired-msg" class="hidden mb-3 px-3 py-2 bg-amber-500/10 border border-amber-500/20 rounded-lg text-sm text-amber-300">Your session expired. Please sign in again.</div>
       <div id="error-msg" class="hidden mb-3 px-3 py-2 bg-red-500/10 border border-red-500/20 rounded-lg text-sm text-red-300"></div>
 
       <button onclick="doAuth()" id="auth-btn" class="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-semibold rounded-xl px-4 py-2.5 transition shadow-lg shadow-indigo-500/20">Sign In</button>
@@ -102,6 +103,9 @@ async function doAuth() {
 
 if (localStorage.getItem('cxo_token')) {
   window.location.href = '/';
+}
+if (new URLSearchParams(location.search).get('expired') === '1') {
+  document.getElementById('expired-msg').classList.remove('hidden');
 }
 </script>
 </body>

@@ -95,6 +95,7 @@ class ResearcherTool(BaseTool):
         self,
         topic: str = "",
         focus: str = "",
+        progress_callback=None,
         **kwargs: Any,
     ) -> ToolResult:
         if not topic or not topic.strip():
@@ -109,7 +110,12 @@ class ResearcherTool(BaseTool):
         all_results: list[dict[str, str]] = []
         seen_snippets: set[str] = set()
 
-        for q in queries:
+        if progress_callback:
+            progress_callback(f"Searching the web for: {topic[:50]}...")
+
+        for i, q in enumerate(queries):
+            if progress_callback:
+                progress_callback(f"Query {i+1}/{len(queries)}: {q[:60]}...")
             results = _search(q)
             for r in results:
                 snip = r.get("snippet", "")[:100]
@@ -118,6 +124,8 @@ class ResearcherTool(BaseTool):
                     all_results.append(r)
 
         if not all_results:
+            if progress_callback:
+                progress_callback("No web results found.")
             return ToolResult(
                 tool_name=self.name,
                 success=True,
@@ -128,6 +136,8 @@ class ResearcherTool(BaseTool):
                 ),
             )
 
+        if progress_callback:
+            progress_callback(f"Synthesizing {len(all_results)} sources into report...")
         report = self._synthesize_report(topic, all_results)
 
         return ToolResult(

@@ -59,6 +59,7 @@ class PresentationGeneratorTool(BaseTool):
         title: str = "",
         outline: str = "",
         brand_domain: str = "",
+        progress_callback=None,
         **kwargs: object,
     ) -> ToolResult:
         if not title and not outline:
@@ -71,9 +72,14 @@ class PresentationGeneratorTool(BaseTool):
         if not outline:
             outline = f"## {title}\n- Key points to cover\n\n## Next Steps\n- Action items"
 
+        if progress_callback:
+            progress_callback(f"Generating slides for: {title[:40]}...")
+
         brand = self._store.get(brand_domain.strip().replace("www.", "")) if brand_domain else self._store.primary_brand
 
         try:
+            if progress_callback:
+                progress_callback("Creating PowerPoint file...")
             pptx_path = generate_pptx(
                 outline,
                 title=title,

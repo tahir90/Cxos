@@ -186,7 +186,17 @@ const API='';
 const TOKEN=localStorage.getItem('cxo_token')||'';
 if(!TOKEN&&!location.pathname.includes('login')){location.href='/login'}
 function authHeaders(){return{'Content-Type':'application/json','Authorization':'Bearer '+TOKEN}}
-function authFetch(u,o={}){o.headers={...(o.headers||{}),'Authorization':'Bearer '+TOKEN};return fetch(u,o)}
+async function authFetch(u,o={}){
+  o.headers={...(o.headers||{}),'Authorization':'Bearer '+TOKEN};
+  const res=await fetch(u,o);
+  if(res.status===401){
+    localStorage.removeItem('cxo_token');
+    localStorage.removeItem('cxo_user');
+    window.location.href='/login?expired=1';
+    return res;
+  }
+  return res;
+}
 
 const COLORS={agent:'indigo',cfo:'emerald',coo:'blue',cmo:'pink',clo:'amber',chro:'cyan',cso:'violet',system:'zinc'};
 const LABELS={agent:'Co-Founder',cfo:'CFO',coo:'COO',cmo:'CMO',clo:'CLO',chro:'CHRO',cso:'CSO',system:'System'};
@@ -245,40 +255,79 @@ function copyMsg(btn){
 
 function escHtml(s){return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}
 
-function showTyping(agent='Co-Founder'){
+function showTyping(agent='Co-Founder',status=''){
   const area=document.getElementById('chat-area');
   document.getElementById('empty-state').classList.add('hidden');
   area.classList.remove('hidden');
   const c=COLORS[agent.toLowerCase()]||'indigo';
+  const statusText=status||(agent+' is thinking');
   area.insertAdjacentHTML('beforeend',`<div id="typing" class="px-4 sm:px-6 py-2 fade-up">
     <div class="max-w-2xl flex gap-3">
       <div class="shrink-0 w-7 h-7 rounded-lg bg-${c}-500/10 border border-${c}-500/10 flex items-center justify-center animate-pulse">
         <span class="text-${c}-400 text-[10px] font-bold">${ICONS[agent.toLowerCase()]||'CX'}</span>
       </div>
       <div class="flex items-center gap-1.5 mt-1.5">
-        <span class="text-[11px] text-zinc-500">${agent} is thinking</span>
+        <span class="text-[11px] text-zinc-500">${statusText}</span>
         <span class="thinking-dots text-zinc-500"><span>.</span><span>.</span><span>.</span></span>
       </div>
     </div>
   </div>`);
   scrollBottom();
 }
+function updateTypingStatus(txt){
+  const el=document.querySelector('#typing .text-zinc-500');
+  if(el)el.innerHTML=escHtml(txt)+' <span class="thinking-dots text-zinc-500"><span>.</span><span>.</span><span>.</span></span>';
+}
 function hideTyping(){const el=document.getElementById('typing');if(el)el.remove()}
+
+function addAgentActivity(msg,icon='\u2699',rawHtml=false){
+  const area=document.getElementById('chat-area');
+  area.insertAdjacentHTML('beforeend',`<div class="agent-activity px-4 sm:px-6 py-1.5 fade-up">
+    <div class="flex items-center gap-2 text-[11px] text-zinc-500">
+      <span>${icon}</span>
+      <span>${rawHtml?msg:escHtml(msg)}</span>
+    </div>
+  </div>`);
+  scrollBottom();
+}
 
 async function sendMsg(){
   const el=document.getElementById('msg-input');
   const msg=el.value.trim();if(!msg)return;
   el.value='';el.style.height='auto';
-  addMessage('user',msg);showTyping();
+  addMessage('user',msg);showTyping('Co-Founder','Processing...');
   try{
-    const res=await authFetch(API+'/chat',{method:'POST',headers:authHeaders(),body:JSON.stringify({message:msg})});
-    const data=await res.json();hideTyping();
-    if(data.responses&&Array.isArray(data.responses)){
-      for(const r of data.responses){addMessage(r.role,r.content,r.actions)}
-    }else if(data.detail){addMessage('system','Error: '+data.detail)}
-    else{addMessage('system','Unexpected response');console.error(data)}
+    const res=await authFetch(API+'/chat/stream',{method:'POST',headers:authHeaders(),body:JSON.stringify({message:msg})});
+    if(!res.ok){const d=await res.json().catch(()=>({}));hideTyping();addMessage('system','Error: '+(d.detail||res.status));refreshSidebar();return;}
+    const reader=res.body.getReader();
+    const dec=new TextDecoder();
+    let buf='';let lastMsgRole=null;
+    while(true){
+      const {done,value}=await reader.read();
+      if(done)break;
+      buf+=dec.decode(value,{stream:true});
+      const parts=buf.split('\n\n');
+      buf=parts.pop()||'';
+      for(const part of parts){
+        const line=part.split('\n').find(l=>l.startsWith('data: '));
+        if(line){try{
+          const ev=JSON.parse(line.slice(6));
+          if(ev.type==='llm_thinking'){if(!window._thinkingEl){window._thinkingEl=document.createElement('div');window._thinkingEl.className='agent-thinking px-4 sm:px-6 py-1.5 fade-up text-[11px] text-zinc-500';document.getElementById('chat-area').appendChild(window._thinkingEl);}window._thinkingEl.textContent=(window._thinkingEl.textContent||'')+ev.token;}
+          else if(ev.type==='progress'){addAgentActivity(ev.message,'\u2022');updateTypingStatus(ev.message);}
+          else if(ev.type==='token'){hideTyping();if(!window._streamEl){window._streamEl=document.createElement('div');window._streamEl.className='msg-group px-4 sm:px-6 py-2 fade-up';window._streamEl.innerHTML='<div class="max-w-2xl flex gap-3"><div class="shrink-0 w-7 h-7 rounded-lg bg-indigo-500/10 flex items-center justify-center"><span class="text-indigo-400 text-[10px] font-bold">CX</span></div><div class="flex-1"><div class="msg-md text-[13px]"></div></div></div>';document.getElementById('chat-area').appendChild(window._streamEl);}const md=window._streamEl.querySelector('.msg-md');md._raw=(md._raw||'')+ev.token;md.innerHTML=marked.parse(md._raw);scrollBottom();}
+          else if(ev.type==='tool_start'){delete window._thinkingEl;updateTypingStatus('Using '+ev.tool.replace('_',' ')+'...');addAgentActivity('\u2699 Using '+ev.tool.replace('_',' '),'\u2699');}
+          else if(ev.type==='tool_end'){if(ev.success&&ev.summary)addAgentActivity('\u2713 '+ev.tool.replace('_',' ')+': '+(ev.summary.length>80?ev.summary.slice(0,80)+'...':ev.summary),'\u2713');if(ev.data&&ev.data.url){const u=ev.data.url;addAgentActivity('<a href="'+u+'" class="text-indigo-400 hover:underline">\u2B07 Download PowerPoint</a>','\u2B07',true);}}
+          else if(ev.type==='message'){if(window._streamEl){window._streamEl.remove();delete window._streamEl;}if(window._thinkingEl){window._thinkingEl.remove();delete window._thinkingEl;}hideTyping();addMessage(ev.role,ev.content);lastMsgRole=ev.role;}
+          else if(ev.type==='error'){delete window._thinkingEl;delete window._streamEl;hideTyping();addMessage('system','Error: '+ev.message);}
+          else if(ev.type==='done'){delete window._thinkingEl;delete window._streamEl;hideTyping();}
+          else if(ev.type==='status'){updateTypingStatus(ev.message);addAgentActivity(ev.message,'\u2022');}
+        }catch(e){}}}
+      }
+    }
+    hideTyping();
+    if(!lastMsgRole)addMessage('agent','Done. Check the activity above for results.');
     refreshSidebar();loadSessions();
-  }catch(e){hideTyping();addMessage('system','Connection error: '+e.message)}
+  }catch(e){hideTyping();addMessage('system','Connection error: '+e.message);refreshSidebar()}
 }
 
 function quickSend(m){document.getElementById('msg-input').value=m;sendMsg()}
