@@ -769,35 +769,77 @@ class PlanExecutor:
         doc_type = plan.document_type or "presentation"
         topic = plan.intent
 
-        sections: list[str] = []
-        sections.append(f"## {topic}\n")
-        sections.append("- Overview and scope")
-        sections.append("- Key objectives and context\n")
+        cxo_insights: list[str] = []
+        for sr in (results.get(sid) for sid in step.depends_on if (results := {s.step_id: s for s in []})):
+            pass
+        for sr_val in [r for r in [None]]:
+            pass
+        cxo_data = []
+        for sr in [r for sid in step.depends_on if (r := {}) or True]:
+            pass
+        raw_cxo: list[tuple[str, str]] = []
+        for d in input_data:
+            for role in ("CFO", "CMO", "COO", "CSO", "CLO", "CHRO"):
+                if d.startswith(f"{role}:"):
+                    raw_cxo.append((role, d[len(role)+1:].strip()))
+                    break
 
-        if template and template.get("structure"):
-            for section_type in template["structure"]:
-                if section_type in ("title", "cover"):
-                    continue
-                if section_type == "toc":
-                    continue
-                name = section_type.replace("_", " ").title()
-                sections.append(f"## {name}\n")
-                chunk = findings[:4] if findings else [f"Key points about {name.lower()}"]
+        sections: list[str] = []
+
+        sections.append(f"## Executive Summary")
+        sections.append(f"- This analysis examines {topic} across multiple dimensions")
+        if findings:
+            sections.append(f"- Key insight: {findings[0][:180]}")
+        sections.append(f"- {len(findings)} data points analyzed from research")
+        if raw_cxo:
+            sections.append(f"- Cross-functional input from: {', '.join(r for r, _ in raw_cxo)}")
+        sections.append("")
+
+        grouped: dict[str, list[str]] = {}
+        section_names = [
+            "Current Landscape & Context",
+            "Key Research Findings",
+            "Impact Analysis",
+            "Opportunities & Benefits",
+            "Challenges & Risks",
+            "Strategic Implications",
+        ]
+        per_section = max(2, len(findings) // len(section_names)) if findings else 2
+
+        for i, name in enumerate(section_names):
+            start = i * per_section
+            chunk = findings[start:start + per_section]
+            sections.append(f"## {name}")
+            if chunk:
                 for f in chunk:
-                    sections.append(f"- {str(f)[:200]}")
-                findings = findings[4:]
-                sections.append("")
-        else:
-            for i, f in enumerate(findings[:24]):
-                if i % 4 == 0:
-                    section_num = i // 4 + 1
-                    sections.append(f"\n## Key Findings — Part {section_num}\n")
-                sections.append(f"- {str(f)[:200]}")
+                    clean = str(f).replace("\n", " ").strip()[:220]
+                    if clean:
+                        sections.append(f"- {clean}")
+            else:
+                sections.append(f"- Analysis of {name.lower()} for {topic[:50]}")
+                sections.append(f"- Further data collection recommended for this area")
+            sections.append("")
+
+        if raw_cxo:
+            sections.append("## C-Suite Perspectives")
+            for role, insight in raw_cxo:
+                sections.append(f"- **{role}**: {insight[:200]}")
+            sections.append("")
+
+        sections.append("## Recommendations & Next Steps")
+        sections.append(f"- Conduct deeper analysis on high-impact areas of {topic[:50]}")
+        sections.append("- Develop implementation roadmap with clear milestones")
+        sections.append("- Establish metrics and KPIs for tracking progress")
+        sections.append("- Schedule follow-up review within 30 days")
+        sections.append("")
 
         if sources:
-            sections.append("\n## Sources\n")
+            sections.append("## Sources & References")
             for s in sources[:10]:
-                sections.append(f"- {s.get('title', 'Source')}: {s.get('url', '')}")
+                title = s.get("title", "Source")
+                url = s.get("url", "")
+                sections.append(f"- {title}: {url}")
+            sections.append("")
 
         outline = "\n".join(sections)
         return StepResult(
@@ -809,7 +851,7 @@ class PlanExecutor:
                 "findings_count": len(findings),
                 "source_count": len(sources),
             },
-            summary=f"Synthesized {len(findings)} findings from {len(sources)} sources",
+            summary=f"Synthesized {len(findings)} findings from {len(sources)} sources into structured outline",
         )
 
     def _generate_document(

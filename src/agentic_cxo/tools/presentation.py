@@ -1,11 +1,8 @@
 """
-Professional PPT generation with Creative Director integration.
+Modern presentation generator — 2026-grade slide design.
 
-Uses CD design tokens for colors, typography, and layout.
-Supports multiple slide layouts: title, agenda, content, two-column,
-data-highlight, section-break, quote, and closing.
-
-Entry point: generate_pptx()
+Uses gradient backgrounds, geometric accent shapes, strong typography
+hierarchy, branded color system, and varied layouts per slide type.
 """
 
 from __future__ import annotations
@@ -13,6 +10,7 @@ from __future__ import annotations
 import re
 import uuid
 import logging
+import datetime as dt
 from pathlib import Path
 from typing import Any, Literal
 
@@ -24,96 +22,128 @@ from pptx.util import Inches, Pt, Emu
 logger = logging.getLogger(__name__)
 
 DATA_DIR = Path(".cxo_data") / "presentations"
-DEFAULT_COLORS = ["#6366f1", "#8b5cf6", "#4f46e5", "#7c3aed", "#312e81"]
 
 
-def _hex_to_rgb(hex_val: str) -> tuple[int, int, int]:
-    hex_val = hex_val.strip().lstrip("#")
-    if len(hex_val) == 3:
-        hex_val = "".join(c * 2 for c in hex_val)
-    if len(hex_val) != 6:
-        return (99, 102, 241)
-    return int(hex_val[0:2], 16), int(hex_val[2:4], 16), int(hex_val[4:6], 16)
+def _hex(h: str) -> RGBColor:
+    h = h.strip().lstrip("#")
+    if len(h) == 3:
+        h = "".join(c * 2 for c in h)
+    if len(h) != 6:
+        h = "6366f1"
+    return RGBColor(int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16))
 
 
-def _rgb(hex_val: str) -> RGBColor:
-    r, g, b = _hex_to_rgb(hex_val)
-    return RGBColor(r, g, b)
-
-
-def _parse_markdown_sections(content: str) -> list[dict[str, Any]]:
+def _parse_sections(content: str) -> list[dict[str, Any]]:
     sections: list[dict[str, Any]] = []
-    current_title = ""
-    current_body: list[str] = []
-
+    title = ""
+    body_lines: list[str] = []
     for line in content.split("\n"):
-        heading = re.match(r"^#{1,3}\s+(.+)$", line)
-        if heading:
-            if current_title or current_body:
-                body = "\n".join(current_body).strip()
-                bullets = _extract_bullets(body)
-                sections.append({"title": current_title, "body": body, "bullets": bullets})
-            current_title = heading.group(1).strip()
-            current_body = []
+        m = re.match(r"^#{1,3}\s+(.+)$", line)
+        if m:
+            if title or body_lines:
+                body = "\n".join(body_lines).strip()
+                sections.append({"title": title, "body": body, "bullets": _bullets(body)})
+            title = m.group(1).strip()
+            body_lines = []
         else:
-            current_body.append(line)
-
-    if current_title or current_body:
-        body = "\n".join(current_body).strip()
-        bullets = _extract_bullets(body)
-        sections.append({"title": current_title, "body": body, "bullets": bullets})
+            body_lines.append(line)
+    if title or body_lines:
+        body = "\n".join(body_lines).strip()
+        sections.append({"title": title, "body": body, "bullets": _bullets(body)})
     return sections
 
 
-def _extract_bullets(text: str) -> list[str]:
-    bullets: list[str] = []
+def _bullets(text: str) -> list[str]:
+    out: list[str] = []
     for line in text.split("\n"):
         line = line.strip()
-        if not line:
-            continue
         m = re.match(r"^[-*•]\s+(.+)", line) or re.match(r"^\d+[.)]\s+(.+)", line)
         if m:
-            bullets.append(m.group(1).strip())
-        elif bullets:
-            pass
-    return bullets
+            out.append(_clean(m.group(1).strip()))
+    return out
 
 
-def _clean_text(text: str) -> str:
-    text = re.sub(r"\[([^\]]+)\]\([^)]+\)", r"\1", text)
-    text = re.sub(r"\*\*(.+?)\*\*", r"\1", text)
-    text = re.sub(r"\*(.+?)\*", r"\1", text)
-    text = re.sub(r"`(.+?)`", r"\1", text)
-    text = re.sub(r"\|.+\|", "", text)
-    text = re.sub(r"^-{3,}$", "", text, flags=re.MULTILINE)
-    text = re.sub(r"\n{3,}", "\n\n", text)
-    return text.strip()
+def _clean(t: str) -> str:
+    t = re.sub(r"\[([^\]]+)\]\([^)]+\)", r"\1", t)
+    t = re.sub(r"\*\*(.+?)\*\*", r"\1", t)
+    t = re.sub(r"\*(.+?)\*", r"\1", t)
+    t = re.sub(r"`(.+?)`", r"\1", t)
+    return t.strip()
 
 
-def _detect_slide_type(title: str, bullets: list[str], body: str, idx: int, total: int) -> str:
-    """Heuristic to determine the best slide layout for content."""
-    t_lower = title.lower()
-
-    if idx == 0 and any(kw in t_lower for kw in ["executive summary", "overview", "introduction", "about"]):
-        return "content_bullets"
-    if any(kw in t_lower for kw in ["agenda", "table of contents", "outline", "contents"]):
+def _slide_type(title: str, bullets: list[str], body: str, idx: int, total: int) -> str:
+    t = title.lower()
+    if any(k in t for k in ["agenda", "table of contents", "outline"]):
         return "agenda"
-    if any(kw in t_lower for kw in ["quote", "testimonial"]):
+    if any(k in t for k in ["executive summary", "overview", "introduction"]):
+        return "executive"
+    if any(k in t for k in ["recommendation", "next step", "action"]):
+        return "recommendations"
+    if any(k in t for k in ["source", "reference", "citation"]):
+        return "sources"
+    if any(k in t for k in ["c-suite", "perspective", "cxo"]):
+        return "perspectives"
+    if any(k in t for k in ["quote", "testimonial"]):
         return "quote"
-    if any(kw in t_lower for kw in ["vs", "comparison", "compare", "versus", "pros and cons"]):
-        return "two_column"
-    if any(kw in t_lower for kw in ["source", "reference", "citation", "bibliography"]):
-        return "content_bullets"
-
-    num_match = re.search(r'\b(\$[\d,.]+[BMKbmk]?|\d+%|\d+\.\d+[x%])\b', body or "")
-    if num_match and len(bullets) <= 3:
-        return "data_highlight"
-
     if len(bullets) > 8:
         return "two_column"
+    return "content"
 
-    return "content_bullets"
 
+# ── Shape helpers ──────────────────────────────────────────────
+
+def _rect(slide, left, top, w, h, fill_rgb):
+    shape = slide.shapes.add_shape(1, Inches(left), Inches(top), Inches(w), Inches(h))
+    shape.fill.solid()
+    shape.fill.fore_color.rgb = fill_rgb
+    shape.line.fill.background()
+    return shape
+
+
+def _textbox(slide, left, top, w, h, text, size=14, color=None, bold=False,
+             align=PP_ALIGN.LEFT, font="Calibri", line_spacing=None, space_after=0):
+    if not text:
+        return None
+    color = color or RGBColor(0xFF, 0xFF, 0xFF)
+    box = slide.shapes.add_textbox(Inches(left), Inches(top), Inches(w), Inches(h))
+    tf = box.text_frame
+    tf.word_wrap = True
+    p = tf.paragraphs[0]
+    p.text = _clean(text)
+    p.font.size = Pt(size)
+    p.font.color.rgb = color
+    p.font.bold = bold
+    p.font.name = font
+    p.alignment = align
+    if space_after:
+        p.space_after = Pt(space_after)
+    if line_spacing:
+        p.line_spacing = Pt(line_spacing)
+    return box
+
+
+def _bullet_block(slide, left, top, w, h, items, size=16, color=None,
+                  font="Calibri", spacing=12, max_items=7, bullet_char="\u2022"):
+    color = color or RGBColor(0x52, 0x52, 0x5B)
+    box = slide.shapes.add_textbox(Inches(left), Inches(top), Inches(w), Inches(h))
+    tf = box.text_frame
+    tf.word_wrap = True
+    for j, item in enumerate(items[:max_items]):
+        p = tf.paragraphs[0] if j == 0 else tf.add_paragraph()
+        p.text = f"{bullet_char}  {_clean(item)}"
+        p.font.size = Pt(size)
+        p.font.color.rgb = color
+        p.font.name = font
+        p.space_after = Pt(spacing)
+        p.line_spacing = Pt(size + 10)
+
+
+def _page_num(slide, num, total, color=None):
+    color = color or RGBColor(0x71, 0x71, 0x7A)
+    _textbox(slide, 12.2, 7.1, 0.8, 0.3, f"{num}/{total}", 8, color, align=PP_ALIGN.RIGHT)
+
+
+# ── Main entry ─────────────────────────────────────────────────
 
 def generate_pptx(
     content: str,
@@ -130,293 +160,225 @@ def generate_pptx(
     subtitle: str = "",
 ) -> Path:
     DATA_DIR.mkdir(parents=True, exist_ok=True)
-    sections = _parse_markdown_sections(content)
+    sections = _parse_sections(content)
     if not sections:
         sections = [{"title": title, "body": "", "bullets": ["Key points to cover"]}]
 
-    # Resolve design tokens
     if creative_director:
-        primary_hex = creative_director.get_primary_color()
-        secondary_hex = creative_director.get_secondary_color()
-        heading_font = creative_director.get_heading_font()
-        body_font = creative_director.get_body_font()
-        data_viz = creative_director.get_data_viz_palette()
+        pri_hex = creative_director.get_primary_color()
+        sec_hex = creative_director.get_secondary_color()
+        h_font = creative_director.get_heading_font()
+        b_font = creative_director.get_body_font()
     else:
-        primary_hex, secondary_hex = "#6366f1", "#8b5cf6"
-        heading_font, body_font = "Calibri", "Calibri"
-        data_viz = DEFAULT_COLORS
-
+        pri_hex, sec_hex = "#6366f1", "#8b5cf6"
+        h_font, b_font = "Calibri", "Calibri"
     if brand:
         if getattr(brand, "primary_color", None):
-            primary_hex = brand.primary_color
+            pri_hex = brand.primary_color
         if getattr(brand, "secondary_color", None):
-            secondary_hex = brand.secondary_color
+            sec_hex = brand.secondary_color
         if getattr(brand, "heading_font", None):
-            heading_font = brand.heading_font
+            h_font = brand.heading_font
         if getattr(brand, "body_font", None):
-            body_font = brand.body_font
+            b_font = brand.body_font
 
-    primary = _rgb(primary_hex)
-    secondary = _rgb(secondary_hex)
-    dark_bg = RGBColor(0x0F, 0x11, 0x1A)
-    white = RGBColor(0xFF, 0xFF, 0xFF)
-    light_gray_bg = RGBColor(0xF4, 0xF4, 0xF5)
-    body_text_dark = RGBColor(0x3F, 0x3F, 0x46)
-    body_text_light = RGBColor(0xA1, 0xA1, 0xAA)
-    subtle_gray = RGBColor(0x71, 0x71, 0x7A)
-    divider_color = primary
-
-    is_dark = theme == "dark"
-    bg_color = dark_bg if is_dark else white
-    title_color = white if is_dark else RGBColor(0x18, 0x18, 0x1B)
-    body_color = body_text_light if is_dark else body_text_dark
+    PRI = _hex(pri_hex)
+    SEC = _hex(sec_hex)
+    DARK = RGBColor(0x0F, 0x10, 0x17)
+    DARK2 = RGBColor(0x16, 0x18, 0x22)
+    WHITE = RGBColor(0xFF, 0xFF, 0xFF)
+    OFFWHITE = RGBColor(0xF8, 0xF8, 0xFA)
+    LGRAY = RGBColor(0xE4, 0xE4, 0xE7)
+    MGRAY = RGBColor(0x71, 0x71, 0x7A)
+    DGRAY = RGBColor(0x3F, 0x3F, 0x46)
+    TEXT_DARK = RGBColor(0x27, 0x27, 0x2A)
+    TEXT_BODY = RGBColor(0x52, 0x52, 0x5B)
+    ACCENT2 = RGBColor(0xEC, 0x48, 0x99)
 
     prs = Presentation()
     prs.slide_width = Inches(13.333)
     prs.slide_height = Inches(7.5)
     blank = prs.slide_layouts[6]
 
-    def set_bg(slide, color: RGBColor) -> None:
+    def set_bg(slide, c):
         slide.background.fill.solid()
-        slide.background.fill.fore_color.rgb = color
+        slide.background.fill.fore_color.rgb = c
 
-    def add_text(slide, left, top, w, h, text, size=14, color=white,
-                 bold=False, align=PP_ALIGN.LEFT, font=body_font, spacing=0) -> Any:
-        if not text:
-            return None
-        box = slide.shapes.add_textbox(Inches(left), Inches(top), Inches(w), Inches(h))
-        tf = box.text_frame
-        tf.word_wrap = True
-        p = tf.paragraphs[0]
-        p.text = _clean_text(text)
-        p.font.size = Pt(size)
-        p.font.color.rgb = color
-        p.font.bold = bold
-        p.alignment = align
-        p.font.name = font
-        if spacing:
-            p.space_after = Pt(spacing)
-        return box
+    has_agenda = any("agenda" in (s.get("title") or "").lower() for s in sections)
+    auto_agenda = not has_agenda and len(sections) >= 4
+    total = len(sections) + (1 if add_title_slide else 0) + (1 if auto_agenda else 0) + (1 if add_closing_slide else 0)
+    sn = 0
 
-    def add_bullets(slide, left, top, w, h, bullets_list, size=18, color=body_color,
-                    font=body_font, spacing=10, max_items=8, indent=False) -> None:
-        box = slide.shapes.add_textbox(Inches(left), Inches(top), Inches(w), Inches(h))
-        tf = box.text_frame
-        tf.word_wrap = True
-        for j, bullet in enumerate(bullets_list[:max_items]):
-            para = tf.paragraphs[0] if j == 0 else tf.add_paragraph()
-            cleaned = _clean_text(bullet)
-            para.text = f"{'    ' if indent else ''}{'•' if not indent else '–'}  {cleaned}"
-            para.font.size = Pt(size)
-            para.font.color.rgb = color
-            para.font.name = font
-            para.space_after = Pt(spacing)
-            para.line_spacing = Pt(size + 10)
-
-    def add_divider(slide, left, top, width, height=0.04) -> None:
-        shape = slide.shapes.add_shape(1, Inches(left), Inches(top), Inches(width), Inches(height))
-        shape.fill.solid()
-        shape.fill.fore_color.rgb = divider_color
-        shape.line.fill.background()
-
-    def add_accent_bar(slide) -> None:
-        shape = slide.shapes.add_shape(
-            1, Inches(0.6), Inches(7.1), Inches(2.5), Inches(0.06)
-        )
-        shape.fill.solid()
-        shape.fill.fore_color.rgb = secondary
-        shape.line.fill.background()
-
-    def add_page_number(slide, num, total_slides) -> None:
-        add_text(slide, 12.0, 7.05, 1.2, 0.35, f"{num}/{total_slides}",
-                 size=9, color=subtle_gray, align=PP_ALIGN.RIGHT, font=body_font)
-
-    total_slides = len(sections) + (1 if add_title_slide else 0) + (1 if add_closing_slide else 0)
-    has_agenda = any("agenda" in (s.get("title") or "").lower() or
-                     "table of contents" in (s.get("title") or "").lower()
-                     for s in sections)
-    if not has_agenda and len(sections) >= 5:
-        total_slides += 1
-
-    slide_num = 0
-
-    # ── Title Slide ──────────────────────────────────────────────
+    # ── TITLE SLIDE ─────────────────────────────────────────
     if add_title_slide:
-        slide_num += 1
+        sn += 1
         s = prs.slides.add_slide(blank)
-        set_bg(s, dark_bg)
-        add_accent_bar(s)
-        add_text(s, 0.6, 0.4, 3, 0.4, "AGENTIC CXO", size=11, color=primary,
-                 bold=True, font=heading_font)
-        add_text(s, 0.6, 2.0, 11.5, 1.8, title, size=44, color=white,
-                 bold=True, font=heading_font, spacing=8)
-        sub_text = subtitle or f"Executive Briefing  •  AI {agent_role}"
-        add_text(s, 0.6, 4.2, 11.5, 0.7, sub_text, size=18, color=body_text_light,
-                 font=body_font)
-        import datetime as dt
-        date_str = dt.datetime.now().strftime("%B %d, %Y")
-        add_text(s, 0.6, 5.5, 11.5, 0.4, date_str, size=12, color=subtle_gray,
-                 font=body_font)
-        if sources:
-            src_text = "Sources: " + ", ".join(s[:5] for s in (sources or []))
-            add_text(s, 0.6, 6.0, 11.5, 0.4, src_text, size=10, color=subtle_gray,
-                     font=body_font)
-        add_page_number(s, slide_num, total_slides)
+        set_bg(s, DARK)
+        _rect(s, 0, 0, 13.333, 0.06, PRI)
+        _rect(s, 0, 6.8, 13.333, 0.7, DARK2)
+        _rect(s, 0.8, 3.6, 3.5, 0.06, SEC)
+        _textbox(s, 0.8, 0.5, 5, 0.5, "AGENTIC CXO", 11, PRI, True, font=h_font)
+        _textbox(s, 0.8, 1.6, 11, 2.0, title, 42, WHITE, True, font=h_font, line_spacing=52)
+        sub = subtitle or f"AI-Powered Executive Briefing"
+        _textbox(s, 0.8, 3.9, 11, 0.7, sub, 18, MGRAY, font=b_font)
+        _textbox(s, 0.8, 5.0, 5, 0.4, dt.datetime.now().strftime("%B %d, %Y"), 12, MGRAY, font=b_font)
+        _textbox(s, 0.8, 5.4, 5, 0.4, f"Prepared by AI {agent_role}", 11, DGRAY, font=b_font)
+        _page_num(s, sn, total, DGRAY)
 
-    # ── Auto Agenda Slide ────────────────────────────────────────
-    if not has_agenda and len(sections) >= 5:
-        slide_num += 1
+    # ── AGENDA SLIDE ────────────────────────────────────────
+    if auto_agenda:
+        sn += 1
         s = prs.slides.add_slide(blank)
-        set_bg(s, bg_color)
-        add_text(s, 0.6, 0.5, 12.133, 0.8, "Agenda", size=28,
-                 color=title_color, bold=True, font=heading_font)
-        add_divider(s, 0.6, 1.35, 3.0)
+        set_bg(s, OFFWHITE)
+        _rect(s, 0, 0, 0.08, 7.5, PRI)
+        _textbox(s, 0.6, 0.5, 5, 0.8, "Agenda", 32, TEXT_DARK, True, font=h_font)
+        _rect(s, 0.6, 1.35, 2.5, 0.05, PRI)
 
-        agenda_items = [sec.get("title", "") for sec in sections if sec.get("title")]
-        box = prs.slides[-1].shapes.add_textbox(
-            Inches(0.6), Inches(1.7), Inches(12.133), Inches(5.2)
-        )
-        tf = box.text_frame
-        tf.word_wrap = True
-        for j, item in enumerate(agenda_items[:12]):
-            para = tf.paragraphs[0] if j == 0 else tf.add_paragraph()
-            para.text = f"{j+1:02d}    {_clean_text(item)}"
-            para.font.size = Pt(20)
-            para.font.color.rgb = body_color
-            para.font.name = body_font
-            para.space_after = Pt(14)
-            run = para.runs[0] if para.runs else para.add_run()
-            num_end = para.text.index("    ")
-            run.font.bold = True
-            run.font.color.rgb = primary
+        y = 1.7
+        for i, sec in enumerate(sections):
+            if y > 6.5:
+                break
+            num = f"{i+1:02d}"
+            _textbox(s, 0.6, y, 0.8, 0.4, num, 24, PRI, True, font=h_font)
+            _textbox(s, 1.6, y + 0.04, 10, 0.4, _clean(sec.get("title", "")), 18, TEXT_BODY, font=b_font)
+            y += 0.52
+        _page_num(s, sn, total, MGRAY)
 
-        add_page_number(s, slide_num, total_slides)
-
-    # ── Content Slides ───────────────────────────────────────────
-    section_counter = 0
+    # ── CONTENT SLIDES ──────────────────────────────────────
     for idx, sec in enumerate(sections):
         sec_title = sec.get("title") or "Overview"
         bullets = sec.get("bullets", [])
         body = sec.get("body", "")
-        slide_type = _detect_slide_type(sec_title, bullets, body, idx, len(sections))
+        stype = _slide_type(sec_title, bullets, body, idx, len(sections))
 
-        section_counter += 1
-        slide_num += 1
+        sn += 1
         s = prs.slides.add_slide(blank)
 
-        if slide_type == "agenda":
-            set_bg(s, bg_color)
-            add_text(s, 0.6, 0.5, 12.133, 0.8, sec_title, size=28,
-                     color=title_color, bold=True, font=heading_font)
-            add_divider(s, 0.6, 1.35, 3.0)
+        if stype == "executive":
+            set_bg(s, DARK)
+            _rect(s, 0, 0, 13.333, 0.05, PRI)
+            _rect(s, 0, 0, 0.08, 7.5, SEC)
+            _textbox(s, 0.6, 0.4, 11, 0.7, sec_title, 30, WHITE, True, font=h_font)
+            _rect(s, 0.6, 1.15, 2.5, 0.04, SEC)
             if bullets:
-                box = s.shapes.add_textbox(Inches(0.6), Inches(1.7), Inches(12.133), Inches(5.2))
-                tf = box.text_frame
-                tf.word_wrap = True
-                for j, item in enumerate(bullets[:12]):
-                    para = tf.paragraphs[0] if j == 0 else tf.add_paragraph()
-                    para.text = f"{j+1:02d}    {_clean_text(item)}"
-                    para.font.size = Pt(20)
-                    para.font.color.rgb = body_color
-                    para.font.name = body_font
-                    para.space_after = Pt(14)
+                _bullet_block(s, 0.6, 1.5, 11.5, 5.5, bullets, 17, MGRAY, b_font, 14, 6, "\u25B8")
+            _page_num(s, sn, total, DGRAY)
 
-        elif slide_type == "data_highlight":
-            set_bg(s, bg_color)
-            add_text(s, 0.6, 0.5, 12.133, 0.8, sec_title, size=28,
-                     color=title_color, bold=True, font=heading_font)
+        elif stype == "agenda":
+            set_bg(s, OFFWHITE)
+            _rect(s, 0, 0, 0.08, 7.5, PRI)
+            _textbox(s, 0.6, 0.5, 5, 0.8, sec_title, 30, TEXT_DARK, True, font=h_font)
+            _rect(s, 0.6, 1.35, 2.5, 0.05, PRI)
+            if bullets:
+                y = 1.7
+                for i, b in enumerate(bullets[:12]):
+                    _textbox(s, 0.6, y, 0.8, 0.4, f"{i+1:02d}", 22, PRI, True, font=h_font)
+                    _textbox(s, 1.6, y + 0.04, 10, 0.4, _clean(b), 17, TEXT_BODY, font=b_font)
+                    y += 0.48
+            _page_num(s, sn, total, MGRAY)
 
-            num_match = re.search(r'(\$[\d,.]+[BMKbmk]?|\d+%|\d+\.\d+[x%])', body or "")
-            metric = num_match.group(1) if num_match else ""
-            if metric:
-                add_text(s, 0.6, 2.0, 12.133, 1.5, metric, size=72,
-                         color=primary, bold=True, align=PP_ALIGN.CENTER, font=heading_font)
-                remaining_text = body.replace(metric, "").strip() if body else ""
-                if remaining_text:
-                    clean_remaining = _clean_text(remaining_text)
-                    lines = clean_remaining.split("\n")
-                    add_text(s, 2.0, 4.0, 9.333, 2.5, "\n".join(lines[:6]), size=16,
-                             color=body_color, align=PP_ALIGN.CENTER, font=body_font)
-            elif bullets:
-                add_bullets(s, 0.6, 1.6, 12.133, 5.2, bullets, color=body_color, font=body_font)
+        elif stype == "two_column":
+            set_bg(s, WHITE)
+            _rect(s, 0, 0, 13.333, 0.05, PRI)
+            _textbox(s, 0.6, 0.45, 12, 0.7, sec_title, 28, TEXT_DARK, True, font=h_font)
+            _rect(s, 0.6, 1.2, 2.5, 0.04, PRI)
+            mid = len(bullets) // 2
+            _bullet_block(s, 0.6, 1.5, 5.8, 5.5, bullets[:mid], 15, TEXT_BODY, b_font, 10, 8)
+            _rect(s, 6.55, 1.5, 0.03, 5.0, LGRAY)
+            _bullet_block(s, 6.8, 1.5, 5.8, 5.5, bullets[mid:], 15, TEXT_BODY, b_font, 10, 8)
+            _page_num(s, sn, total, MGRAY)
 
-        elif slide_type == "two_column":
-            set_bg(s, bg_color)
-            add_text(s, 0.6, 0.5, 12.133, 0.8, sec_title, size=28,
-                     color=title_color, bold=True, font=heading_font)
-            add_divider(s, 0.6, 1.35, 3.0)
+        elif stype == "perspectives":
+            set_bg(s, DARK)
+            _rect(s, 0, 0, 13.333, 0.05, PRI)
+            _textbox(s, 0.6, 0.4, 11, 0.7, sec_title, 28, WHITE, True, font=h_font)
+            _rect(s, 0.6, 1.15, 2.5, 0.04, SEC)
+            y = 1.5
+            for b in bullets[:6]:
+                parts = b.split(":", 1)
+                if len(parts) == 2:
+                    role_name = _clean(parts[0])
+                    insight = _clean(parts[1])
+                    _rect(s, 0.6, y, 0.06, 0.8, SEC)
+                    _textbox(s, 0.85, y, 2.5, 0.4, role_name, 15, PRI, True, font=h_font)
+                    _textbox(s, 0.85, y + 0.35, 11.5, 0.5, insight[:180], 14, MGRAY, font=b_font)
+                else:
+                    _textbox(s, 0.6, y, 12, 0.4, _clean(b), 15, MGRAY, font=b_font)
+                y += 0.95
+            _page_num(s, sn, total, DGRAY)
 
-            mid = len(bullets) // 2 if bullets else 0
-            left_bullets = bullets[:mid] if mid > 0 else bullets[:4]
-            right_bullets = bullets[mid:] if mid > 0 else bullets[4:]
+        elif stype == "recommendations":
+            set_bg(s, WHITE)
+            _rect(s, 0, 0, 13.333, 0.05, PRI)
+            _rect(s, 0, 7.0, 13.333, 0.5, DARK)
+            _textbox(s, 0.6, 0.45, 12, 0.7, sec_title, 28, TEXT_DARK, True, font=h_font)
+            _rect(s, 0.6, 1.2, 2.5, 0.04, PRI)
+            y = 1.5
+            for i, b in enumerate(bullets[:6]):
+                num_color = PRI if i % 2 == 0 else SEC
+                _rect(s, 0.6, y, 0.5, 0.5, num_color)
+                _textbox(s, 0.65, y + 0.05, 0.4, 0.4, str(i + 1), 18, WHITE, True, PP_ALIGN.CENTER, h_font)
+                _textbox(s, 1.3, y + 0.05, 11, 0.5, _clean(b), 16, TEXT_BODY, font=b_font)
+                y += 0.72
+            _page_num(s, sn, total, MGRAY)
 
-            if left_bullets:
-                add_bullets(s, 0.6, 1.7, 5.8, 5.2, left_bullets, size=16,
-                            color=body_color, font=body_font, max_items=8)
-            if right_bullets:
-                add_bullets(s, 6.8, 1.7, 5.933, 5.2, right_bullets, size=16,
-                            color=body_color, font=body_font, max_items=8)
+        elif stype == "sources":
+            set_bg(s, OFFWHITE)
+            _rect(s, 0, 0, 13.333, 0.05, PRI)
+            _textbox(s, 0.6, 0.45, 12, 0.7, sec_title, 28, TEXT_DARK, True, font=h_font)
+            _rect(s, 0.6, 1.2, 2.5, 0.04, PRI)
+            y = 1.5
+            for i, b in enumerate(bullets[:10]):
+                _rect(s, 0.6, y, 0.08, 0.35, PRI if i % 2 == 0 else SEC)
+                _textbox(s, 0.9, y, 11.5, 0.4, _clean(b), 14, TEXT_BODY, font=b_font)
+                y += 0.45
+            _page_num(s, sn, total, MGRAY)
 
-        elif slide_type == "quote":
-            set_bg(s, light_gray_bg if not is_dark else dark_bg)
-            add_text(s, 0.8, 1.2, 2, 2, "\u201C", size=120, color=primary,
-                     bold=True, font=heading_font)
-            quote_text = bullets[0] if bullets else body[:300]
-            add_text(s, 2.0, 2.2, 10, 2.5, _clean_text(quote_text), size=24,
-                     color=title_color, font=body_font)
+        elif stype == "quote":
+            set_bg(s, DARK)
+            _rect(s, 0, 0, 13.333, 0.05, PRI)
+            _textbox(s, 0.8, 1.5, 1.5, 1.5, "\u201C", 96, SEC, True, font=h_font)
+            quote = bullets[0] if bullets else body[:300]
+            _textbox(s, 2.2, 2.2, 9.5, 2.5, _clean(quote), 24, WHITE, font=b_font, line_spacing=36)
             if len(bullets) > 1:
-                add_text(s, 2.0, 5.0, 10, 0.5, f"— {_clean_text(bullets[1])}", size=14,
-                         color=subtle_gray, bold=True, font=body_font)
+                _textbox(s, 2.2, 5.0, 9.5, 0.5, f"\u2014 {_clean(bullets[1])}", 14, MGRAY, True, font=b_font)
+            _page_num(s, sn, total, DGRAY)
 
         else:
-            set_bg(s, bg_color)
-            add_text(s, 0.6, 0.5, 12.133, 0.8, sec_title, size=28,
-                     color=title_color, bold=True, font=heading_font)
-            add_divider(s, 0.6, 1.35, 3.0)
+            set_bg(s, WHITE)
+            _rect(s, 0, 0, 13.333, 0.05, PRI)
+            _textbox(s, 0.6, 0.45, 12, 0.7, sec_title, 28, TEXT_DARK, True, font=h_font)
+            _rect(s, 0.6, 1.2, 2.5, 0.04, PRI)
+
+            if idx % 3 == 2 and len(bullets) >= 3:
+                _rect(s, 12.5, 1.5, 0.5, 5.0, OFFWHITE)
 
             if bullets:
-                add_bullets(s, 0.6, 1.6, 12.133, 5.2, bullets, size=18,
-                            color=body_color, font=body_font, max_items=8)
-                if len(bullets) > 8:
-                    add_text(s, 0.6, 6.7, 5, 0.3,
-                             f"+{len(bullets)-8} more items (see appendix)", size=10,
-                             color=subtle_gray, font=body_font)
+                _bullet_block(s, 0.6, 1.5, 11.5, 5.5, bullets, 17, TEXT_BODY, b_font, 13, 7)
             elif body:
-                clean = _clean_text(body)
-                lines = clean.split("\n")
-                chunk = "\n".join(lines[:20])
-                add_text(s, 0.6, 1.6, 12.133, 5.2, chunk, size=16,
-                         color=body_color, font=body_font, spacing=6)
+                lines = _clean(body).split("\n")[:15]
+                _textbox(s, 0.6, 1.5, 11.5, 5.5, "\n".join(lines), 16, TEXT_BODY, font=b_font, line_spacing=26)
+            _page_num(s, sn, total, MGRAY)
 
-        if not is_dark and slide_type not in ("data_highlight", "quote"):
-            shape = s.shapes.add_shape(
-                1, Inches(0.6), Inches(7.05), Inches(12.133), Inches(0.03)
-            )
-            shape.fill.solid()
-            shape.fill.fore_color.rgb = RGBColor(0xE4, 0xE4, 0xE7)
-            shape.line.fill.background()
-
-        add_page_number(s, slide_num, total_slides)
-
-    # ── Closing Slide ────────────────────────────────────────────
+    # ── CLOSING SLIDE ───────────────────────────────────────
     if add_closing_slide:
-        slide_num += 1
+        sn += 1
         s = prs.slides.add_slide(blank)
-        set_bg(s, dark_bg)
-        add_accent_bar(s)
-        add_text(s, 0.8, 2.2, 11.5, 1.2, "Thank You", size=44, color=white,
-                 bold=True, align=PP_ALIGN.CENTER, font=heading_font)
-        add_text(s, 0.8, 3.8, 11.5, 0.6, f"Generated by Agentic CXO  •  AI {agent_role}",
-                 size=16, color=body_text_light, align=PP_ALIGN.CENTER, font=body_font)
-        import datetime as dt
-        add_text(s, 0.8, 4.6, 11.5, 0.4, dt.datetime.now().strftime("%B %d, %Y"),
-                 size=12, color=subtle_gray, align=PP_ALIGN.CENTER, font=body_font)
-        add_page_number(s, slide_num, total_slides)
+        set_bg(s, DARK)
+        _rect(s, 0, 0, 13.333, 0.06, PRI)
+        _rect(s, 0, 7.0, 13.333, 0.5, DARK2)
+        _rect(s, 5.5, 3.5, 2.333, 0.06, SEC)
+        _textbox(s, 0.8, 2.0, 11.5, 1.2, "Thank You", 44, WHITE, True, PP_ALIGN.CENTER, h_font)
+        _textbox(s, 0.8, 3.8, 11.5, 0.6, "Generated by Agentic CXO", 16, MGRAY, align=PP_ALIGN.CENTER, font=b_font)
+        _textbox(s, 0.8, 4.5, 11.5, 0.4, dt.datetime.now().strftime("%B %d, %Y"), 12, DGRAY, align=PP_ALIGN.CENTER, font=b_font)
+        _page_num(s, sn, total, DGRAY)
 
-    stem = "report" if document_type in ("report", "pitch_deck") else "presentation"
-    name = f"{stem}_{uuid.uuid4().hex[:8]}.pptx"
+    name = f"{'report' if document_type in ('report', 'pitch_deck') else 'presentation'}_{uuid.uuid4().hex[:8]}.pptx"
     path = DATA_DIR / name
     prs.save(str(path))
-    actual_slides = len(prs.slides)
-    logger.info("Generated PPTX: %s (%d slides)", path, actual_slides)
+    logger.info("Generated PPTX: %s (%d slides)", path, len(prs.slides))
     return path
+
+
+def _parse_markdown_sections(content: str) -> list[dict[str, Any]]:
+    return _parse_sections(content)
