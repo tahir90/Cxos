@@ -7,6 +7,7 @@ from agentic_cxo.agents.clo import AgentCLO
 from agentic_cxo.agents.cmo import AgentCMO
 from agentic_cxo.agents.coo import AgentCOO
 from agentic_cxo.agents.cso import AgentCSO
+from agentic_cxo.agents.creative_director import CreativeDirectorAgent
 
 __all__ = [
     "BaseAgent",
@@ -16,4 +17,5 @@ __all__ = [
     "AgentCLO",
     "AgentCHRO",
     "AgentCSO",
+    "CreativeDirectorAgent",
 ]

@@ -60,13 +60,16 @@ from agentic_cxo.conversation.router import IntentRouter, RoutingResult
 from agentic_cxo.conversation.sessions import SessionManager
 from agentic_cxo.memory.vault import ContextVault
 from agentic_cxo.pipeline.refinery import ContextRefinery
+from agentic_cxo.agents.creative_director import CreativeDirectorAgent
 from agentic_cxo.tools.auditors.ads_auditor import AdsAuditorTool
 from agentic_cxo.tools.auditors.seo_auditor import SEOAuditorTool
 from agentic_cxo.tools.brand_intelligence import BrandIntelligenceTool
 from agentic_cxo.tools.cost_analyzer import CostAnalyzerTool
 from agentic_cxo.tools.framework import ToolExecutor, ToolRegistry
 from agentic_cxo.tools.image_generator import ImageGeneratorTool
-from agentic_cxo.tools.presentation_generator import PresentationGeneratorTool
+from agentic_cxo.tools.plan_executor import PlanExecutor
+from agentic_cxo.tools.planner import PlannerTool
+from agentic_cxo.tools.presentation_generator import PresentationGeneratorTool, set_creative_director
 from agentic_cxo.tools.researcher import ResearcherTool
 from agentic_cxo.tools.strategy_planner import StrategyPlannerTool
 from agentic_cxo.tools.travel_analyzer import TravelAnalyzerTool
@@ -152,6 +155,11 @@ class CoFounderAgent:
     context_assembler: ContextAssembler | None = field(
         default=None, init=False
     )
+    creative_director: CreativeDirectorAgent | None = field(
+        default=None, init=False
+    )
+    planner: PlannerTool | None = field(default=None, init=False)
+    plan_executor: PlanExecutor | None = field(default=None, init=False)
     _client: OpenAI | None = field(default=None, init=False, repr=False)
 
     def __post_init__(self) -> None:
@@ -160,6 +168,9 @@ class CoFounderAgent:
         self.alert_engine = ProactiveAlertEngine(
             event_store=self.event_store,
         )
+
+        self.creative_director = CreativeDirectorAgent()
+        set_creative_director(self.creative_director)
 
         self._tool_registry = ToolRegistry()
         self._tool_registry.register(WebSearchTool())
@@ -177,6 +188,13 @@ class CoFounderAgent:
         self._tool_registry.register(PresentationGeneratorTool())
         self._tool_executor = ToolExecutor(
             registry=self._tool_registry, use_llm=self.use_llm
+        )
+
+        self.planner = PlannerTool(use_llm=self.use_llm)
+        self.plan_executor = PlanExecutor(
+            tool_registry=self._tool_registry,
+            creative_director=self.creative_director,
+            use_llm=self.use_llm,
         )
 
         self.context_assembler = ContextAssembler(
@@ -429,9 +447,16 @@ class CoFounderAgent:
         message: str,
         attachments: list[dict[str, Any]] | None = None,
     ) -> Iterator[dict[str, Any]]:
-        """Stream agent activity as events for transparency. Yields:
-        {type: 'status', message}, {type: 'tool_start', tool, args},
-        {type: 'tool_end', tool, result}, {type: 'message', role, content}, {type: 'done'}
+        """Stream agent activity as rich events for progressive disclosure UI.
+
+        New event types for plan-and-execute transparency:
+          plan_created, step_group_start, step_start, step_progress,
+          step_complete, step_group_complete, source_found, agent_consulted,
+          narration, document_ready, plan_complete
+
+        Legacy event types (still supported):
+          status, llm_thinking, tool_start, tool_end, progress,
+          token, message, error, done
         """
         from agentic_cxo.tools.framework import ToolResult
 
@@ -448,7 +473,7 @@ class CoFounderAgent:
         def on_tool_end(tool_name: str, result: ToolResult) -> None:
             data = result.data or {}
             safe_data = {k: v for k, v in data.items()
-                        if k in ("url", "path", "title", "slides_count") or
+                        if k in ("url", "path", "title", "slides_count", "document_type") or
                         (not isinstance(v, (list, dict)) and k != "raw_results_count")}
             events.append({
                 "type": "tool_end",
@@ -475,127 +500,247 @@ class CoFounderAgent:
 
             has_attach = bool(attachments)
             route = self.router.route(message, has_attachment=has_attach)
-            topic, brand = self._extract_presentation_request(message)
 
-            yield {"type": "status", "message": "Analyzing your request..."}
+            yield {"type": "status", "message": "Understanding your request..."}
 
-            tool_results: list[ToolResult] = []
+            intent_info = self.planner.should_plan(message) if self.planner else {}
+            needs_plan = intent_info.get("needs_planning", False)
 
-            if topic:
-                yield {"type": "status", "message": f"Creating presentation on: {topic[:50]}..."}
-                researcher = self._tool_registry.get("researcher")
-                presenter = self._tool_registry.get("presentation_generator")
-                if researcher and presenter:
-                    if self.use_llm and settings.llm.api_key:
-                        for tok in self._stream_llm_thinking(
-                            f"The user wants a presentation on: {topic}. "
-                            "In 1-2 short sentences, say what you're about to do."
-                        ):
-                            yield {"type": "llm_thinking", "token": tok}
-                    yield {"type": "tool_start", "tool": "researcher", "args": {"topic": topic}}
-                    progress_events: list[dict] = []
-
-                    def on_progress(msg: str) -> None:
-                        progress_events.append({"type": "progress", "message": msg})
-
-                    research = researcher.execute(
-                        topic=topic, focus="general", progress_callback=on_progress
-                    )
-                    for ev in progress_events:
-                        yield ev
-                    yield {"type": "tool_end", "tool": "researcher",
-                           "success": research.success, "summary": (research.summary or "")[:500],
-                           "data": {"topic": topic}}
-                    if research.success:
-                        outline = research.summary or str(research.data.get("findings", ""))[:2000]
-                        if not outline and research.data.get("findings"):
-                            outline = "## " + topic + "\n\n" + "\n".join(
-                                f"- {str(f)[:150]}" for f in research.data["findings"][:10]
-                            )
-                        if not outline:
-                            outline = f"## {topic}\n\n- Key points\n\n## Summary"
-                        yield {"type": "tool_start", "tool": "presentation_generator",
-                               "args": {"title": topic[:80], "brand_domain": brand}}
-                        progress_events = []
-
-                        def on_progress_ppt(msg: str) -> None:
-                            progress_events.append({"type": "progress", "message": msg})
-
-                        ppt = presenter.execute(
-                            title=topic[:80], outline=outline, brand_domain=brand,
-                            progress_callback=on_progress_ppt,
-                        )
-                        for ev in progress_events:
-                            yield ev
-                        yield {"type": "tool_end", "tool": "presentation_generator",
-                               "success": ppt.success, "summary": ppt.summary or "",
-                               "data": ppt.data or {}}
-                        tool_results = [research, ppt]
-                    else:
-                        tool_results = [research]
-                else:
-                    tool_results = self._tool_executor.decide_and_execute(
-                        message, on_tool_start=on_tool_start, on_tool_end=on_tool_end
-                    )
+            if needs_plan and self.planner and self.plan_executor:
+                yield from self._stream_planned_execution(message, route, has_attach, attachments)
             else:
-                yield {"type": "status", "message": "Deciding which tools to use..."}
-                tool_results = self._tool_executor.decide_and_execute(
-                    message,
-                    context="",
-                    on_tool_start=on_tool_start,
-                    on_tool_end=on_tool_end,
+                yield from self._stream_direct_execution(
+                    message, route, has_attach, attachments,
+                    on_tool_start, on_tool_end, events,
                 )
-
-            for ev in events:
-                yield ev
-
-            responses: list[ChatMessage] = []
-            for tr in tool_results:
-                if tr.success and tr.summary:
-                    responses.append(ChatMessage(
-                        role=MessageRole.AGENT,
-                        content=f"**{tr.tool_name.replace('_', ' ').title()}:**\n\n{tr.summary}",
-                        actions=[AgentActionRef(
-                            action_type=f"tool_{tr.tool_name}",
-                            description=tr.summary,
-                            details=tr.data or {},
-                        )],
-                        metadata={"type": "tool_result", "tool": tr.tool_name},
-                    ))
-                    yield {"type": "message", "role": "agent", "content": responses[-1].content}
-                elif not tr.success and tr.error:
-                    yield {"type": "message", "role": "system", "content": f"Tool error: {tr.error}"}
-
-            if not responses and not has_attach:
-                query_type = self.query_classifier.classify(message)
-                if self.use_llm and settings.llm.api_key:
-                    for msg, token in self._llm_natural_response_streaming(
-                        message, route, query_type
-                    ):
-                        if token:
-                            yield {"type": "token", "token": token}
-                        elif msg:
-                            responses.append(msg)
-                            yield {"type": "message", "role": msg.role.value, "content": msg.content}
-                else:
-                    main = self._respond_naturally(message, route)
-                    responses.append(main)
-                    yield {"type": "message", "role": main.role.value, "content": main.content}
-
-            if attachments:
-                for att in attachments:
-                    doc_resp = self._handle_document(att)
-                    responses.append(doc_resp)
-                    yield {"type": "message", "role": "agent", "content": doc_resp.content}
-
-            for r in responses:
-                self.memory.add(r)
 
         except Exception as e:
             logger.exception("Stream error")
             yield {"type": "error", "message": str(e)[:200]}
         finally:
             yield {"type": "done"}
+
+    def _stream_planned_execution(
+        self,
+        message: str,
+        route: RoutingResult,
+        has_attach: bool,
+        attachments: list[dict[str, Any]] | None,
+    ) -> Iterator[dict[str, Any]]:
+        """Execute via plan-and-execute pattern with rich progress events."""
+        from agentic_cxo.tools.framework import ToolResult
+
+        yield {"type": "status", "message": "Planning the best approach..."}
+
+        if self.use_llm and settings.llm.api_key:
+            for tok in self._stream_llm_thinking(
+                f"The user says: '{message[:200]}'. "
+                "In 1-2 sentences, explain what you understand they need and what you'll do."
+            ):
+                yield {"type": "llm_thinking", "token": tok}
+
+        business_context = ""
+        if self.profile_store and self.profile_store.profile:
+            p = self.profile_store.profile
+            parts = []
+            if p.company_name:
+                parts.append(f"Company: {p.company_name}")
+            if p.industry:
+                parts.append(f"Industry: {p.industry}")
+            business_context = ". ".join(parts)
+
+        conversation_context = ""
+        recent = self.memory.recent(5)
+        if recent:
+            conversation_context = " | ".join(
+                m.content[:100] for m in recent if m.content
+            )
+
+        plan = self.planner.create_plan(
+            message=message,
+            context=conversation_context,
+            business_profile=business_context,
+        )
+
+        if not plan.steps:
+            yield from self._stream_direct_execution(
+                message, route, has_attach, attachments,
+                lambda *a: None, lambda *a: None, [],
+            )
+            return
+
+        responses: list[ChatMessage] = []
+        final_data: dict[str, Any] = {}
+
+        for event in self.plan_executor.execute_plan(plan):
+            yield event
+
+            if event.get("type") == "document_ready":
+                final_data.update(event)
+
+            if event.get("type") == "plan_complete":
+                combined_summary = event.get("combined_summary", "")
+                if combined_summary:
+                    responses.append(ChatMessage(
+                        role=MessageRole.AGENT,
+                        content=combined_summary,
+                        actions=[AgentActionRef(
+                            action_type="plan_execution",
+                            description=plan.intent,
+                            details=event.get("combined_data", {}),
+                        )],
+                        metadata={"type": "plan_result", "plan_intent": plan.intent},
+                    ))
+                    yield {"type": "message", "role": "agent", "content": combined_summary}
+
+        if not responses:
+            query_type = self.query_classifier.classify(message)
+            if self.use_llm and settings.llm.api_key:
+                for msg, token in self._llm_natural_response_streaming(
+                    message, route, query_type
+                ):
+                    if token:
+                        yield {"type": "token", "token": token}
+                    elif msg:
+                        responses.append(msg)
+                        yield {"type": "message", "role": msg.role.value, "content": msg.content}
+            else:
+                main = self._respond_naturally(message, route)
+                responses.append(main)
+                yield {"type": "message", "role": main.role.value, "content": main.content}
+
+        if attachments:
+            for att in attachments:
+                doc_resp = self._handle_document(att)
+                responses.append(doc_resp)
+                yield {"type": "message", "role": "agent", "content": doc_resp.content}
+
+        for r in responses:
+            self.memory.add(r)
+
+    def _stream_direct_execution(
+        self,
+        message: str,
+        route: RoutingResult,
+        has_attach: bool,
+        attachments: list[dict[str, Any]] | None,
+        on_tool_start,
+        on_tool_end,
+        events: list[dict],
+    ) -> Iterator[dict[str, Any]]:
+        """Direct execution path for simple requests (no planning needed)."""
+        from agentic_cxo.tools.framework import ToolResult
+
+        topic, brand = self._extract_presentation_request(message)
+        tool_results: list[ToolResult] = []
+
+        if topic:
+            yield {"type": "status", "message": f"Creating presentation on: {topic[:50]}..."}
+            researcher = self._tool_registry.get("researcher")
+            presenter = self._tool_registry.get("presentation_generator")
+            if researcher and presenter:
+                if self.use_llm and settings.llm.api_key:
+                    for tok in self._stream_llm_thinking(
+                        f"The user wants a presentation on: {topic}. "
+                        "In 1-2 short sentences, say what you're about to do."
+                    ):
+                        yield {"type": "llm_thinking", "token": tok}
+                yield {"type": "tool_start", "tool": "researcher", "args": {"topic": topic}}
+                progress_events: list[dict] = []
+
+                def on_progress(msg: str) -> None:
+                    progress_events.append({"type": "progress", "message": msg})
+
+                research = researcher.execute(
+                    topic=topic, focus="general", progress_callback=on_progress
+                )
+                for ev in progress_events:
+                    yield ev
+                yield {"type": "tool_end", "tool": "researcher",
+                       "success": research.success, "summary": (research.summary or "")[:500],
+                       "data": {"topic": topic}}
+                if research.success:
+                    outline = research.summary or str(research.data.get("findings", ""))[:2000]
+                    if not outline and research.data.get("findings"):
+                        outline = "## " + topic + "\n\n" + "\n".join(
+                            f"- {str(f)[:150]}" for f in research.data["findings"][:10]
+                        )
+                    if not outline:
+                        outline = f"## {topic}\n\n- Key points\n\n## Summary"
+                    yield {"type": "tool_start", "tool": "presentation_generator",
+                           "args": {"title": topic[:80], "brand_domain": brand}}
+                    progress_events = []
+
+                    def on_progress_ppt(msg: str) -> None:
+                        progress_events.append({"type": "progress", "message": msg})
+
+                    ppt = presenter.execute(
+                        title=topic[:80], outline=outline, brand_domain=brand,
+                        progress_callback=on_progress_ppt,
+                    )
+                    for ev in progress_events:
+                        yield ev
+                    yield {"type": "tool_end", "tool": "presentation_generator",
+                           "success": ppt.success, "summary": ppt.summary or "",
+                           "data": ppt.data or {}}
+                    tool_results = [research, ppt]
+                else:
+                    tool_results = [research]
+            else:
+                tool_results = self._tool_executor.decide_and_execute(
+                    message, on_tool_start=on_tool_start, on_tool_end=on_tool_end
+                )
+        else:
+            yield {"type": "status", "message": "Deciding which tools to use..."}
+            tool_results = self._tool_executor.decide_and_execute(
+                message, context="",
+                on_tool_start=on_tool_start, on_tool_end=on_tool_end,
+            )
+
+        for ev in events:
+            yield ev
+
+        responses: list[ChatMessage] = []
+        for tr in tool_results:
+            if tr.success and tr.summary:
+                responses.append(ChatMessage(
+                    role=MessageRole.AGENT,
+                    content=f"**{tr.tool_name.replace('_', ' ').title()}:**\n\n{tr.summary}",
+                    actions=[AgentActionRef(
+                        action_type=f"tool_{tr.tool_name}",
+                        description=tr.summary,
+                        details=tr.data or {},
+                    )],
+                    metadata={"type": "tool_result", "tool": tr.tool_name},
+                ))
+                yield {"type": "message", "role": "agent", "content": responses[-1].content}
+            elif not tr.success and tr.error:
+                yield {"type": "message", "role": "system", "content": f"Tool error: {tr.error}"}
+
+        if not responses and not has_attach:
+            query_type = self.query_classifier.classify(message)
+            if self.use_llm and settings.llm.api_key:
+                for msg, token in self._llm_natural_response_streaming(
+                    message, route, query_type
+                ):
+                    if token:
+                        yield {"type": "token", "token": token}
+                    elif msg:
+                        responses.append(msg)
+                        yield {"type": "message", "role": msg.role.value, "content": msg.content}
+            else:
+                main = self._respond_naturally(message, route)
+                responses.append(main)
+                yield {"type": "message", "role": main.role.value, "content": main.content}
+
+        if attachments:
+            for att in attachments:
+                doc_resp = self._handle_document(att)
+                responses.append(doc_resp)
+                yield {"type": "message", "role": "agent", "content": doc_resp.content}
+
+        for r in responses:
+            self.memory.add(r)
 
     # ── Core response logic ───────────────────────────────────
 
@@ -604,7 +749,7 @@ class CoFounderAgent:
         return ChatMessage(
             role=MessageRole.AGENT,
             content=(
-                "Hey! I'm your AI co-founder. I have six specialists on my "
+                "Hey! I'm your AI co-founder. I have seven specialists on my "
                 "team:\n\n"
                 "- **CFO** — watches your money, catches overspending, "
                 "optimizes cash flow\n"
@@ -615,7 +760,12 @@ class CoFounderAgent:
                 "- **CHRO** — recruits talent, monitors team health, "
                 "onboards hires\n"
                 "- **CSO** — recovers stalled deals, optimizes your "
-                "pipeline\n\n"
+                "pipeline\n"
+                "- **Creative Director** — ensures every output looks "
+                "premium with consistent brand design\n\n"
+                "I plan before I act — when you ask for something complex, "
+                "I'll show you my step-by-step plan and keep you informed "
+                "at every stage.\n\n"
                 "You can ask me anything — I'll figure out which specialist "
                 "to bring in. Drop documents and I'll analyze them. "
                 "Or just tell me what's on your mind.\n\n"
