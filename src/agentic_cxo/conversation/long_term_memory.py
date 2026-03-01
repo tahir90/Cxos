@@ -31,6 +31,8 @@ from typing import Any
 
 import tiktoken
 
+from agentic_cxo.infrastructure.tenant import user_data_dir
+
 logger = logging.getLogger(__name__)
 
 
@@ -111,13 +113,15 @@ class LongTermMemory:
     Memories can be superseded (updated) but never deleted.
     """
 
-    def __init__(self) -> None:
+    def __init__(self, user_id: str = "default") -> None:
+        self._user_id = user_id or "default"
         self._items: list[MemoryItem] = []
         self._load()
 
     def _path(self) -> Path:
-        DATA_DIR.mkdir(exist_ok=True)
-        return DATA_DIR / "long_term_memory.json"
+        base = user_data_dir(self._user_id)
+        base.mkdir(parents=True, exist_ok=True)
+        return base / "long_term_memory.json"
 
     def _load(self) -> None:
         p = self._path()

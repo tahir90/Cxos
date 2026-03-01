@@ -24,6 +24,7 @@ from agentic_cxo.actions.executor import ActionQueue
 from agentic_cxo.actions.goal_tracker import GoalTracker
 from agentic_cxo.actions.scheduler import JobScheduler
 from agentic_cxo.config import settings
+from agentic_cxo.infrastructure.llm_retry import with_retry
 from agentic_cxo.conversation.context import ContextAssembler, TokenBudget
 from agentic_cxo.conversation.long_term_memory import (
     LongTermMemory,
@@ -64,6 +65,8 @@ from agentic_cxo.tools.brand_intelligence import BrandIntelligenceTool
 from agentic_cxo.tools.cost_analyzer import CostAnalyzerTool
 from agentic_cxo.tools.framework import ToolExecutor, ToolRegistry
 from agentic_cxo.tools.image_generator import ImageGeneratorTool
+from agentic_cxo.tools.presentation_generator import PresentationGeneratorTool
+from agentic_cxo.tools.researcher import ResearcherTool
 from agentic_cxo.tools.strategy_planner import StrategyPlannerTool
 from agentic_cxo.tools.travel_analyzer import TravelAnalyzerTool
 from agentic_cxo.tools.vendor_diligence import VendorDueDiligenceTool
@@ -169,6 +172,8 @@ class CoFounderAgent:
         self._tool_registry.register(SEOAuditorTool())
         self._tool_registry.register(StrategyPlannerTool())
         self._tool_registry.register(BrandIntelligenceTool())
+        self._tool_registry.register(ResearcherTool())
+        self._tool_registry.register(PresentationGeneratorTool())
         self._tool_executor = ToolExecutor(
             registry=self._tool_registry, use_llm=self.use_llm
         )
@@ -381,7 +386,8 @@ class CoFounderAgent:
                 agent_role=route.agents[0] if route.agents else "Co-Founder",
                 agent_instruction=instruction,
             )
-            resp = client.chat.completions.create(
+            create_fn = with_retry(client.chat.completions.create, max_attempts=3)
+            resp = create_fn(
                 model=settings.llm.model,
                 temperature=settings.llm.temperature,
                 max_tokens=settings.llm.max_tokens,
@@ -656,7 +662,8 @@ class CoFounderAgent:
             "LLM call for %s: %d context tokens",
             agent_role, assembled.token_count,
         )
-        resp = client.chat.completions.create(
+        create_fn = with_retry(client.chat.completions.create, max_attempts=3)
+        resp = create_fn(
             model=settings.llm.model,
             temperature=settings.llm.temperature,
             max_tokens=settings.llm.max_tokens,

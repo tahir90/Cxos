@@ -36,6 +36,8 @@ from typing import Any
 
 import tiktoken
 
+from agentic_cxo.infrastructure.tenant import user_data_dir
+
 logger = logging.getLogger(__name__)
 
 DATA_DIR = Path(".cxo_data")
@@ -150,13 +152,15 @@ class BusinessEvent:
 class EventStore:
     """Persistent store of all business events."""
 
-    def __init__(self) -> None:
+    def __init__(self, user_id: str = "default") -> None:
+        self._user_id = user_id or "default"
         self._events: list[BusinessEvent] = []
         self._load()
 
     def _path(self) -> Path:
-        DATA_DIR.mkdir(exist_ok=True)
-        return DATA_DIR / "business_events.json"
+        base = user_data_dir(self._user_id)
+        base.mkdir(parents=True, exist_ok=True)
+        return base / "business_events.json"
 
     def _load(self) -> None:
         p = self._path()

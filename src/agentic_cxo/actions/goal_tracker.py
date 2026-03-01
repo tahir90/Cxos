@@ -19,6 +19,8 @@ from enum import Enum
 from pathlib import Path
 from typing import Any
 
+from agentic_cxo.infrastructure.tenant import user_data_dir
+
 logger = logging.getLogger(__name__)
 
 DATA_DIR = Path(".cxo_data")
@@ -110,13 +112,15 @@ class Goal:
 class GoalTracker:
     """Persistent tracker for business goals and KPIs."""
 
-    def __init__(self) -> None:
+    def __init__(self, user_id: str = "default") -> None:
+        self._user_id = user_id or "default"
         self._goals: list[Goal] = []
         self._load()
 
     def _path(self) -> Path:
-        DATA_DIR.mkdir(exist_ok=True)
-        return DATA_DIR / "goals.json"
+        base = user_data_dir(self._user_id)
+        base.mkdir(parents=True, exist_ok=True)
+        return base / "goals.json"
 
     def _load(self) -> None:
         p = self._path()

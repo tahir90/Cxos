@@ -136,6 +136,21 @@ cp .env.example .env
 cxo serve
 ```
 
+### Production deployment
+
+Before running in production, set these environment variables:
+
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `CXO_ENV` | Yes | Set to `production` |
+| `CXO_JWT_SECRET` | Yes | Strong random string (e.g. `openssl rand -hex 32`) |
+| `CXO_ADMIN_PASSWORD` | Yes | Strong password for the first admin user |
+| `CXO_ENCRYPTION_KEY` | Recommended | For encrypted connector credentials |
+| `OPENAI_API_KEY` | For LLM | Required for AI features |
+| `DATABASE_URL` | Optional | Postgres URL; defaults to SQLite |
+
+The app will refuse to start if `CXO_ENV=production` and insecure defaults are used.
+
 ### CLI
 
 ```bash

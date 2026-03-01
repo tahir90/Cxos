@@ -24,6 +24,8 @@ from enum import Enum
 from pathlib import Path
 from typing import Any
 
+from agentic_cxo.infrastructure.tenant import user_data_dir
+
 logger = logging.getLogger(__name__)
 
 DATA_DIR = Path(".cxo_data")
@@ -96,13 +98,15 @@ class Decision:
 class DecisionLog:
     """Persistent log of all business decisions."""
 
-    def __init__(self) -> None:
+    def __init__(self, user_id: str = "default") -> None:
+        self._user_id = user_id or "default"
         self._decisions: list[Decision] = []
         self._load()
 
     def _path(self) -> Path:
-        DATA_DIR.mkdir(exist_ok=True)
-        return DATA_DIR / "decision_log.json"
+        base = user_data_dir(self._user_id)
+        base.mkdir(parents=True, exist_ok=True)
+        return base / "decision_log.json"
 
     def _load(self) -> None:
         p = self._path()

@@ -17,11 +17,19 @@ from typing import Any
 from jose import JWTError, jwt
 from passlib.context import CryptContext
 
+from agentic_cxo.config import settings
+
 logger = logging.getLogger(__name__)
 
-SECRET_KEY = "cxo-secret-change-in-production-use-env-var"
 ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_HOURS = 72
+
+
+def _get_secret_key() -> str:
+    return settings.auth.jwt_secret
+
+
+def _get_token_expire_hours() -> int:
+    return settings.auth.token_expire_hours
 
 try:
     pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
@@ -158,7 +166,7 @@ class AuthManager:
 
     def verify_token(self, token: str) -> User | None:
         try:
-            payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+            payload = jwt.decode(token, _get_secret_key(), algorithms=[ALGORITHM])
             user_id = payload.get("sub")
             if not user_id:
                 return None
@@ -169,11 +177,9 @@ class AuthManager:
     def ensure_admin(self) -> User:
         """Create default admin user if no users exist."""
         if self.store.count == 0:
-            import os
-
-            admin_email = os.getenv("CXO_ADMIN_EMAIL", "admin@cxo.ai")
-            admin_pass = os.getenv("CXO_ADMIN_PASSWORD", "admin123")
-            admin_name = os.getenv("CXO_ADMIN_NAME", "Admin")
+            admin_email = settings.auth.admin_email
+            admin_pass = settings.auth.admin_password
+            admin_name = settings.auth.admin_name
             user = self.store.create(admin_email, admin_pass, admin_name)
             user.role = "admin"
             self.store.save()
@@ -186,11 +192,11 @@ class AuthManager:
     @staticmethod
     def _create_token(user: User) -> str:
         expire = datetime.now(timezone.utc) + timedelta(
-            hours=ACCESS_TOKEN_EXPIRE_HOURS
+            hours=_get_token_expire_hours()
         )
         return jwt.encode(
             {"sub": user.user_id, "email": user.email, "exp": expire},
-            SECRET_KEY,
+            _get_secret_key(),
             algorithm=ALGORITHM,
         )
 

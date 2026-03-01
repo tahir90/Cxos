@@ -21,26 +21,25 @@ from agentic_cxo.conversation.models import (
     Reminder,
     ReminderPriority,
 )
+from agentic_cxo.infrastructure.tenant import user_data_dir
 
 logger = logging.getLogger(__name__)
 
 DATA_DIR = Path(".cxo_data")
 
 
-def _ensure_dir() -> Path:
-    DATA_DIR.mkdir(exist_ok=True)
-    return DATA_DIR
-
-
 class ConversationMemory:
     """Stores and retrieves the full conversation history."""
 
-    def __init__(self) -> None:
+    def __init__(self, user_id: str = "default") -> None:
+        self._user_id = user_id or "default"
         self._conversation = Conversation()
         self._load()
 
     def _path(self) -> Path:
-        return _ensure_dir() / "conversation.json"
+        base = user_data_dir(self._user_id)
+        base.mkdir(parents=True, exist_ok=True)
+        return base / "conversation.json"
 
     def _load(self) -> None:
         p = self._path()
@@ -86,12 +85,15 @@ class ConversationMemory:
 class BusinessProfileStore:
     """Manages the living business profile built through conversation."""
 
-    def __init__(self) -> None:
+    def __init__(self, user_id: str = "default") -> None:
+        self._user_id = user_id or "default"
         self._profile = BusinessProfile()
         self._load()
 
     def _path(self) -> Path:
-        return _ensure_dir() / "business_profile.json"
+        base = user_data_dir(self._user_id)
+        base.mkdir(parents=True, exist_ok=True)
+        return base / "business_profile.json"
 
     def _load(self) -> None:
         p = self._path()
@@ -181,12 +183,15 @@ class BusinessProfileStore:
 class ReminderStore:
     """Manages reminders extracted from conversation and documents."""
 
-    def __init__(self) -> None:
+    def __init__(self, user_id: str = "default") -> None:
+        self._user_id = user_id or "default"
         self._reminders: list[Reminder] = []
         self._load()
 
     def _path(self) -> Path:
-        return _ensure_dir() / "reminders.json"
+        base = user_data_dir(self._user_id)
+        base.mkdir(parents=True, exist_ok=True)
+        return base / "reminders.json"
 
     def _load(self) -> None:
         p = self._path()

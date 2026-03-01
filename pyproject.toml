@@ -41,6 +41,9 @@ dependencies = [
     "sqlalchemy>=2.0",
     "matplotlib>=3.8",
     "reportlab>=4.0",
+    "python-pptx>=0.6",
+    "tenacity>=8.2",
+    "slowapi>=0.1",
 ]
 
 [project.optional-dependencies]
@@ -78,6 +81,7 @@ select = ["E", "F", "I", "W"]
 "src/agentic_cxo/tools/auditors/seo_auditor.py" = ["E501", "E701"]
 "src/agentic_cxo/tools/strategy_planner.py" = ["E501"]
 "src/agentic_cxo/tools/brand_intelligence.py" = ["E501"]
+"src/agentic_cxo/tools/presentation_generator.py" = ["E501"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

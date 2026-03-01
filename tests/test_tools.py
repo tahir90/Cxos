@@ -17,6 +17,8 @@ from agentic_cxo.models import ChunkMetadata, ContentChunk
 from agentic_cxo.tools.cost_analyzer import CostAnalyzerTool
 from agentic_cxo.tools.framework import ToolExecutor, ToolRegistry
 from agentic_cxo.tools.travel_analyzer import TravelAnalyzerTool
+from agentic_cxo.tools.presentation_generator import PresentationGeneratorTool
+from agentic_cxo.tools.researcher import ResearcherTool
 from agentic_cxo.tools.vendor_diligence import VendorDueDiligenceTool
 from agentic_cxo.tools.web_search import WebSearchTool
 
@@ -215,3 +217,65 @@ class TestTravelAnalyzer:
         )
         recs = result.data.get("recommendations", [])
         assert len(recs) >= 1
+
+
+class TestResearcher:
+    def test_basic_research(self):
+        tool = ResearcherTool()
+        result = tool.execute(topic="artificial intelligence trends")
+        assert result.success
+        assert "topic" in result.data
+        assert result.data["topic"] == "artificial intelligence trends"
+
+    def test_empty_topic(self):
+        tool = ResearcherTool()
+        result = tool.execute(topic="")
+        assert not result.success
+        assert "topic" in result.error.lower() or "provide" in result.error.lower()
+
+    def test_keyword_matching(self):
+        reg = ToolRegistry()
+        reg.register(ResearcherTool())
+        matched = reg.match_by_keywords("research market trends")
+        assert any(t.name == "researcher" for t in matched)
+
+
+class TestPresentationGenerator:
+    def test_basic_presentation(self):
+        tool = PresentationGeneratorTool()
+        result = tool.execute(
+            title="Q4 Marketing Review",
+            outline="## Overview\n- Key metrics\n- Wins\n\n## Next Steps\n- Action items",
+        )
+        assert result.success
+        assert result.data.get("slides_count") >= 2
+        assert "pptx" in result.data.get("path", "")
+
+    def test_minimal_input(self):
+        tool = PresentationGeneratorTool()
+        result = tool.execute(title="Briefing")
+        assert result.success
+        assert result.data.get("slides_count") >= 1
+
+    def test_keyword_matching(self):
+        reg = ToolRegistry()
+        reg.register(PresentationGeneratorTool())
+        matched = reg.match_by_keywords("create a pitch deck")
+        assert any(t.name == "presentation_generator" for t in matched)
+
+    def test_pptx_file_created_and_valid(self):
+        """Verify PPT generation produces a valid .pptx file that can be parsed."""
+        tool = PresentationGeneratorTool()
+        result = tool.execute(
+            title="Test Deck",
+            outline="## Slide 1\n- Point A\n- Point B\n\n## Slide 2\n- Item 1",
+        )
+        assert result.success
+        path_str = result.data.get("path", "")
+        assert path_str, "path should be in result"
+        path = Path(path_str)
+        assert path.exists(), f"PPTX file should exist at {path}"
+        assert path.suffix == ".pptx", "file should be .pptx"
+        from pptx import Presentation
+        prs = Presentation(str(path))
+        assert len(prs.slides) >= 2, "should have at least 2 slides"

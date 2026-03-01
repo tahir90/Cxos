@@ -13,3 +13,5 @@ build/
 .cxo_data/
 cxo.db
 *.db
+# Generated presentations (created at runtime)
+src/agentic_cxo/api/static/presentations/*.pptx

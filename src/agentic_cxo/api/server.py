@@ -22,18 +22,22 @@ Chat-first API: the founder talks, the AI co-founder routes to CXO agents.
 from __future__ import annotations
 
 import logging
+import os
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from fastapi import Depends, FastAPI, HTTPException, UploadFile
+from fastapi import Depends, FastAPI, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
+from slowapi.util import get_remote_address
 from sse_starlette.sse import EventSourceResponse
 
-from agentic_cxo.config import settings
-from agentic_cxo.conversation.agent import CoFounderAgent
+from agentic_cxo.config import settings, validate_production_config
+from agentic_cxo.infrastructure.agent_pool import AgentPool
 from agentic_cxo.infrastructure.auth import AuthManager, get_current_user_dep
 from agentic_cxo.infrastructure.database import init_db
 from agentic_cxo.infrastructure.notifications import (
@@ -70,11 +74,22 @@ _logger = logging.getLogger(__name__)
 
 STATIC_DIR = Path(__file__).parent / "static"
 
+def _rate_limit_key(request: Request) -> str:
+    """Use unique key per request in test to avoid test rate-limit collisions."""
+    if os.getenv("CXO_ENV") == "test":
+        import uuid
+        return f"test-{uuid.uuid4().hex[:8]}"
+    return get_remote_address(request)
+
+
+limiter = Limiter(key_func=_rate_limit_key)
 app = FastAPI(
     title="Agentic CXO",
     description="Your AI Co-Founder",
     version="1.0.0",
 )
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 
 HAS_LLM = bool(settings.llm.api_key)
@@ -82,19 +97,18 @@ _logger.info(
     "LLM mode: %s (model: %s)", "ON" if HAS_LLM else "OFF", settings.llm.model
 )
 
-vault = ContextVault()
 refinery = ContextRefinery(
     enricher=MetadataEnricher(use_llm=False),
     summarizer=RecursiveSummarizer(use_llm=False),
 )
-
-agent = CoFounderAgent(vault=vault, refinery=refinery, use_llm=HAS_LLM)
-analyst = ScenarioAnalyst(vault=vault, use_llm=HAS_LLM)
-scenario_engine = ScenarioEngine(vault=vault)
+agent_pool = AgentPool(refinery=refinery, use_llm=HAS_LLM)
+# Default vault for health check (uses default collection)
+_health_vault = ContextVault()
 connector_registry = ConnectorRegistry()
 connector_manager = ConnectorManager()
 permission_manager = PermissionManager()
 oauth_manager = OAuthManager()
+validate_production_config()
 auth_manager = AuthManager()
 auth_manager.ensure_admin()
 team_store = TeamStore()
@@ -123,15 +137,16 @@ async def on_shutdown():
 
 
 def _run_due_jobs_background():
-    """Background function for scheduled jobs."""
-    due = agent.job_scheduler.due_jobs
-    for job in due:
-        try:
-            agent.chat(job.action_template)
-            agent.job_scheduler.mark_run(job.job_id)
-            _logger.info("Auto-ran job: %s", job.name)
-        except Exception as e:
-            _logger.error("Job %s failed: %s", job.name, e)
+    """Background function for scheduled jobs — runs per-user agents."""
+    for user_id, agent in list(agent_pool._cache.items()):
+        due = agent.job_scheduler.due_jobs
+        for job in due:
+            try:
+                agent.chat(job.action_template)
+                agent.job_scheduler.mark_run(job.job_id)
+                _logger.info("Auto-ran job: %s for user %s", job.name, user_id[:8])
+            except Exception as e:
+                _logger.error("Job %s failed for user %s: %s", job.name, user_id[:8], e)
 
 
 # ── Auth endpoints ───────────────────────────────────────────────
@@ -149,7 +164,8 @@ class LoginRequest(BaseModel):
 
 
 @app.post("/auth/signup")
-async def signup(req: SignupRequest) -> dict[str, Any]:
+@limiter.limit("5/minute")
+async def signup(req: SignupRequest, request: Request) -> dict[str, Any]:
     result = auth_manager.signup(req.email, req.password, req.name)
     if "error" in result:
         raise HTTPException(400, result["error"])
@@ -157,7 +173,8 @@ async def signup(req: SignupRequest) -> dict[str, Any]:
 
 
 @app.post("/auth/login")
-async def login(req: LoginRequest) -> dict[str, Any]:
+@limiter.limit("10/minute")
+async def login(req: LoginRequest, request: Request) -> dict[str, Any]:
     result = auth_manager.login(req.email, req.password)
     if "error" in result:
         raise HTTPException(401, result["error"])
@@ -170,6 +187,7 @@ async def login(req: LoginRequest) -> dict[str, Any]:
 @app.get("/chat/stream")
 async def chat_stream(message: str, user=Depends(get_current_user)):
     """Stream LLM response token by token via Server-Sent Events."""
+    agent = agent_pool.get_agent(user.user_id)
     assembled = agent.context_assembler.assemble(
         user_message=message, agent_role="Co-Founder"
     )
@@ -228,8 +246,27 @@ class QueryRequest(BaseModel):
 # ── Dashboard ────────────────────────────────────────────────────
 
 @app.get("/health")
-async def health():
-    return {"status": "ok"}
+async def health() -> dict[str, Any]:
+    """Liveness + readiness: DB, vault connectivity."""
+    checks: dict[str, str] = {}
+    try:
+        from sqlalchemy import text
+        from agentic_cxo.infrastructure.database import get_session
+        with get_session() as session:
+            session.execute(text("SELECT 1"))
+        checks["database"] = "ok"
+    except Exception as e:
+        checks["database"] = f"error: {str(e)[:60]}"
+    try:
+        _ = _health_vault.count()
+        checks["vault"] = "ok"
+    except Exception as e:
+        checks["vault"] = f"error: {str(e)[:60]}"
+    all_ok = all(v == "ok" for v in checks.values())
+    return {
+        "status": "ok" if all_ok else "degraded",
+        "checks": checks,
+    }
 
 
 @app.get("/")
@@ -250,9 +287,11 @@ async def login_page():
 # ── Chat ─────────────────────────────────────────────────────────
 
 @app.post("/chat")
+@limiter.limit("60/minute")
 async def chat(
-    req: ChatRequest, user=Depends(get_current_user)
+    req: ChatRequest, request: Request, user=Depends(get_current_user)
 ) -> dict[str, Any]:
+    agent = agent_pool.get_agent(user.user_id)
     try:
         usage_tracker.track("messages_sent")
         responses = agent.chat(req.message)
@@ -311,6 +350,7 @@ async def chat(
 
 @app.post("/upload")
 async def upload(file: UploadFile, user=Depends(get_current_user)) -> dict[str, Any]:
+    agent = agent_pool.get_agent(user.user_id)
     usage_tracker.track("documents_ingested")
     content = await file.read()
     text = content.decode("utf-8", errors="replace")
@@ -342,6 +382,7 @@ async def upload(file: UploadFile, user=Depends(get_current_user)) -> dict[str, 
 
 @app.get("/briefing")
 async def briefing(user=Depends(get_current_user)) -> dict[str, Any]:
+    agent = agent_pool.get_agent(user.user_id)
     b = agent.morning_briefing()
     return {
         "greeting": b.greeting,
@@ -366,6 +407,7 @@ async def briefing(user=Depends(get_current_user)) -> dict[str, Any]:
 
 @app.get("/reminders")
 async def reminders(user=Depends(get_current_user)) -> dict[str, Any]:
+    agent = agent_pool.get_agent(user.user_id)
     store = agent.reminder_store
     return {
         "active": [r.model_dump(mode="json") for r in store.active],
@@ -376,7 +418,8 @@ async def reminders(user=Depends(get_current_user)) -> dict[str, Any]:
 
 
 @app.post("/reminders/{reminder_id}/complete")
-async def complete_reminder(reminder_id: str) -> dict[str, Any]:
+async def complete_reminder(reminder_id: str, user=Depends(get_current_user)) -> dict[str, Any]:
+    agent = agent_pool.get_agent(user.user_id)
     ok = agent.reminder_store.complete(reminder_id)
     if not ok:
         raise HTTPException(404, "Reminder not found")
@@ -384,7 +427,8 @@ async def complete_reminder(reminder_id: str) -> dict[str, Any]:
 
 
 @app.post("/reminders/{reminder_id}/snooze")
-async def snooze_reminder(reminder_id: str, hours: int = 24) -> dict[str, Any]:
+async def snooze_reminder(reminder_id: str, hours: int = 24, user=Depends(get_current_user)) -> dict[str, Any]:
+    agent = agent_pool.get_agent(user.user_id)
     ok = agent.reminder_store.snooze(reminder_id, hours)
     if not ok:
         raise HTTPException(404, "Reminder not found")
@@ -395,6 +439,7 @@ async def snooze_reminder(reminder_id: str, hours: int = 24) -> dict[str, Any]:
 
 @app.get("/profile")
 async def profile(user=Depends(get_current_user)) -> dict[str, Any]:
+    agent = agent_pool.get_agent(user.user_id)
     p = agent.profile_store.profile
     return {
         **p.model_dump(mode="json"),
@@ -407,8 +452,9 @@ async def profile(user=Depends(get_current_user)) -> dict[str, Any]:
 
 @app.get("/status")
 async def status(user=Depends(get_current_user)) -> dict[str, Any]:
+    agent = agent_pool.get_agent(user.user_id)
     return {
-        "vault_chunks": vault.count(),
+        "vault_chunks": agent.vault.count(),
         "messages": agent.memory.message_count,
         "memories": agent.ltm.count,
         "events": agent.event_store.count,
@@ -427,6 +473,7 @@ async def status(user=Depends(get_current_user)) -> dict[str, Any]:
 
 @app.get("/history")
 async def history(limit: int = 50, user=Depends(get_current_user)) -> list[dict[str, Any]]:
+    agent = agent_pool.get_agent(user.user_id)
     msgs = agent.memory.recent(limit)
     return [
         {
@@ -442,7 +489,7 @@ async def history(limit: int = 50, user=Depends(get_current_user)) -> list[dict[
 # ── Scenarios ────────────────────────────────────────────────────
 
 @app.get("/scenarios")
-async def scenarios_list(category: str | None = None) -> list[dict[str, Any]]:
+async def scenarios_list(category: str | None = None, user=Depends(get_current_user)) -> list[dict[str, Any]]:
     items = list_scenarios(category)
     return [
         {
@@ -455,12 +502,15 @@ async def scenarios_list(category: str | None = None) -> list[dict[str, Any]]:
 
 
 @app.post("/scenarios/{scenario_id}/run")
-async def run_scenario(scenario_id: str) -> dict[str, Any]:
+async def run_scenario(scenario_id: str, user=Depends(get_current_user)) -> dict[str, Any]:
+    agent = agent_pool.get_agent(user.user_id)
     scenario = get_scenario(scenario_id)
     if not scenario:
         raise HTTPException(404, f"Scenario '{scenario_id}' not found")
+    scenario_engine = ScenarioEngine(vault=agent.vault)
+    analyst_instance = ScenarioAnalyst(vault=agent.vault, use_llm=HAS_LLM)
     result = scenario_engine.execute(scenario)
-    analysis = analyst.analyze(scenario, result)
+    analysis = analyst_instance.analyze(scenario, result)
     return {
         "scenario": result.scenario_name,
         "status": result.status,
@@ -472,18 +522,20 @@ async def run_scenario(scenario_id: str) -> dict[str, Any]:
 # ── Seed & Reset ─────────────────────────────────────────────────
 
 @app.post("/seed")
-async def seed() -> dict[str, Any]:
+async def seed(user=Depends(get_current_user)) -> dict[str, Any]:
+    agent = agent_pool.get_agent(user.user_id)
     total_chunks = 0
     for source, text in SAMPLE_DOCS:
         result = refinery.refine_text(text, source=source)
-        vault.store(result.chunks)
+        agent.vault.store(result.chunks)
         total_chunks += result.total_chunks
         agent.reminder_store.extract_from_text(text, source=source)
     return {"documents": len(SAMPLE_DOCS), "chunks": total_chunks}
 
 
 @app.post("/reset")
-async def reset() -> dict[str, Any]:
+async def reset(user=Depends(get_current_user)) -> dict[str, Any]:
+    agent = agent_pool.get_agent(user.user_id)
     agent.memory.clear()
     agent.profile_store.clear()
     agent.reminder_store.clear()
@@ -491,7 +543,7 @@ async def reset() -> dict[str, Any]:
     agent.decision_log.clear()
     agent.goal_tracker.clear()
     try:
-        vault.clear()
+        agent.vault.clear()
     except Exception:
         pass
     return {"status": "reset"}
@@ -500,7 +552,8 @@ async def reset() -> dict[str, Any]:
 # ── Actions ──────────────────────────────────────────────────────
 
 @app.get("/actions")
-async def actions_list() -> dict[str, Any]:
+async def actions_list(user=Depends(get_current_user)) -> dict[str, Any]:
+    agent = agent_pool.get_agent(user.user_id)
     return {
         "pending": [a.to_dict() for a in agent.action_queue.pending],
         "completed": [a.to_dict() for a in agent.action_queue.completed[-20:]],
@@ -509,7 +562,8 @@ async def actions_list() -> dict[str, Any]:
 
 
 @app.post("/actions/{action_id}/approve")
-async def approve_action(action_id: str) -> dict[str, Any]:
+async def approve_action(action_id: str, user=Depends(get_current_user)) -> dict[str, Any]:
+    agent = agent_pool.get_agent(user.user_id)
     result = agent.action_queue.approve(action_id)
     if not result:
         raise HTTPException(404, "Action not found")
@@ -517,7 +571,8 @@ async def approve_action(action_id: str) -> dict[str, Any]:
 
 
 @app.post("/actions/{action_id}/reject")
-async def reject_action(action_id: str, reason: str = "") -> dict[str, Any]:
+async def reject_action(action_id: str, reason: str = "", user=Depends(get_current_user)) -> dict[str, Any]:
+    agent = agent_pool.get_agent(user.user_id)
     result = agent.action_queue.reject(action_id, reason)
     if not result:
         raise HTTPException(404, "Action not found")
@@ -527,7 +582,8 @@ async def reject_action(action_id: str, reason: str = "") -> dict[str, Any]:
 # ── Decision Log ─────────────────────────────────────────────────
 
 @app.get("/decisions")
-async def decisions() -> dict[str, Any]:
+async def decisions(user=Depends(get_current_user)) -> dict[str, Any]:
+    agent = agent_pool.get_agent(user.user_id)
     return {
         "decisions": [d.to_dict() for d in agent.decision_log.all_decisions],
         "open": len(agent.decision_log.open_decisions),
@@ -538,7 +594,8 @@ async def decisions() -> dict[str, Any]:
 # ── Goals ────────────────────────────────────────────────────────
 
 @app.get("/goals")
-async def goals() -> dict[str, Any]:
+async def goals(user=Depends(get_current_user)) -> dict[str, Any]:
+    agent = agent_pool.get_agent(user.user_id)
     return {
         "active": [g.to_dict() for g in agent.goal_tracker.active_goals],
         "at_risk": [g.to_dict() for g in agent.goal_tracker.at_risk],
@@ -550,12 +607,14 @@ async def goals() -> dict[str, Any]:
 # ── Scheduled Jobs ───────────────────────────────────────────────
 
 @app.get("/jobs")
-async def jobs_list() -> list[dict[str, Any]]:
+async def jobs_list(user=Depends(get_current_user)) -> list[dict[str, Any]]:
+    agent = agent_pool.get_agent(user.user_id)
     return agent.job_scheduler.get_status()
 
 
 @app.post("/jobs/run-due")
-async def run_due_jobs() -> dict[str, Any]:
+async def run_due_jobs(user=Depends(get_current_user)) -> dict[str, Any]:
+    agent = agent_pool.get_agent(user.user_id)
     due = agent.job_scheduler.due_jobs
     results: list[dict[str, str]] = []
     for job in due:
@@ -574,6 +633,7 @@ async def run_due_jobs() -> dict[str, Any]:
 @app.get("/connectors")
 async def connectors_list(
     category: str | None = None,
+    user=Depends(get_current_user),
 ) -> list[dict[str, Any]]:
     if category:
         from agentic_cxo.integrations.connectors import ConnectorCategory
@@ -587,24 +647,24 @@ async def connectors_list(
 
 
 @app.get("/connectors/summary")
-async def connectors_summary() -> dict[str, Any]:
+async def connectors_summary(user=Depends(get_current_user)) -> dict[str, Any]:
     return connector_registry.summary()
 
 
 @app.get("/connectors/by-agent/{role}")
-async def connectors_by_agent(role: str) -> list[dict[str, Any]]:
+async def connectors_by_agent(role: str, user=Depends(get_current_user)) -> list[dict[str, Any]]:
     return [c.to_dict() for c in connector_registry.by_agent(role.upper())]
 
 
 # ── Permissions ──────────────────────────────────────────────────
 
 @app.get("/permissions")
-async def permissions_status() -> dict[str, Any]:
+async def permissions_status(user=Depends(get_current_user)) -> dict[str, Any]:
     return permission_manager.get_rules_summary()
 
 
 @app.get("/permissions/pending")
-async def permissions_pending() -> list[dict[str, Any]]:
+async def permissions_pending(user=Depends(get_current_user)) -> list[dict[str, Any]]:
     return [r.to_dict() for r in permission_manager.pending_requests]
 
 
@@ -614,7 +674,7 @@ class PermissionResponse(BaseModel):
 
 @app.post("/permissions/{request_id}")
 async def respond_to_permission(
-    request_id: str, body: PermissionResponse
+    request_id: str, body: PermissionResponse, user=Depends(get_current_user)
 ) -> dict[str, Any]:
     try:
         choice = PermissionChoice(body.choice)
@@ -627,7 +687,7 @@ async def respond_to_permission(
 
 
 @app.post("/permissions/revoke/{action_type}")
-async def revoke_permission(action_type: str) -> dict[str, str]:
+async def revoke_permission(action_type: str, user=Depends(get_current_user)) -> dict[str, str]:
     permission_manager.revoke(action_type)
     return {"status": "revoked", "action_type": action_type}
 
@@ -635,7 +695,8 @@ async def revoke_permission(action_type: str) -> dict[str, str]:
 # ── Settings ─────────────────────────────────────────────────────
 
 @app.get("/settings")
-async def get_settings() -> dict[str, Any]:
+async def get_settings(user=Depends(get_current_user)) -> dict[str, Any]:
+    agent = agent_pool.get_agent(user.user_id)
     return {
         "llm": {
             "enabled": HAS_LLM,
@@ -656,7 +717,7 @@ async def get_settings() -> dict[str, Any]:
 # ── Live Connector Wizard ────────────────────────────────────────
 
 @app.get("/connect/{connector_id}/setup")
-async def connector_setup(connector_id: str) -> dict[str, Any]:
+async def connector_setup(connector_id: str, user=Depends(get_current_user)) -> dict[str, Any]:
     """Get setup info for a connector — what credentials are needed."""
     info = connector_manager.get_setup_info(connector_id)
     if info is None:
@@ -683,7 +744,7 @@ class ConnectRequest(BaseModel):
 
 @app.post("/connect/{connector_id}")
 async def connect_connector(
-    connector_id: str, body: ConnectRequest
+    connector_id: str, body: ConnectRequest, user=Depends(get_current_user)
 ) -> dict[str, Any]:
     """Test credentials and connect a connector."""
     result = connector_manager.connect(connector_id, body.credentials)
@@ -696,7 +757,7 @@ async def connect_connector(
 
 
 @app.post("/connect/{connector_id}/disconnect")
-async def disconnect_connector(connector_id: str) -> dict[str, Any]:
+async def disconnect_connector(connector_id: str, user=Depends(get_current_user)) -> dict[str, Any]:
     connector_manager.disconnect(connector_id)
     return {"connector_id": connector_id, "status": "disconnected"}
 
@@ -713,6 +774,7 @@ async def fetch_connector_data(
     path: str = "/",
     file_id: str = "",
     item_id: str = "",
+    user=Depends(get_current_user),
 ) -> dict[str, Any]:
     """Fetch live data from a connected connector."""
     kwargs: dict[str, Any] = {}
@@ -745,7 +807,7 @@ async def fetch_connector_data(
 
 
 @app.get("/connect/status")
-async def live_connector_status() -> dict[str, Any]:
+async def live_connector_status(user=Depends(get_current_user)) -> dict[str, Any]:
     return connector_manager.get_status()
 
 
@@ -758,13 +820,13 @@ class InviteRequest(BaseModel):
 
 
 @app.post("/team/create")
-async def create_team(name: str = "My Company") -> dict[str, Any]:
-    team = team_store.create(name, "founder", "founder@company.com", "Founder")
+async def create_team(name: str = "My Company", user=Depends(get_current_user)) -> dict[str, Any]:
+    team = team_store.create(name, user.user_id, user.email, user.name or "Founder")
     return team.to_dict()
 
 
 @app.get("/team")
-async def get_team() -> dict[str, Any]:
+async def get_team(user=Depends(get_current_user)) -> dict[str, Any]:
     teams = team_store.all_teams
     if teams:
         return teams[0].to_dict()
@@ -772,7 +834,7 @@ async def get_team() -> dict[str, Any]:
 
 
 @app.post("/team/invite")
-async def invite_member(req: InviteRequest) -> dict[str, Any]:
+async def invite_member(req: InviteRequest, user=Depends(get_current_user)) -> dict[str, Any]:
     teams = team_store.all_teams
     if not teams:
         raise HTTPException(404, "No team exists")
@@ -791,7 +853,7 @@ async def invite_member(req: InviteRequest) -> dict[str, Any]:
 # ── Notifications ────────────────────────────────────────────────
 
 @app.get("/notifications")
-async def get_notifications() -> dict[str, Any]:
+async def get_notifications(user=Depends(get_current_user)) -> dict[str, Any]:
     return {
         "unread": [n.to_dict() for n in notification_manager.unread],
         "unread_count": notification_manager.unread_count,
@@ -801,13 +863,13 @@ async def get_notifications() -> dict[str, Any]:
 
 
 @app.post("/notifications/{notification_id}/read")
-async def mark_notification_read(notification_id: str) -> dict[str, str]:
+async def mark_notification_read(notification_id: str, user=Depends(get_current_user)) -> dict[str, str]:
     notification_manager.mark_read(notification_id)
     return {"status": "read"}
 
 
 @app.post("/notifications/read-all")
-async def mark_all_read() -> dict[str, int]:
+async def mark_all_read(user=Depends(get_current_user)) -> dict[str, int]:
     count = notification_manager.mark_all_read()
     return {"marked_read": count}
 
@@ -815,7 +877,7 @@ async def mark_all_read() -> dict[str, int]:
 # ── Usage ────────────────────────────────────────────────────────
 
 @app.get("/usage")
-async def get_usage() -> dict[str, Any]:
+async def get_usage(user=Depends(get_current_user)) -> dict[str, Any]:
     return usage_tracker.summary()
 
 
@@ -823,6 +885,7 @@ async def get_usage() -> dict[str, Any]:
 
 @app.get("/sessions")
 async def list_sessions(user=Depends(get_current_user)) -> dict[str, Any]:
+    agent = agent_pool.get_agent(user.user_id)
     sm = agent.session_manager
     return {
         "active": sm.active_session_id,
@@ -834,6 +897,7 @@ async def list_sessions(user=Depends(get_current_user)) -> dict[str, Any]:
 async def create_session(
     title: str = "New conversation", user=Depends(get_current_user)
 ) -> dict[str, Any]:
+    agent = agent_pool.get_agent(user.user_id)
     session = agent.session_manager.create(title)
     return session.to_dict()
 
@@ -842,6 +906,7 @@ async def create_session(
 async def switch_session(
     session_id: str, user=Depends(get_current_user)
 ) -> dict[str, Any]:
+    agent = agent_pool.get_agent(user.user_id)
     session = agent.session_manager.switch(session_id)
     if not session:
         raise HTTPException(404, "Session not found")
@@ -852,6 +917,7 @@ async def switch_session(
 async def rename_session(
     session_id: str, title: str, user=Depends(get_current_user)
 ) -> dict[str, Any]:
+    agent = agent_pool.get_agent(user.user_id)
     session = agent.session_manager.rename(session_id, title)
     if not session:
         raise HTTPException(404, "Session not found")
@@ -862,6 +928,7 @@ async def rename_session(
 async def archive_session(
     session_id: str, user=Depends(get_current_user)
 ) -> dict[str, str]:
+    agent = agent_pool.get_agent(user.user_id)
     agent.session_manager.archive(session_id)
     return {"status": "archived"}
 
@@ -870,6 +937,7 @@ async def archive_session(
 async def delete_session(
     session_id: str, user=Depends(get_current_user)
 ) -> dict[str, str]:
+    agent = agent_pool.get_agent(user.user_id)
     agent.session_manager.delete(session_id)
     return {"status": "deleted"}
 
@@ -877,7 +945,7 @@ async def delete_session(
 # ── OAuth2 Flows ─────────────────────────────────────────────────
 
 @app.get("/oauth/providers")
-async def oauth_providers() -> list[dict[str, Any]]:
+async def oauth_providers(user=Depends(get_current_user)) -> list[dict[str, Any]]:
     """List all OAuth providers with connection status."""
     return oauth_manager.get_providers()
 
@@ -926,6 +994,3 @@ async def oauth_callback(
         f"<p>{result.get('error', 'Unknown error')}</p>"
         f'<p><a href="/">Back to dashboard</a></p>'
     )
-
-
-import os  # noqa: E402

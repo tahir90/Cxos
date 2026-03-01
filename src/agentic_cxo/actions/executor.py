@@ -36,6 +36,8 @@ from typing import Any
 
 import httpx
 
+from agentic_cxo.infrastructure.tenant import user_data_dir
+
 logger = logging.getLogger(__name__)
 
 DATA_DIR = Path(".cxo_data")
@@ -278,13 +280,15 @@ class ActionQueue:
     High risk → hold for founder approval.
     """
 
-    def __init__(self) -> None:
+    def __init__(self, user_id: str = "default") -> None:
+        self._user_id = user_id or "default"
         self._actions: list[ExecutableAction] = []
         self._load()
 
     def _path(self) -> Path:
-        DATA_DIR.mkdir(exist_ok=True)
-        return DATA_DIR / "action_queue.json"
+        base = user_data_dir(self._user_id)
+        base.mkdir(parents=True, exist_ok=True)
+        return base / "action_queue.json"
 
     def _load(self) -> None:
         p = self._path()

@@ -1,98 +1,62 @@
 """
-Multi-Tenant Architecture — each customer's data is fully isolated.
+Tenant/User isolation — per-user data directories and collection names.
 
-Every tenant (company) gets:
-  - Separate vault namespace
-  - Separate memory store
-  - Separate credentials
-  - Separate conversation history
-  - Own team, goals, decisions, events
-
-Tenant ID is derived from the team and scoped to all data paths.
+All user-scoped stores use user_data_dir(user_id) for paths.
 """
 
 from __future__ import annotations
 
-import logging
-from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
 
-logger = logging.getLogger(__name__)
+DATA_DIR = Path(".cxo_data")
+
+PLAN_LIMITS: dict[str, dict[str, int]] = {
+    "free": {"messages_per_day": 50, "documents": 10, "connectors": 2, "team_members": 1},
+    "starter": {"messages_per_day": 500, "documents": 100, "connectors": 10, "team_members": 5},
+    "pro": {"messages_per_day": 5000, "documents": 1000, "connectors": 50, "team_members": 25},
+    "enterprise": {"messages_per_day": -1, "documents": -1, "connectors": -1, "team_members": -1},
+}
 
 
-@dataclass
+def user_data_dir(user_id: str) -> Path:
+    """Base directory for a user's data. Creates if needed."""
+    if not user_id or user_id == "default":
+        return DATA_DIR
+    path = DATA_DIR / "users" / user_id
+    path.mkdir(parents=True, exist_ok=True)
+    return path
+
+
+def user_vault_collection(user_id: str) -> str:
+    """ChromaDB collection name for a user's vault."""
+    if not user_id or user_id == "default":
+        return "context_vault"
+    return f"context_vault_{user_id}"
+
+
 class Tenant:
-    tenant_id: str
-    name: str
-    plan: str = "free"  # free, starter, pro, enterprise
-    data_dir: str = ""
+    """Legacy tenant model for tier3/billing tests. Use user_data_dir for new code."""
 
-    def __post_init__(self) -> None:
-        if not self.data_dir:
-            self.data_dir = f".cxo_data/tenants/{self.tenant_id}"
+    def __init__(self, tenant_id: str, name: str = "") -> None:
+        self.tenant_id = tenant_id
+        self.name = name
+        self.vault_collection = f"vault_{tenant_id}"
+        self.data_dir = str(DATA_DIR / "tenants" / tenant_id)
         Path(self.data_dir).mkdir(parents=True, exist_ok=True)
-
-    @property
-    def vault_collection(self) -> str:
-        return f"vault_{self.tenant_id}"
-
-    @property
-    def vault_directory(self) -> str:
-        return f"{self.data_dir}/vault"
 
     def scoped_path(self, filename: str) -> Path:
         return Path(self.data_dir) / filename
 
-    def to_dict(self) -> dict[str, Any]:
-        return {
-            "tenant_id": self.tenant_id,
-            "name": self.name,
-            "plan": self.plan,
-            "data_dir": self.data_dir,
-        }
-
-
-PLAN_LIMITS: dict[str, dict[str, int]] = {
-    "free": {
-        "messages_per_day": 50,
-        "documents": 10,
-        "connectors": 2,
-        "team_members": 1,
-        "vault_chunks": 500,
-    },
-    "starter": {
-        "messages_per_day": 500,
-        "documents": 100,
-        "connectors": 10,
-        "team_members": 5,
-        "vault_chunks": 5000,
-    },
-    "pro": {
-        "messages_per_day": 5000,
-        "documents": 1000,
-        "connectors": 50,
-        "team_members": 25,
-        "vault_chunks": 50000,
-    },
-    "enterprise": {
-        "messages_per_day": -1,  # unlimited
-        "documents": -1,
-        "connectors": -1,
-        "team_members": -1,
-        "vault_chunks": -1,
-    },
-}
-
 
 def get_plan_limits(plan: str) -> dict[str, int]:
-    return PLAN_LIMITS.get(plan, PLAN_LIMITS["free"])
+    """Get limits for a plan tier."""
+    return dict(PLAN_LIMITS.get(plan, PLAN_LIMITS["free"]))
 
 
-def check_limit(plan: str, metric: str, current: int) -> bool:
-    """Return True if within limits, False if exceeded."""
+def check_limit(plan: str, limit_name: str, current: int) -> bool:
+    """Check if current value is within plan limit. -1 means unlimited."""
     limits = get_plan_limits(plan)
-    limit = limits.get(metric, 0)
-    if limit == -1:
+    cap = limits.get(limit_name, 0)
+    if cap < 0:
         return True
-    return current < limit
+    return current < cap
