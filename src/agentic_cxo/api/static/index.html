@@ -306,12 +306,13 @@ async function sendMsg(){
       const {done,value}=await reader.read();
       if(done)break;
       buf+=dec.decode(value,{stream:true});
-      const parts=buf.split('\n\n');
+      const normalized=buf.replace(/\r\n/g,'\n');
+      const parts=normalized.split('\n\n');
       buf=parts.pop()||'';
       for(const part of parts){
         const line=part.split('\n').find(l=>l.startsWith('data: '));
         if(line){try{
-          const ev=JSON.parse(line.slice(6));
+          const ev=JSON.parse(line.slice(6).replace(/\r$/,''));
           if(ev.type==='llm_thinking'){if(!window._thinkingEl){window._thinkingEl=document.createElement('div');window._thinkingEl.className='agent-thinking px-4 sm:px-6 py-1.5 fade-up text-[11px] text-zinc-500';document.getElementById('chat-area').appendChild(window._thinkingEl);}window._thinkingEl.textContent=(window._thinkingEl.textContent||'')+ev.token;}
           else if(ev.type==='progress'){addAgentActivity(ev.message,'\u2022');updateTypingStatus(ev.message);}
           else if(ev.type==='token'){hideTyping();if(!window._streamEl){window._streamEl=document.createElement('div');window._streamEl.className='msg-group px-4 sm:px-6 py-2 fade-up';window._streamEl.innerHTML='<div class="max-w-2xl flex gap-3"><div class="shrink-0 w-7 h-7 rounded-lg bg-indigo-500/10 flex items-center justify-center"><span class="text-indigo-400 text-[10px] font-bold">CX</span></div><div class="flex-1"><div class="msg-md text-[13px]"></div></div></div>';document.getElementById('chat-area').appendChild(window._streamEl);}const md=window._streamEl.querySelector('.msg-md');md._raw=(md._raw||'')+ev.token;md.innerHTML=marked.parse(md._raw);scrollBottom();}

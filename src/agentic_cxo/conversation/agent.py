@@ -311,10 +311,11 @@ class CoFounderAgent:
         msg_lower = message.lower().strip()
         ppt_triggers = (
             "create presentation", "make presentation", "create a presentation",
-            "create ppt", "make ppt", "creat ppt", "creat the ppt", "create powerpoint",
-            "create deck", "make deck", "create slides", "make slides",
-            "generate presentation", "generate deck", "the ppt", "ppt now",
-            "create the ppt", "generate the ppt", "do it now", "go ahead",
+            "create ppt", "create a ppt", "make ppt", "creat ppt", "creat the ppt",
+            "create powerpoint", "create deck", "make deck", "create slides",
+            "make slides", "generate presentation", "generate deck", "the ppt",
+            "ppt now", "create the ppt", "generate the ppt", "do it now", "go ahead",
+            "ppt on", "presentation on", "deck on",
         )
         if not any(t in msg_lower for t in ppt_triggers):
             return None, ""
@@ -350,7 +351,7 @@ class CoFounderAgent:
 
         brand = ""
         brand_match = re.search(
-            r"(?:in|with)\s+([a-z0-9][-a-z0-9]*\.?[a-z]{2,})\s*(?:branding)?",
+            r"\b(?:in|with)\s+([a-z0-9][-a-z0-9]*\.?[a-z]{2,})\s*(?:branding)?",
             message,
             re.IGNORECASE,
         )
