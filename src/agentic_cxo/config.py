@@ -36,6 +36,14 @@ class PPQAConfig:
 
 
 @dataclass
+class QualityConfig:
+    max_validation_rounds: int = 3
+    use_methodology_designer: bool = True
+    use_methodology_auditor: bool = True
+    use_review_agent: bool = True
+
+
+@dataclass
 class ChunkingConfig:
     max_chunk_tokens: int = 512
     overlap_tokens: int = 64
@@ -82,6 +90,7 @@ class Settings:
     llm: LLMConfig = field(default_factory=LLMConfig)
     search: SearchConfig = field(default_factory=SearchConfig)
     ppqa: PPQAConfig = field(default_factory=PPQAConfig)
+    quality: QualityConfig = field(default_factory=QualityConfig)
     chunking: ChunkingConfig = field(default_factory=ChunkingConfig)
     memory: MemoryConfig = field(default_factory=MemoryConfig)
     guardrails: GuardrailConfig = field(default_factory=GuardrailConfig)

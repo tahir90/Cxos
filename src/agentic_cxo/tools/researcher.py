@@ -190,6 +190,7 @@ class ResearcherTool(BaseTool):
         topic: str = "",
         focus: str = "",
         progress_callback=None,
+        methodology_brief: dict[str, Any] | None = None,
         **kwargs: Any,
     ) -> ToolResult:
         if not topic or not topic.strip():
@@ -199,7 +200,13 @@ class ResearcherTool(BaseTool):
             )
 
         topic = topic.strip()
+        must_cover = (methodology_brief or {}).get("must_cover", [])
         queries = self._build_queries(topic, focus)
+        if must_cover:
+            for mc in must_cover[:4]:
+                q = f"{topic} {mc}"
+                if q not in queries and len(q) < 80:
+                    queries.append(q)
         all_results: list[dict[str, str]] = []
         seen_snippets: set[str] = set()
 

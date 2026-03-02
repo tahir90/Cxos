@@ -473,11 +473,11 @@ class PlanExecutor:
     ) -> StepResult:
         events_out = events_out or []
         if step.action == "research" and step.tool == "researcher":
-            return self._run_research(step)
+            return self._run_research(step, plan, events_out)
         elif step.action == "consult_agent" and step.agent == "CD":
             return self._consult_cd(step, plan)
         elif step.action == "consult_agent" and step.agent in CXO_CONSULT_PROMPTS:
-            return self._consult_cxo(step, plan, results)
+            return self._consult_cxo(step, plan, results, events_out)
         elif step.action == "synthesize":
             return self._synthesize(step, results, plan)
         elif step.action == "generate":
@@ -489,11 +489,17 @@ class PlanExecutor:
         elif step.action in ("research",) and step.tool == "web_search":
             return self._run_web_search(step)
         elif step.action == "consult_agent" and step.agent:
-            return self._consult_cxo(step, plan, results)
+            return self._consult_cxo(step, plan, results, events_out)
         else:
             return self._run_tool(step)
 
-    def _run_research(self, step: PlanStep) -> StepResult:
+    def _run_research(
+        self,
+        step: PlanStep,
+        plan: ExecutionPlan,
+        events_out: list[dict[str, Any]] | None = None,
+    ) -> StepResult:
+        events_out = events_out or []
         tool = self.tool_registry.get("researcher") if self.tool_registry else None
         if not tool:
             return StepResult(step.id, False, error="Researcher tool not available")
@@ -502,21 +508,101 @@ class PlanExecutor:
         if not topic:
             topic = step.description or "general topic"
 
-        try:
-            result = tool.execute(
-                topic=topic,
-                focus=step.params.get("focus", "general"),
-            )
-            return StepResult(
-                step_id=step.id,
-                success=result.success,
-                data=result.data,
-                summary=result.summary,
-                error=result.error,
-            )
-        except Exception as e:
-            logger.exception("Research step %d failed for topic: %s", step.id, topic[:60])
-            return StepResult(step.id, False, error=f"Research failed: {str(e)[:200]}")
+        methodology_brief = None
+        if settings.quality.use_methodology_designer:
+            try:
+                from agentic_cxo.agents.methodology import design_methodology
+
+                events_out.append({
+                    "type": "step_progress",
+                    "message": "Methodology Designer: defining research approach...",
+                })
+                methodology_brief = design_methodology(
+                    task=topic,
+                    agent="Researcher",
+                    plan_intent=plan.intent[:200],
+                )
+            except Exception:
+                logger.debug("Methodology Designer for research skipped", exc_info=True)
+
+        max_rounds = settings.quality.max_validation_rounds
+        last_result = None
+        for round_idx in range(max_rounds):
+            try:
+                result = tool.execute(
+                    topic=topic,
+                    focus=step.params.get("focus", "general"),
+                    methodology_brief=methodology_brief,
+                )
+                last_result = result
+            except Exception as e:
+                logger.exception("Research step %d failed for topic: %s", step.id, topic[:60])
+                return StepResult(step.id, False, error=f"Research failed: {str(e)[:200]}")
+
+            if not result.success:
+                return StepResult(
+                    step_id=step.id,
+                    success=False,
+                    data=result.data,
+                    summary=result.summary,
+                    error=result.error,
+                )
+
+            research_text = result.summary or str(result.data.get("findings", ""))[:3000]
+
+            if not settings.quality.use_review_agent and not settings.quality.use_methodology_auditor:
+                break
+
+            review_ok = True
+            audit_ok = True
+            feedback_parts = []
+
+            if settings.quality.use_review_agent:
+                try:
+                    from agentic_cxo.agents.methodology import review_output
+
+                    events_out.append({"type": "step_progress", "message": "Review Agent: validating research..."})
+                    review = review_output(topic, "Researcher", research_text, methodology_brief)
+                    review_ok = review.get("pass", True)
+                    if not review_ok and review.get("feedback_for_agent"):
+                        feedback_parts.append(review["feedback_for_agent"])
+                except Exception:
+                    pass
+
+            if settings.quality.use_methodology_auditor:
+                try:
+                    from agentic_cxo.agents.methodology import audit_methodology
+
+                    events_out.append({"type": "step_progress", "message": "Methodology Auditor: auditing research reasoning..."})
+                    audit = audit_methodology(topic, "Researcher", research_text, methodology_brief)
+                    audit_ok = audit.get("pass", True)
+                    if not audit_ok and audit.get("feedback_for_agent"):
+                        feedback_parts.append(audit["feedback_for_agent"])
+                except Exception:
+                    pass
+
+            if review_ok and audit_ok:
+                break
+
+            if feedback_parts and round_idx < max_rounds - 1:
+                must_cover = methodology_brief or {}
+                must_cover = dict(must_cover)
+                must_cover["must_cover"] = must_cover.get("must_cover", []) + [
+                    fb[:80] for fb in feedback_parts[:2]
+                ]
+                methodology_brief = must_cover
+                events_out.append({
+                    "type": "step_progress",
+                    "message": "Research quality feedback: deepening research...",
+                })
+
+        return StepResult(
+            step_id=step.id,
+            success=last_result.success,
+            data=last_result.data,
+            summary=last_result.summary,
+            error=last_result.error,
+        )
 
     def _run_web_search(self, step: PlanStep) -> StepResult:
         tool = self.tool_registry.get("web_search") if self.tool_registry else None
@@ -567,13 +653,17 @@ class PlanExecutor:
         return StepResult(step.id, True, summary="CD consulted")
 
     def _consult_cxo(
-        self, step: PlanStep, plan: ExecutionPlan, results: dict[int, StepResult]
+        self,
+        step: PlanStep,
+        plan: ExecutionPlan,
+        results: dict[int, StepResult],
+        events_out: list[dict[str, Any]] | None = None,
     ) -> StepResult:
-        """Consult a CXO agent (CFO, CMO, COO, CSO, CLO, CHRO) via LLM.
+        """Consult a CXO agent with Methodology Designer, Review Agent, and Methodology Auditor.
 
-        Supports cross-agent messaging: if the CXO's response indicates it needs
-        input from another CXO, the executor automatically makes that cross-call.
+        Flow: Designer brief → CXO works → Review + Audit → if fail, feedback → retry.
         """
+        events_out = events_out or []
         agent_role = step.agent or "COO"
         task_desc = step.description or step.params.get("task", plan.intent)
 
@@ -583,10 +673,40 @@ class PlanExecutor:
             if sr and sr.success and sr.summary:
                 context_parts.append(sr.summary[:300])
         for sr in results.values():
-            if sr.data.get("cxo_insight") and sr.summary:
+            if sr and sr.data.get("cxo_insight") and sr.summary:
                 context_parts.append(sr.summary[:200])
-
         business_context = "\n".join(context_parts) if context_parts else "No prior context."
+
+        methodology_brief = None
+        if settings.quality.use_methodology_designer:
+            try:
+                from agentic_cxo.agents.methodology import design_methodology
+
+                events_out.append({
+                    "type": "step_progress",
+                    "message": f"Methodology Designer: defining approach for {agent_role}...",
+                })
+                methodology_brief = design_methodology(
+                    task=task_desc,
+                    agent=agent_role,
+                    context=business_context[:500],
+                    plan_intent=plan.intent[:200],
+                )
+            except Exception:
+                logger.debug("Methodology Designer skipped", exc_info=True)
+
+        brief_instruction = ""
+        if methodology_brief:
+            must_cover = methodology_brief.get("must_cover", [])
+            assumptions = methodology_brief.get("assumptions_to_state", [])
+            summary = methodology_brief.get("brief_summary", "")
+            if must_cover or assumptions or summary:
+                brief_instruction = (
+                    "\n\nMETHODOLOGY BRIEF (follow this):\n"
+                    + (f"Must cover: {', '.join(must_cover[:6])}\n" if must_cover else "")
+                    + (f"State assumptions on: {', '.join(assumptions[:4])}\n" if assumptions else "")
+                    + (f"{summary}\n" if summary else "")
+                )
 
         prompt_template = CXO_CONSULT_PROMPTS.get(agent_role)
         if not prompt_template:
@@ -595,16 +715,12 @@ class PlanExecutor:
                 f"Business context: {{context}}\n"
                 "Provide your expert analysis and recommendations."
             )
-
-        prompt = prompt_template.format(task=task_desc, context=business_context)
+        prompt = prompt_template.format(task=task_desc, context=business_context) + brief_instruction
 
         cross_agent_note = (
-            "\n\nIMPORTANT: If you need input from another C-suite officer to give a "
-            "complete answer, end your response with a line like:\n"
-            "NEED_INPUT_FROM: <ROLE> | <specific question>\n"
-            "For example: NEED_INPUT_FROM: CLO | What are the tax compliance requirements?\n"
-            "Available roles: CFO, COO, CMO, CLO, CHRO, CSO, CD\n"
-            "Only request this if truly needed; otherwise just give your analysis."
+            "\n\nIf you need input from another C-suite officer, end with:\n"
+            "NEED_INPUT_FROM: <ROLE> | <question>\n"
+            "Available: CFO, COO, CMO, CLO, CHRO, CSO, CD"
         )
 
         from agentic_cxo.infrastructure.llm_required import require_llm
@@ -613,29 +729,92 @@ class PlanExecutor:
         client = self._get_client()
         from agentic_cxo.infrastructure.llm_retry import with_retry
 
-        resp = with_retry(
-            lambda: client.chat.completions.create(
-                model=settings.llm.model,
-                temperature=0.3,
-                max_tokens=1500,
-                messages=[
-                    {"role": "system", "content": f"You are the AI {agent_role} for a business co-founder system. Be concise, data-driven, and actionable." + cross_agent_note},
-                    {"role": "user", "content": prompt},
-                ],
-            )
-        )
-        content = (resp.choices[0].message.content or "").strip()
+        max_rounds = settings.quality.max_validation_rounds
+        content = ""
+        for round_idx in range(max_rounds):
+            if round_idx > 0:
+                events_out.append({
+                    "type": "step_progress",
+                    "message": f"{agent_role}: amending based on feedback (round {round_idx + 1})...",
+                })
 
-        cross_input = self._handle_cross_agent_request(content, agent_role, plan)
-        if cross_input:
-            content = content.split("NEED_INPUT_FROM:")[0].strip()
-            content += f"\n\n**{cross_input.data.get('agent', '')} input** (requested by {agent_role}):\n{cross_input.summary}"
+            resp = with_retry(
+                lambda: client.chat.completions.create(
+                    model=settings.llm.model,
+                    temperature=0.3,
+                    max_tokens=1500,
+                    messages=[
+                        {"role": "system", "content": f"You are the AI {agent_role}. Be concise, data-driven, actionable." + cross_agent_note},
+                        {"role": "user", "content": prompt},
+                    ],
+                )
+            )
+            content = (resp.choices[0].message.content or "").strip()
+
+            cross_input = self._handle_cross_agent_request(content, agent_role, plan)
+            if cross_input:
+                content = content.split("NEED_INPUT_FROM:")[0].strip()
+                content += f"\n\n**{cross_input.data.get('agent', '')} input**:\n{cross_input.summary}"
+
+            if not settings.quality.use_review_agent and not settings.quality.use_methodology_auditor:
+                break
+
+            review_ok = True
+            audit_ok = True
+            feedback_parts = []
+
+            if settings.quality.use_review_agent:
+                try:
+                    from agentic_cxo.agents.methodology import review_output
+
+                    events_out.append({
+                        "type": "step_progress",
+                        "message": f"Review Agent: validating {agent_role} output...",
+                    })
+                    review = review_output(task_desc, agent_role, content, methodology_brief)
+                    review_ok = review.get("pass", True)
+                    if not review_ok and review.get("feedback_for_agent"):
+                        feedback_parts.append(f"Review: {review['feedback_for_agent']}")
+                except Exception:
+                    logger.debug("Review Agent skipped", exc_info=True)
+
+            if settings.quality.use_methodology_auditor:
+                try:
+                    from agentic_cxo.agents.methodology import audit_methodology
+
+                    events_out.append({
+                        "type": "step_progress",
+                        "message": f"Methodology Auditor: auditing {agent_role} reasoning...",
+                    })
+                    audit = audit_methodology(task_desc, agent_role, content, methodology_brief)
+                    audit_ok = audit.get("pass", True)
+                    if not audit_ok and audit.get("feedback_for_agent"):
+                        feedback_parts.append(f"Audit: {audit['feedback_for_agent']}")
+                except Exception:
+                    logger.debug("Methodology Auditor skipped", exc_info=True)
+
+            if review_ok and audit_ok:
+                break
+
+            if feedback_parts:
+                prompt = (
+                    f"ORIGINAL TASK: {task_desc}\n\n"
+                    f"CONTEXT: {business_context[:400]}\n\n"
+                    f"YOUR PREVIOUS RESPONSE:\n{content[:2000]}\n\n"
+                    f"FEEDBACK — amend your response to address:\n"
+                    + "\n".join(f"- " + p for p in feedback_parts)
+                    + "\n\nProvide your revised, improved response."
+                )
 
         return StepResult(
             step_id=step.id,
             success=True,
-            data={"agent": agent_role, "response": content, "cxo_insight": True,
-                  "cross_agent_used": cross_input is not None},
+            data={
+                "agent": agent_role,
+                "response": content,
+                "cxo_insight": True,
+                "methodology_brief": methodology_brief,
+            },
             summary=f"{agent_role}: {content[:300]}",
         )
 
