@@ -472,13 +472,13 @@ class PlannerTool:
                 narration={},
             )
 
-        if self.use_llm and settings.llm.api_key:
-            try:
-                return self._llm_plan(message, context, business_profile)
-            except Exception:
-                logger.warning("LLM planning failed, using fallback", exc_info=True)
+        from agentic_cxo.infrastructure.llm_required import LLMRequiredError, require_llm
 
-        return _build_fallback_plan(message, intent_info)
+        require_llm("planning")
+        if not self.use_llm:
+            raise LLMRequiredError("planning", "Agent is configured with use_llm=False.")
+
+        return self._llm_plan(message, context, business_profile)
 
     def _llm_plan(
         self,

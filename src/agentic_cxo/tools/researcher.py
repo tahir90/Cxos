@@ -23,6 +23,46 @@ logger = logging.getLogger(__name__)
 CURRENT_YEAR = datetime.now(timezone.utc).year
 
 
+def _search_tavily(query: str, focus: str = "", max_results: int = 8) -> list[dict[str, str]]:
+    """Tavily search API — deep research when API key configured."""
+    if not settings.search.tavily_api_key:
+        return []
+    try:
+        try:
+            from tavily import TavilyClient
+        except ImportError:
+            return []
+
+        client = TavilyClient(api_key=settings.search.tavily_api_key)
+        response = client.search(
+            query=query,
+            search_depth="advanced",
+            max_results=min(max_results, 10),
+            include_answer=True,
+        )
+        results: list[dict[str, str]] = []
+        if response.get("answer"):
+            results.append({
+                "title": "Tavily Summary",
+                "snippet": response["answer"][:800],
+                "source": "",
+                "query": query,
+                "backend": "tavily_answer",
+            })
+        for r in response.get("results", [])[:max_results]:
+            results.append({
+                "title": r.get("title", "")[:200],
+                "snippet": r.get("content", "")[:600],
+                "source": r.get("url", ""),
+                "query": query,
+                "backend": "tavily",
+            })
+        return results
+    except Exception:
+        logger.debug("Tavily search failed", exc_info=True)
+        return []
+
+
 def _search_ddg(query: str) -> list[dict[str, str]]:
     """DuckDuckGo instant answer API."""
     try:
@@ -170,6 +210,12 @@ class ResearcherTool(BaseTool):
             if progress_callback:
                 progress_callback(f"Searching ({i+1}/{len(queries)}): {q[:60]}...")
 
+            for result in _search_tavily(q, focus, max_results=6):
+                key = result.get("snippet", "")[:100]
+                if key and key not in seen_snippets:
+                    seen_snippets.add(key)
+                    all_results.append(result)
+
             for result in _search_ddg(q):
                 key = result.get("snippet", "")[:100]
                 if key and key not in seen_snippets:
@@ -201,16 +247,19 @@ class ResearcherTool(BaseTool):
                 page_contents[url] = content
 
         if not all_results:
+            from agentic_cxo.infrastructure.llm_required import require_llm
+
+            require_llm("research synthesis")
             if progress_callback:
-                progress_callback("Web search unavailable — building outline from topic knowledge...")
-            summary = self._fallback_outline(topic)
+                progress_callback("Building research outline from topic knowledge...")
+            report = self._llm_synthesize_from_topic(topic, focus)
             return ToolResult(
                 tool_name=self.name, success=True,
                 data={
-                    "topic": topic, "findings": summary.get("findings", []),
-                    "sources": [], "summary": summary.get("summary", ""),
+                    "topic": topic, "findings": report.get("findings", []),
+                    "sources": [], "summary": report.get("summary", ""),
                 },
-                summary=summary["summary"],
+                summary=report["summary"],
             )
 
         if progress_callback:
@@ -297,13 +346,10 @@ class ResearcherTool(BaseTool):
             if len(content) > 100:
                 page_snippets.append(content[:1500])
 
-        if self._can_use_llm():
-            return self._llm_synthesize(topic, focus, findings, sources, page_snippets)
+        from agentic_cxo.infrastructure.llm_required import require_llm
 
-        return self._structured_synthesize(topic, focus, findings, sources)
-
-    def _can_use_llm(self) -> bool:
-        return bool(settings.llm.api_key)
+        require_llm("research synthesis")
+        return self._llm_synthesize(topic, focus, findings, sources, page_snippets)
 
     def _llm_synthesize(
         self,
@@ -366,8 +412,45 @@ class ResearcherTool(BaseTool):
                 "summary": summary,
             }
         except Exception:
-            logger.warning("LLM synthesis failed, using structured fallback", exc_info=True)
-            return self._structured_synthesize(topic, focus, findings, sources)
+            logger.exception("LLM synthesis failed")
+            raise
+
+    def _llm_synthesize_from_topic(self, topic: str, focus: str) -> dict[str, Any]:
+        """Generate research report from topic when no search results available."""
+        from openai import OpenAI
+        from agentic_cxo.infrastructure.llm_retry import with_retry
+
+        client = OpenAI(
+            api_key=settings.llm.api_key,
+            base_url=settings.llm.base_url,
+        )
+        prompt = (
+            f"You are a senior research analyst. Create a comprehensive research report on: {topic}\n"
+            f"{'Focus area: ' + focus if focus else ''}\n\n"
+            "Create a markdown research report with these sections:\n"
+            "1. Executive Summary (2-3 sentences with key insight)\n"
+            "2. Key Findings (6-10 specific, data-backed bullets)\n"
+            "3. Market/Industry Context\n"
+            "4. Opportunities & Challenges\n"
+            "5. Recommendations\n\n"
+            "RULES:\n"
+            "- Use your knowledge to include realistic numbers and statistics\n"
+            "- Be substantive and specific, not generic\n"
+            f"- Reference current year {CURRENT_YEAR} where relevant"
+        )
+        resp = with_retry(
+            lambda: client.chat.completions.create(
+                model=settings.llm.model,
+                temperature=0.2,
+                max_tokens=3000,
+                messages=[
+                    {"role": "system", "content": "You are a world-class research analyst."},
+                    {"role": "user", "content": prompt},
+                ],
+            )
+        )
+        summary = (resp.choices[0].message.content or "").strip()
+        return {"findings": [], "sources": [], "summary": summary}
 
     def _structured_synthesize(
         self,

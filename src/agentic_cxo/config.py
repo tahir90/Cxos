@@ -17,10 +17,22 @@ IS_PRODUCTION = os.getenv("CXO_ENV", "development").lower() in ("production", "p
 @dataclass
 class LLMConfig:
     model: str = "gpt-4o"
+    vision_model: str = "gpt-4o"
     temperature: float = 0.2
     max_tokens: int = 4096
     api_key: str = field(default_factory=lambda: os.getenv("OPENAI_API_KEY", ""))
     base_url: str | None = field(default_factory=lambda: os.getenv("OPENAI_BASE_URL"))
+
+
+@dataclass
+class SearchConfig:
+    tavily_api_key: str = field(default_factory=lambda: os.getenv("TAVILY_API_KEY", ""))
+
+
+@dataclass
+class PPQAConfig:
+    max_qa_cycles: int = 3
+    slides_per_vision_batch: int = 4
 
 
 @dataclass
@@ -68,6 +80,8 @@ class AuthConfig:
 @dataclass
 class Settings:
     llm: LLMConfig = field(default_factory=LLMConfig)
+    search: SearchConfig = field(default_factory=SearchConfig)
+    ppqa: PPQAConfig = field(default_factory=PPQAConfig)
     chunking: ChunkingConfig = field(default_factory=ChunkingConfig)
     memory: MemoryConfig = field(default_factory=MemoryConfig)
     guardrails: GuardrailConfig = field(default_factory=GuardrailConfig)

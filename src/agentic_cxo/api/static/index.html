@@ -483,8 +483,9 @@ function _addSourceCards(sources){
   const cards=sources.map((s,i)=>{
     const color=SOURCE_COLORS[i%SOURCE_COLORS.length];
     const domain=(s.url||'').replace(/https?:\/\/(?:www\.)?/,'').split('/')[0];
+    const favicon=domain?`https://www.google.com/s2/favicons?domain=${encodeURIComponent(domain)}&sz=32`:'';
     return `<a href="${escHtml(s.url||'#')}" target="_blank" class="source-card">
-      <span class="source-dot" style="background:${color}"></span>
+      ${favicon?`<img src="${favicon}" alt="" class="w-4 h-4 rounded shrink-0" onerror="this.style.display='none'">`:`<span class="source-dot" style="background:${color}"></span>`}
       <span class="font-medium">${escHtml(domain||'Source')}</span>
       <span class="text-zinc-600">${escHtml((s.title||'').slice(0,40))}</span>
     </a>`;
@@ -620,6 +621,7 @@ async function sendMsg(){
 
           /* ── Legacy Events ── */
           else if(ev.type==='llm_thinking'){if(!window._thinkingEl){window._thinkingEl=document.createElement('div');window._thinkingEl.className='agent-thinking px-4 sm:px-6 py-1.5 fade-up text-[11px] text-zinc-500';document.getElementById('chat-area').appendChild(window._thinkingEl);}window._thinkingEl.textContent=(window._thinkingEl.textContent||'')+ev.token;}
+          else if(ev.type==='step_progress'){addAgentActivity(ev.message||'','\u2022');updateTypingStatus(ev.message||'');}
           else if(ev.type==='progress'){addAgentActivity(ev.message,'\u2022');updateTypingStatus(ev.message);}
           else if(ev.type==='token'){hideTyping();if(!window._streamEl){window._streamEl=document.createElement('div');window._streamEl.className='msg-group px-4 sm:px-6 py-2 fade-up';window._streamEl.innerHTML='<div class="max-w-2xl flex gap-3"><div class="shrink-0 w-7 h-7 rounded-lg bg-indigo-500/10 flex items-center justify-center"><span class="text-indigo-400 text-[10px] font-bold">CX</span></div><div class="flex-1"><div class="msg-md text-[13px]"></div></div></div>';document.getElementById('chat-area').appendChild(window._streamEl);}const md=window._streamEl.querySelector('.msg-md');md._raw=(md._raw||'')+ev.token;md.innerHTML=safeMd(md._raw);scrollBottom();}
           else if(ev.type==='tool_start'){delete window._thinkingEl;updateTypingStatus('Using '+ev.tool.replace('_',' ')+'...');addAgentActivity('\u2699 Using '+ev.tool.replace('_',' '),'\u2699');}

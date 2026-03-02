@@ -291,11 +291,21 @@ async def login_page():
 
 # ── Chat ─────────────────────────────────────────────────────────
 
+def _require_llm_for_chat():
+    """Raise HTTPException if LLM not configured."""
+    if not HAS_LLM:
+        raise HTTPException(
+            503,
+            "LLM required. Configure OPENAI_API_KEY for full AI CXO capabilities.",
+        )
+
+
 @app.post("/chat")
 @limiter.limit("60/minute")
 async def chat(
     req: ChatRequest, request: Request, user=Depends(get_current_user)
 ) -> dict[str, Any]:
+    _require_llm_for_chat()
     agent = agent_pool.get_agent(user.user_id)
     try:
         usage_tracker.track("messages_sent")
@@ -337,7 +347,23 @@ async def chat(
                 for r in responses
             ]
         }
+    except HTTPException:
+        raise
     except Exception as e:
+        from agentic_cxo.infrastructure.llm_required import LLMRequiredError
+
+        if isinstance(e, LLMRequiredError):
+            return {
+                "responses": [
+                    {
+                        "role": "system",
+                        "content": str(e),
+                        "actions": [],
+                        "metadata": {},
+                        "timestamp": datetime.now(timezone.utc).isoformat(),
+                    }
+                ]
+            }
         _logger.error("Chat error: %s", e, exc_info=True)
         return {
             "responses": [
@@ -386,6 +412,7 @@ async def chat_stream(
     req: ChatRequest, request: Request, user=Depends(get_current_user)
 ):
     """Stream agent activity (tool usage, research, etc.) as SSE events."""
+    _require_llm_for_chat()
     agent = agent_pool.get_agent(user.user_id)
     usage_tracker.track("messages_sent")
     return EventSourceResponse(

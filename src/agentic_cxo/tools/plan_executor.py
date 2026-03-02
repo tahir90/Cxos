@@ -15,6 +15,7 @@ from __future__ import annotations
 import concurrent.futures
 import logging
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any, Iterator
 
 from agentic_cxo.config import settings
@@ -403,7 +404,10 @@ class PlanExecutor:
         }
 
         try:
-            result = self._dispatch_step(step, results, plan)
+            events_out: list[dict[str, Any]] = []
+            result = self._dispatch_step(step, results, plan, events_out=events_out)
+            for ev in events_out:
+                yield ev
             step.status = "completed" if result.success else "failed"
             step.result = result
             results[step.id] = result
@@ -465,7 +469,9 @@ class PlanExecutor:
         step: PlanStep,
         results: dict[int, StepResult],
         plan: ExecutionPlan,
+        events_out: list[dict[str, Any]] | None = None,
     ) -> StepResult:
+        events_out = events_out or []
         if step.action == "research" and step.tool == "researcher":
             return self._run_research(step)
         elif step.action == "consult_agent" and step.agent == "CD":
@@ -475,7 +481,7 @@ class PlanExecutor:
         elif step.action == "synthesize":
             return self._synthesize(step, results, plan)
         elif step.action == "generate":
-            return self._generate_document(step, results, plan)
+            return self._generate_document(step, results, plan, events_out)
         elif step.action == "validate":
             return self._validate(step, results, plan)
         elif step.action == "use_tool" and step.tool:
@@ -601,54 +607,36 @@ class PlanExecutor:
             "Only request this if truly needed; otherwise just give your analysis."
         )
 
-        if self.use_llm and settings.llm.api_key:
-            try:
-                client = self._get_client()
-                from agentic_cxo.infrastructure.llm_retry import with_retry
+        from agentic_cxo.infrastructure.llm_required import require_llm
 
-                resp = with_retry(
-                    lambda: client.chat.completions.create(
-                        model=settings.llm.model,
-                        temperature=0.3,
-                        max_tokens=1500,
-                        messages=[
-                            {"role": "system", "content": f"You are the AI {agent_role} for a business co-founder system. Be concise, data-driven, and actionable." + cross_agent_note},
-                            {"role": "user", "content": prompt},
-                        ],
-                    )
-                )
-                content = (resp.choices[0].message.content or "").strip()
+        require_llm("CXO consultation")
+        client = self._get_client()
+        from agentic_cxo.infrastructure.llm_retry import with_retry
 
-                cross_input = self._handle_cross_agent_request(content, agent_role, plan)
-                if cross_input:
-                    content = content.split("NEED_INPUT_FROM:")[0].strip()
-                    content += f"\n\n**{cross_input.data.get('agent', '')} input** (requested by {agent_role}):\n{cross_input.summary}"
+        resp = with_retry(
+            lambda: client.chat.completions.create(
+                model=settings.llm.model,
+                temperature=0.3,
+                max_tokens=1500,
+                messages=[
+                    {"role": "system", "content": f"You are the AI {agent_role} for a business co-founder system. Be concise, data-driven, and actionable." + cross_agent_note},
+                    {"role": "user", "content": prompt},
+                ],
+            )
+        )
+        content = (resp.choices[0].message.content or "").strip()
 
-                return StepResult(
-                    step_id=step.id,
-                    success=True,
-                    data={"agent": agent_role, "response": content, "cxo_insight": True,
-                          "cross_agent_used": cross_input is not None},
-                    summary=f"{agent_role}: {content[:300]}",
-                )
-            except Exception:
-                logger.warning("CXO %s consultation LLM failed, using fallback", agent_role, exc_info=True)
+        cross_input = self._handle_cross_agent_request(content, agent_role, plan)
+        if cross_input:
+            content = content.split("NEED_INPUT_FROM:")[0].strip()
+            content += f"\n\n**{cross_input.data.get('agent', '')} input** (requested by {agent_role}):\n{cross_input.summary}"
 
-        fallback_insights = {
-            "CFO": f"Financial analysis for '{task_desc[:60]}': Review cost structure, revenue projections, and cash flow impact. Recommend budget allocation and ROI targets.",
-            "CMO": f"Marketing perspective for '{task_desc[:60]}': Consider brand positioning, target audience segments, channel strategy, and competitive differentiation.",
-            "COO": f"Operational view for '{task_desc[:60]}': Assess process requirements, vendor dependencies, timeline feasibility, and resource allocation.",
-            "CSO": f"Sales strategy for '{task_desc[:60]}': Evaluate pipeline impact, deal positioning, pricing strategy, and customer acquisition approach.",
-            "CLO": f"Legal considerations for '{task_desc[:60]}': Review compliance requirements, risk factors, contractual obligations, and regulatory landscape.",
-            "CHRO": f"People perspective for '{task_desc[:60]}': Consider talent requirements, team structure, culture impact, and organizational readiness.",
-        }
-
-        fallback = fallback_insights.get(agent_role, f"{agent_role} analysis for '{task_desc[:60]}': Expert input on relevant domain areas.")
         return StepResult(
             step_id=step.id,
             success=True,
-            data={"agent": agent_role, "response": fallback, "cxo_insight": True},
-            summary=f"{agent_role}: {fallback}",
+            data={"agent": agent_role, "response": content, "cxo_insight": True,
+                  "cross_agent_used": cross_input is not None},
+            summary=f"{agent_role}: {content[:300]}",
         )
 
     def _handle_cross_agent_request(
@@ -705,12 +693,10 @@ class PlanExecutor:
         if self.creative_director:
             template = self.creative_director.get_document_template(doc_type)
 
-        if self.use_llm and settings.llm.api_key:
-            return self._llm_synthesize(
-                step, plan, input_data, all_findings, all_sources, cd_result, template
-            )
+        from agentic_cxo.infrastructure.llm_required import require_llm
 
-        return self._fallback_synthesize(
+        require_llm("synthesis")
+        return self._llm_synthesize(
             step, plan, input_data, all_findings, all_sources, cd_result, template
         )
 
@@ -876,8 +862,13 @@ class PlanExecutor:
         )
 
     def _generate_document(
-        self, step: PlanStep, results: dict[int, StepResult], plan: ExecutionPlan
+        self,
+        step: PlanStep,
+        results: dict[int, StepResult],
+        plan: ExecutionPlan,
+        events_out: list[dict[str, Any]] | None = None,
     ) -> StepResult:
+        events_out = events_out or []
         outline = ""
         sources: list[dict] = []
         visual_brief: dict = {}
@@ -907,12 +898,102 @@ class PlanExecutor:
 
         topic = step.params.get("topic") or plan.intent
         brand_domain = step.params.get("brand_domain", "")
+        max_cycles = settings.ppqa.max_qa_cycles
 
-        result = tool.execute(
-            title=topic[:80],
-            outline=outline,
-            brand_domain=brand_domain,
-        )
+        def progress_cb(msg: str) -> None:
+            events_out.append({"type": "step_progress", "message": msg})
+
+        for cycle in range(max_cycles):
+            result = tool.execute(
+                title=topic[:80],
+                outline=outline,
+                brand_domain=brand_domain,
+                progress_callback=progress_cb,
+            )
+            if not result.success:
+                return StepResult(
+                    step_id=step.id,
+                    success=False,
+                    data=result.data or {},
+                    summary=result.summary,
+                    error=result.error,
+                )
+
+            pptx_path = result.data.get("path")
+            if not pptx_path:
+                break
+
+            path = Path(pptx_path)
+            if not path.is_absolute():
+                path = path.resolve()
+
+            if not path.exists():
+                break
+
+            try:
+                from agentic_cxo.tools.pptx_qa import PPQAError, run_vision_qa
+
+                qa_result = run_vision_qa(
+                    path, brand=brand_domain, progress_callback=progress_cb
+                )
+                feedback = qa_result.get("feedback", "")
+                issues = qa_result.get("issues", [])
+                passed = qa_result.get("pass", True)
+
+                if feedback:
+                    events_out.append({
+                        "type": "narration",
+                        "message": feedback[:500] if len(feedback) > 500 else feedback,
+                    })
+
+                if passed:
+                    events_out.append({
+                        "type": "narration",
+                        "message": "The slides look great. Design is clean and professional. Copying to outputs.",
+                    })
+                    break
+
+                if cycle < max_cycles - 1 and issues:
+                    from agentic_cxo.infrastructure.llm_required import require_llm
+
+                    require_llm("outline fix for QA feedback")
+                    fix_prompt = (
+                        f"Presentation QA found issues:\n{chr(10).join(issues[:5])}\n\n"
+                        f"Current outline (markdown):\n{outline[:2500]}\n\n"
+                        "Suggest a revised markdown outline that fixes these issues. "
+                        "Keep the same structure and content, but adjust wording/layout hints "
+                        "to fix rendering problems (e.g. quote layout, line breaks). "
+                        "Return ONLY the revised markdown outline, no explanation."
+                    )
+                    client = self._get_client()
+                    from agentic_cxo.infrastructure.llm_retry import with_retry
+                    resp = with_retry(
+                        lambda: client.chat.completions.create(
+                            model=settings.llm.model,
+                            temperature=0.2,
+                            max_tokens=4096,
+                            messages=[
+                                {"role": "system", "content": "You are a presentation editor. Fix layout issues."},
+                                {"role": "user", "content": fix_prompt},
+                            ],
+                        )
+                    )
+                    revised = (resp.choices[0].message.content or "").strip()
+                    if revised and len(revised) > 100:
+                        outline = revised
+                        events_out.append({
+                            "type": "narration",
+                            "message": f"Applying fixes for {len(issues)} issue(s). Regenerating...",
+                        })
+            except PPQAError as e:
+                events_out.append({
+                    "type": "narration",
+                    "message": f"QA skipped (missing dependencies): {str(e)[:120]}. Output ready.",
+                })
+                break
+            except Exception:
+                logger.warning("PPT QA failed, using generated output", exc_info=True)
+                break
 
         data = result.data or {}
         data["document_type"] = step.params.get("document_type") or plan.document_type or "pptx"
