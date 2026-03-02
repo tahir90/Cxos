@@ -20,3 +20,5 @@ uvicorn==0.41.0
 apscheduler==3.11.2
 sqlalchemy==2.0.47
 aiosqlite==0.22.1
+pdf2image>=1.17
+tavily-python>=0.5
