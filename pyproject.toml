@@ -86,6 +86,7 @@ select = ["E", "F", "I", "W"]
 "src/agentic_cxo/tools/presentation_generator.py" = ["E501"]
 "src/agentic_cxo/tools/presentation.py" = ["E501"]
 "src/agentic_cxo/tools/pptx_qa.py" = ["E501"]
+"src/agentic_cxo/tools/slide_spec.py" = ["E501"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

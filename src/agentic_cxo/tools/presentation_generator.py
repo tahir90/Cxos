@@ -78,7 +78,10 @@ class PresentationGeneratorTool(BaseTool):
                 tool_name=self.name, success=False,
                 error="Provide at least a title or outline.",
             )
-        title = (title or "Presentation").strip()
+        raw_title = (title or "Presentation").strip()
+        from agentic_cxo.tools.slide_spec import _clean_title
+
+        title = _clean_title(raw_title, raw_title[:80])
         if not outline:
             outline = (
                 f"## {title}\n- Key points to cover\n- Context and background\n\n"
@@ -110,6 +113,17 @@ class PresentationGeneratorTool(BaseTool):
                         source_list.append(m.group(2))
 
         try:
+            slide_spec = None
+            if outline and cd:
+                if progress_callback:
+                    progress_callback("Designing slides with LLM + Creative Director...")
+                try:
+                    from agentic_cxo.tools.slide_spec import generate_slide_spec
+
+                    slide_spec = generate_slide_spec(outline, title, cd)
+                except Exception:
+                    logger.warning("Slide spec failed, using outline parse", exc_info=True)
+
             if progress_callback:
                 progress_callback("Generating professional slides with CD design tokens...")
             pptx_path = generate_pptx(
@@ -123,6 +137,8 @@ class PresentationGeneratorTool(BaseTool):
                 document_type=document_type,
                 subtitle=subtitle,
                 sources=source_list[:5] if source_list else None,
+                slide_spec=slide_spec,
+                brand_domain=brand_domain or (brand.domain if brand else ""),
             )
         except ImportError as e:
             return ToolResult(self.name, False, error=f"python-pptx not installed: {e}")

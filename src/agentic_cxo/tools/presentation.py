@@ -158,11 +158,46 @@ def generate_pptx(
     creative_director: Any = None,
     document_type: str = "presentation",
     subtitle: str = "",
+    slide_spec: list[dict[str, Any]] | None = None,
+    brand_domain: str = "",
 ) -> Path:
     DATA_DIR.mkdir(parents=True, exist_ok=True)
-    sections = _parse_sections(content)
-    if not sections:
-        sections = [{"title": title, "body": "", "bullets": ["Key points to cover"]}]
+    if slide_spec:
+        sections = [
+            {
+                "title": s.get("section_title", ""),
+                "body": "",
+                "bullets": s.get("bullets", []),
+                "layout": s.get("layout", "content_bullets"),
+                "visual_treatment": s.get("visual_treatment", "none"),
+                "icon": s.get("icon", "•"),
+                "table_data": s.get("table_data"),
+                "metrics": s.get("metrics"),
+                "benefits": s.get("benefits"),
+                "risks": s.get("risks"),
+                "warning_text": s.get("warning_text"),
+                "quote": s.get("quote"),
+                "quote_attribution": s.get("quote_attribution"),
+            }
+            for s in slide_spec
+        ]
+        if not sections:
+            sections = [{"title": title, "body": "", "bullets": ["Key points"], "layout": "content_bullets"}]
+    else:
+        sections = _parse_sections(content)
+        for idx, s in enumerate(sections):
+            s["layout"] = _slide_type(s.get("title", ""), s.get("bullets", []), s.get("body", ""), idx, len(sections))
+            s["visual_treatment"] = "none"
+            s["icon"] = "•"
+            s["table_data"] = None
+            s["metrics"] = None
+            s["benefits"] = None
+            s["risks"] = None
+            s["warning_text"] = None
+            s["quote"] = None
+            s["quote_attribution"] = None
+        if not sections:
+            sections = [{"title": title, "body": "", "bullets": ["Key points to cover"], "layout": "content_bullets"}]
 
     if creative_director:
         pri_hex = creative_director.get_primary_color()
@@ -194,6 +229,17 @@ def generate_pptx(
     TEXT_DARK = RGBColor(0x27, 0x27, 0x2A)
     TEXT_BODY = RGBColor(0x52, 0x52, 0x5B)
     ACCENT2 = RGBColor(0xEC, 0x48, 0x99)
+    GREEN = RGBColor(0x22, 0xC5, 0x5E)
+    RED = RGBColor(0xEF, 0x44, 0x44)
+    ORANGE = RGBColor(0xF5, 0x9E, 0x0B)
+
+    brand_label = ""
+    if brand:
+        brand_label = (getattr(brand, "company_name", "") or brand_domain or "RESEARCH & INSIGHTS").upper()
+    elif brand_domain:
+        brand_label = brand_domain.replace("www.", "").upper().replace(".", "")
+    if not brand_label:
+        brand_label = "RESEARCH & INSIGHTS"
 
     prs = Presentation()
     prs.slide_width = Inches(13.333)
@@ -217,12 +263,13 @@ def generate_pptx(
         _rect(s, 0, 0, 13.333, 0.06, PRI)
         _rect(s, 0, 6.8, 13.333, 0.7, DARK2)
         _rect(s, 0.8, 3.6, 3.5, 0.06, SEC)
-        _textbox(s, 0.8, 0.5, 5, 0.5, "AGENTIC CXO", 11, PRI, True, font=h_font)
+        _textbox(s, 0.8, 0.5, 5, 0.5, brand_label, 11, PRI, True, font=h_font)
         _textbox(s, 0.8, 1.6, 11, 2.0, title, 42, WHITE, True, font=h_font, line_spacing=52)
-        sub = subtitle or f"AI-Powered Executive Briefing"
+        sub = subtitle or "A research-informed analysis with strategic recommendations"
         _textbox(s, 0.8, 3.9, 11, 0.7, sub, 18, MGRAY, font=b_font)
+        year = dt.datetime.now().year
         _textbox(s, 0.8, 5.0, 5, 0.4, dt.datetime.now().strftime("%B %d, %Y"), 12, MGRAY, font=b_font)
-        _textbox(s, 0.8, 5.4, 5, 0.4, f"Prepared by AI {agent_role}", 11, DGRAY, font=b_font)
+        _textbox(s, 0.8, 5.4, 5, 0.4, f"Prepared by AI {agent_role} | {year} {brand_label}", 11, DGRAY, font=b_font)
         _page_num(s, sn, total, DGRAY)
 
     # ── AGENDA SLIDE ────────────────────────────────────────
@@ -249,12 +296,91 @@ def generate_pptx(
         sec_title = sec.get("title") or "Overview"
         bullets = sec.get("bullets", [])
         body = sec.get("body", "")
-        stype = _slide_type(sec_title, bullets, body, idx, len(sections))
+        stype = sec.get("layout") or _slide_type(sec_title, bullets, body, idx, len(sections))
+        sec_label = f"{brand_label} | {sec_title.upper()[:40]}" if idx > 0 else sec_title
 
         sn += 1
         s = prs.slides.add_slide(blank)
 
-        if stype == "executive":
+        if stype == "benefits_risks":
+            benefits = sec.get("benefits") or bullets[:5]
+            risks = sec.get("risks") or bullets[5:10] if len(bullets) > 5 else []
+            set_bg(s, WHITE)
+            _rect(s, 0, 0, 13.333, 0.05, PRI)
+            _textbox(s, 0.6, 0.4, 12, 0.6, sec_title, 26, TEXT_DARK, True, font=h_font)
+            _textbox(s, 0.6, 0.95, 12, 0.35, brand_label, 10, MGRAY, font=b_font)
+            _rect(s, 0.6, 1.35, 2.5, 0.04, PRI)
+            y = 1.6
+            _textbox(s, 0.6, y, 5.8, 0.5, "✓ POTENTIAL BENEFITS", 14, GREEN, True, font=h_font)
+            y += 0.5
+            for b in benefits[:5]:
+                _bullet_block(s, 0.6, y, 5.8, 0.6, [_clean(str(b))[:120]], 14, TEXT_BODY, b_font, 8, 1, "\u2713")
+                y += 0.45
+            y = 1.6
+            _textbox(s, 6.8, y, 5.8, 0.5, "✗ COGNITIVE RISKS", 14, RED, True, font=h_font)
+            y += 0.5
+            for r in risks[:5]:
+                _bullet_block(s, 6.8, y, 5.8, 0.6, [_clean(str(r))[:120]], 14, TEXT_BODY, b_font, 8, 1, "\u2717")
+                y += 0.45
+            _page_num(s, sn, total, MGRAY)
+
+        elif stype == "comparison_table":
+            tbl = sec.get("table_data") or {}
+            headers = tbl.get("headers", ["Before AI", "With Agentic AI"])
+            rows = tbl.get("rows", [])
+            if not rows and len(bullets) >= 2:
+                rows = [[bullets[i], bullets[i + 1]] for i in range(0, min(8, len(bullets) - 1), 2)]
+            set_bg(s, WHITE)
+            _rect(s, 0, 0, 13.333, 0.05, PRI)
+            _textbox(s, 0.6, 0.45, 12, 0.7, sec_title, 26, TEXT_DARK, True, font=h_font)
+            _rect(s, 0.6, 1.2, 2.5, 0.04, PRI)
+            _rect(s, 0.6, 1.6, 12.1, 0.5, PRI)
+            _textbox(s, 0.7, 1.65, 5.8, 0.4, str(headers[0])[:30], 12, WHITE, True, font=h_font)
+            _textbox(s, 6.6, 1.65, 5.8, 0.4, str(headers[1])[:30], 12, WHITE, True, font=h_font)
+            y = 2.15
+            for row in rows[:6]:
+                if len(row) >= 2:
+                    _textbox(s, 0.7, y, 5.8, 0.45, _clean(str(row[0]))[:80], 13, TEXT_BODY, font=b_font)
+                    _textbox(s, 6.6, y, 5.8, 0.45, _clean(str(row[1]))[:80], 13, TEXT_BODY, font=b_font)
+                y += 0.55
+            _page_num(s, sn, total, MGRAY)
+
+        elif stype == "data_metrics":
+            metrics = sec.get("metrics") or []
+            if not metrics and bullets:
+                for b in bullets[:4]:
+                    m = re.search(r"([\d.]+%|[0-9]+[xM+]?)", str(b))
+                    if m:
+                        metrics.append({"value": m.group(1), "label": _clean(str(b).replace(m.group(1), ""))[:50]})
+            set_bg(s, DARK)
+            _rect(s, 0, 0, 13.333, 0.05, PRI)
+            _textbox(s, 0.6, 0.4, 11, 0.7, sec_title, 28, WHITE, True, font=h_font)
+            _rect(s, 0.6, 1.1, 2.5, 0.04, SEC)
+            if metrics:
+                x_pos = [1.5, 4.5, 7.5, 10.5][: len(metrics)]
+                for i, m in enumerate(metrics[:4]):
+                    _textbox(s, x_pos[i], 2.2, 2.5, 0.8, str(m.get("value", ""))[:15], 44, SEC, True, PP_ALIGN.CENTER, h_font)
+                    _textbox(s, x_pos[i], 3.0, 2.5, 0.8, _clean(str(m.get("label", "")))[:40], 12, MGRAY, PP_ALIGN.CENTER, b_font)
+            else:
+                _bullet_block(s, 0.6, 1.6, 11.5, 5, bullets[:6], 17, MGRAY, b_font, 14, 6)
+            _page_num(s, sn, total, DGRAY)
+
+        elif stype == "warning_callout":
+            warn = sec.get("warning_text") or (bullets[0] if bullets else "Important notice.")
+            set_bg(s, WHITE)
+            _rect(s, 0, 0, 13.333, 0.05, PRI)
+            _textbox(s, 0.6, 0.45, 12, 0.7, sec_title, 26, TEXT_DARK, True, font=h_font)
+            _rect(s, 0.6, 1.2, 2.5, 0.04, PRI)
+            _rect(s, 0.6, 1.6, 12.1, 1.5, RGBColor(0xFE, 0xE2, 0xE2))
+            _textbox(s, 0.9, 1.75, 11.5, 0.5, "\u26A0 WARNING", 14, RED, True, font=h_font)
+            _textbox(s, 0.9, 2.2, 11.5, 1.0, _clean(str(warn))[:400], 16, TEXT_DARK, font=b_font)
+            y = 3.4
+            for b in bullets[1:5]:
+                _textbox(s, 0.6, y, 11.5, 0.4, f"• {_clean(str(b))[:100]}", 14, TEXT_BODY, font=b_font)
+                y += 0.45
+            _page_num(s, sn, total, MGRAY)
+
+        elif stype == "executive":
             set_bg(s, DARK)
             _rect(s, 0, 0, 13.333, 0.05, PRI)
             _rect(s, 0, 0, 0.08, 7.5, SEC)
@@ -369,8 +495,9 @@ def generate_pptx(
         _rect(s, 0, 7.0, 13.333, 0.5, DARK2)
         _rect(s, 5.5, 3.5, 2.333, 0.06, SEC)
         _textbox(s, 0.8, 2.0, 11.5, 1.2, "Thank You", 44, WHITE, True, PP_ALIGN.CENTER, h_font)
-        _textbox(s, 0.8, 3.8, 11.5, 0.6, "Generated by Agentic CXO", 16, MGRAY, align=PP_ALIGN.CENTER, font=b_font)
-        _textbox(s, 0.8, 4.5, 11.5, 0.4, dt.datetime.now().strftime("%B %d, %Y"), 12, DGRAY, align=PP_ALIGN.CENTER, font=b_font)
+        _textbox(s, 0.8, 3.8, 11.5, 0.6, f"©{dt.datetime.now().year} {brand_label} | All rights reserved", 14, MGRAY, align=PP_ALIGN.CENTER, font=b_font)
+        if brand_domain:
+            _textbox(s, 0.8, 4.4, 11.5, 0.4, brand_domain, 12, DGRAY, align=PP_ALIGN.CENTER, font=b_font)
         _page_num(s, sn, total, DGRAY)
 
     name = f"{'report' if document_type in ('report', 'pitch_deck') else 'presentation'}_{uuid.uuid4().hex[:8]}.pptx"
