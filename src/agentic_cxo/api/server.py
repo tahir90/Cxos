@@ -291,13 +291,10 @@ async def login_page():
 
 # ── Docs (architecture, audit) ─────────────────────────────────────
 
-_DOCS_DIR = Path(__file__).resolve().parent.parent.parent / "docs"
-
-
 @app.get("/docs/architecture")
 async def docs_architecture():
     """Serve the architecture data flows HTML for architect review."""
-    path = _DOCS_DIR / "ARCHITECTURE_DATA_FLOWS.html"
+    path = STATIC_DIR / "ARCHITECTURE_DATA_FLOWS.html"
     if not path.exists():
         raise HTTPException(404, "Architecture doc not found")
     return FileResponse(str(path), media_type="text/html")

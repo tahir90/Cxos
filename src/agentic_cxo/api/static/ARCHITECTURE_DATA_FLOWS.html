@@ -1,0 +1,450 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Agentic CXO — Data Flows & Architecture Audit</title>
+  <style>
+    * { box-sizing: border-box; }
+    body { font-family: 'Segoe UI', system-ui, sans-serif; margin: 0; padding: 2rem; background: #0f172a; color: #e2e8f0; line-height: 1.6; }
+    h1 { font-size: 2rem; color: #f8fafc; border-bottom: 2px solid #6366f1; padding-bottom: 0.5rem; }
+    h2 { font-size: 1.4rem; color: #cbd5e1; margin-top: 2.5rem; }
+    h3 { font-size: 1.15rem; color: #94a3b8; margin-top: 1.5rem; }
+    .section { margin-bottom: 2rem; }
+    .issue-block { background: #1e293b; border-left: 4px solid #ef4444; padding: 1rem 1.25rem; margin: 0.75rem 0; border-radius: 0 8px 8px 0; }
+    .issue-block.med { border-left-color: #f59e0b; }
+    .issue-block.low { border-left-color: #22c55e; }
+    .flow-diagram { background: #1e293b; padding: 1.5rem; border-radius: 12px; margin: 1rem 0; overflow-x: auto; }
+    .flow-row { display: flex; align-items: center; gap: 0.5rem; margin: 0.75rem 0; flex-wrap: wrap; }
+    .flow-box { padding: 0.6rem 1rem; border-radius: 8px; font-size: 0.9rem; white-space: nowrap; }
+    .flow-box.user { background: #3b82f6; color: white; }
+    .flow-box.agent { background: #6366f1; color: white; }
+    .flow-box.tool { background: #0ea5e9; color: white; }
+    .flow-box.cxo { background: #8b5cf6; color: white; }
+    .flow-box.cd { background: #a855f7; color: white; }
+    .flow-box.arrow { color: #94a3b8; font-size: 1.2rem; }
+    .flow-box.feedback { background: #f59e0b; color: #0f172a; }
+    .flow-sub { margin-left: 2rem; padding-left: 1rem; border-left: 2px solid #475569; }
+    table { border-collapse: collapse; width: 100%; margin: 1rem 0; }
+    th, td { padding: 0.6rem 1rem; text-align: left; border: 1px solid #334155; }
+    th { background: #1e293b; color: #94a3b8; font-weight: 600; }
+    tr:nth-child(even) { background: #1e293b44; }
+    .badge { display: inline-block; padding: 0.2rem 0.5rem; border-radius: 4px; font-size: 0.75rem; }
+    .badge.critical { background: #ef4444; color: white; }
+    .badge.high { background: #f59e0b; color: #0f172a; }
+    .badge.medium { background: #3b82f6; color: white; }
+    .scenario-card { background: #1e293b; border: 1px solid #334155; border-radius: 12px; padding: 1.5rem; margin: 1.5rem 0; }
+    .scenario-card h2 { margin-top: 0; }
+    .comms-table td:first-child { font-weight: 500; color: #94a3b8; width: 140px; }
+    pre { background: #0f172a; padding: 1rem; border-radius: 8px; overflow-x: auto; font-size: 0.85rem; color: #a5f3fc; }
+    .toc { background: #1e293b; padding: 1.5rem; border-radius: 12px; margin-bottom: 2rem; }
+    .toc a { color: #818cf8; text-decoration: none; }
+    .toc a:hover { text-decoration: underline; }
+  </style>
+</head>
+<body>
+
+<h1>Agentic CXO — Data Flows & Architecture Audit</h1>
+<p><strong>Purpose:</strong> Handoff document for architect review. Identifies issues, gaps, and data flows across scenarios to diagnose why the system is not yet ready for premium sale to founders.</p>
+
+<div class="toc">
+  <h3>Table of Contents</h3>
+  <ol>
+    <li><a href="#issues">Issues & Gaps (Premium Sale Blockers)</a></li>
+    <li><a href="#scenario-1">Scenario 1: PPT/Research Presentation</a></li>
+    <li><a href="#scenario-2">Scenario 2: Simple CXO Question</a></li>
+    <li><a href="#scenario-3">Scenario 3: Pre-defined Scenario (Cash-Flow Guardian)</a></li>
+    <li><a href="#scenario-4">Scenario 4: Cross-CXO Communication</a></li>
+    <li><a href="#scenario-5">Scenario 5: Direct Presentation (No Plan)</a></li>
+    <li><a href="#summary">Summary & Recommendations</a></li>
+  </ol>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<section id="issues" class="section">
+<h2>1. Issues & Gaps — Premium Sale Blockers</h2>
+<p>Comprehensive list of known blockers beyond PPT quality. These prevent selling at a premium price to founders.</p>
+
+<h3>1.1 Critical (blocks core value)</h3>
+<div class="issue-block">
+  <strong>PPT/PDF output quality below benchmark</strong>
+  <p>Generated presentations are "basic and useless" vs Claude's output. Root causes: generic synthesis, wrong title handling, lack of structured layouts (data_metrics, comparison_table, benefits_risks, warning_callout), no chart support.</p>
+</div>
+<div class="issue-block">
+  <strong>Two separate architectures, not unified</strong>
+  <p><b>CoFounder/Chat path:</b> Uses PlannerTool → PlanExecutor → tools (researcher, presentation_generator). Used by web UI /chat, /chat/stream.<br>
+  <b>Cockpit path:</b> Uses Orchestrator (Cockpit) → ScenarioEngine or direct agent dispatch. Used by CLI and /scenarios API.<br>
+  Scenarios (14 pre-defined workflows like Cash-Flow Guardian) are NOT reachable from the main chat UI. Founders using the chat never see scenario execution.</p>
+</div>
+<div class="issue-block">
+  <strong>Scenarios require Vault data; Vault is often empty</strong>
+  <p>Scenario steps use <code>vault_query</code> to pull context (invoices, CRM, Slack). Without prior document ingestion, the Vault has no data. Founders must proactively ingest files — there is no guided onboarding flow.</p>
+</div>
+
+<h3>1.2 High (degrades perceived value)</h3>
+<div class="issue-block med">
+  <strong>Title slide shows wrong/generic text</strong>
+  <p>Plan intent ("Create a professional research presentation on...") is passed as title instead of the actual topic ("Excessive Use of Agentic AI on Human Brain Development").</p>
+</div>
+<div class="issue-block med">
+  <strong>Research → Synthesis gap</strong>
+  <p>Researcher finds good sources (EY, arxiv, MIT). Synthesis prompt does not enforce: specific study names + years, statistics, definition blocks, comparison rows, benefits/risks lists. Output is generic bullets.</p>
+</div>
+<div class="issue-block med">
+  <strong>Slide spec rarely picks rich layouts</strong>
+  <p>LLM chooses content_bullets over data_metrics, comparison_table, benefits_risks, warning_callout because the outline lacks structured content for those layouts.</p>
+</div>
+<div class="issue-block med">
+  <strong>No chart support in presentation generator</strong>
+  <p>Benchmark has bar charts (e.g. Global AI User Growth). Our presentation.py does not render charts.</p>
+</div>
+<div class="issue-block med">
+  <strong>Live connectors require manual setup</strong>
+  <p>Salesforce, Slack, HubSpot, etc. exist but need OAuth/credentials. No clear "connect your stack" wizard. Founders hit credential errors when scenarios expect live data.</p>
+</div>
+
+<h3>1.3 Medium (polish & trust)</h3>
+<div class="issue-block low">
+  <strong>CXO-to-CXO only in Plan path</strong>
+  <p>NEED_INPUT_FROM (e.g. CFO asks CMO) works only when the plan includes consult_agent steps. Direct presentation flow (researcher → presenter) never invokes CXOs.</p>
+</div>
+<div class="issue-block low">
+  <strong>Methodology Designer/Auditor/Review not tuned</strong>
+  <p>Agents exist but prompts may not push hard enough for study citations, metrics, and layout structure. Validation loops can pass mediocre output.</p>
+</div>
+<div class="issue-block low">
+  <strong>PPT QA depends on LibreOffice + Poppler</strong>
+  <p>Vision-based QA requires system deps. Fails silently or skips on Railway/Docker if not installed. No graceful fallback messaging.</p>
+</div>
+<div class="issue-block low">
+  <strong>Plan creation is LLM-only</strong>
+  <p>If LLM fails or API key missing, no plan is created. User gets 503 or generic fallback. No offline mode.</p>
+</div>
+
+<h3>1.4 Architecture Gaps</h3>
+<table>
+  <tr><th>Gap</th><th>Impact</th></tr>
+  <tr><td>Chat UI does not expose Scenarios</td><td>Founders never run Cash-Flow Guardian, Contract Sentinel, etc. from the main interface.</td></tr>
+  <tr><td>Cockpit has no chat interface</td><td>CLI-only. No conversational entry point for Cockpit flows.</td></tr>
+  <tr><td>Presentation flow bypasses full plan when topic extracted</td><td>Direct path (researcher → presenter) skips Methodology Designer, CXO consult, synthesis validation.</td></tr>
+  <tr><td>Business context not consistently passed</td><td>CXO prompts receive "business_context" from plan; direct tool execution may not have company profile.</td></tr>
+  <tr><td>No audit trail for premium buyers</td><td>Enterprise customers expect: who did what, when, with which data. Limited visibility.</td></tr>
+</table>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<section id="scenario-1" class="section">
+<h2>2. Scenario 1: PPT/Research Presentation (Full Plan Flow)</h2>
+<p><strong>User prompt:</strong> "Create a PPT on 'excessive use of agentic AI on human brain development' with gmg.com branding. Do your research."</p>
+<p><strong>End:</strong> Response to user with document download link (or error).</p>
+
+<div class="flow-diagram">
+  <div class="flow-row">
+    <span class="flow-box user">User</span>
+    <span class="flow-box arrow">→</span>
+    <span class="flow-box agent">CoFounder Agent</span>
+    <span class="flow-box arrow">→</span>
+    <span class="flow-box agent">IntentRouter + Planner</span>
+  </div>
+  <div class="flow-row">
+    <span class="flow-box tool">PlannerTool.create_plan()</span>
+    <span class="flow-box arrow">→</span>
+    <span class="flow-box agent">LLM</span>
+  </div>
+  <div class="flow-sub">
+    <p>Plan: 7 steps (example)</p>
+    <pre>Group A: research (×3), Group B: synthesize, Group C: consult CD, Group D: generate, Group E: validate</pre>
+  </div>
+  <div class="flow-row">
+    <span class="flow-box tool">PlanExecutor</span>
+    <span class="flow-box arrow">→</span>
+    <span class="flow-box tool">Researcher (×3 topics)</span>
+  </div>
+  <div class="flow-sub">
+    <p>Methodology Designer → Research → Review Agent → Methodology Auditor (validation loop)</p>
+    <p>Output: findings, sources</p>
+  </div>
+  <div class="flow-row">
+    <span class="flow-box tool">Synthesize step</span>
+    <span class="flow-box arrow">→</span>
+    <span class="flow-box tool">Methodology Designer</span>
+    <span class="flow-box arrow">→</span>
+    <span class="flow-box agent">LLM synthesis</span>
+  </div>
+  <div class="flow-sub">
+    <p>Review Agent + Methodology Auditor on outline. Retry if fail.</p>
+    <p>Output: markdown outline</p>
+  </div>
+  <div class="flow-row">
+    <span class="flow-box cd">CD (Creative Director)</span>
+    <span class="flow-box arrow">→</span>
+    <span class="flow-box agent">visual brief, templates</span>
+  </div>
+  <div class="flow-row">
+    <span class="flow-box tool">Generate step</span>
+    <span class="flow-box arrow">→</span>
+    <span class="flow-box tool">PresentationGeneratorTool</span>
+  </div>
+  <div class="flow-sub">
+    <p>Methodology Designer (doc) → Slide spec (LLM) → generate_pptx → PPT QA (vision) → Review/Audit on output → Retry if fail</p>
+  </div>
+  <div class="flow-row">
+    <span class="flow-box tool">Validate step</span>
+    <span class="flow-box arrow">→</span>
+    <span class="flow-box cd">CD.validate_output</span>
+  </div>
+  <div class="flow-row">
+    <span class="flow-box agent">CoFounder</span>
+    <span class="flow-box arrow">→</span>
+    <span class="flow-box user">User</span>
+    <span class="flow-box">(combined_summary + document_ready URL)</span>
+  </div>
+</div>
+
+<h3>CXO Involvement</h3>
+<table class="comms-table">
+  <tr><td>CD</td><td>Consulted for visual direction, layout advice. Validates final output.</td></tr>
+  <tr><td>CFO, CMO, etc.</td><td>Only if plan includes consult_agent step (LLM decides). Typically NOT in PPT-only plan.</td></tr>
+</table>
+
+<h3>Communication Flow</h3>
+<p>Events streamed to UI: plan_created, step_group_start, step_start, step_progress, step_complete, source_found, agent_consulted, document_ready, plan_complete.</p>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<section id="scenario-2" class="section">
+<h2>3. Scenario 2: Simple CXO Question</h2>
+<p><strong>User prompt:</strong> "What's our burn rate and runway?"</p>
+<p><strong>End:</strong> Natural language response from CFO (or routed agent).</p>
+
+<div class="flow-diagram">
+  <div class="flow-row">
+    <span class="flow-box user">User</span>
+    <span class="flow-box arrow">→</span>
+    <span class="flow-box agent">CoFounder</span>
+    <span class="flow-box arrow">→</span>
+    <span class="flow-box agent">IntentRouter</span>
+  </div>
+  <div class="flow-sub">
+    <p>Planner.should_plan() → needs_planning: false (simple question)</p>
+  </div>
+  <div class="flow-row">
+    <span class="flow-box agent">IntentRouter.route()</span>
+    <span class="flow-box arrow">→</span>
+    <span class="flow-box cxo">CFO</span>
+    <span class="flow-box">(keyword: burn rate, runway → finance)</span>
+  </div>
+  <div class="flow-row">
+    <span class="flow-box tool">ToolExecutor.decide_and_execute()</span>
+    <span class="flow-box arrow">→</span>
+    <span class="flow-box tool">CostAnalyzerTool (or similar)</span>
+  </div>
+  <div class="flow-sub">
+    <p>Vault query for financial data. If no data → generic or error.</p>
+  </div>
+  <div class="flow-row">
+    <span class="flow-box agent">_respond_naturally()</span>
+    <span class="flow-box arrow">→</span>
+    <span class="flow-box agent">LLM</span>
+    <span class="flow-box">(with CXO persona + tool result)</span>
+  </div>
+  <div class="flow-row">
+    <span class="flow-box agent">CoFounder</span>
+    <span class="flow-box arrow">→</span>
+    <span class="flow-box user">User</span>
+  </div>
+</div>
+
+<h3>CXO Involvement</h3>
+<table class="comms-table">
+  <tr><td>CFO</td><td>Routed by keywords. Tool (CostAnalyzer) does work. LLM formats response with CFO persona.</td></tr>
+  <tr><td>Other CXOs</td><td>None. No cross-agent.</td></tr>
+</table>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<section id="scenario-3" class="section">
+<h2>4. Scenario 3: Pre-defined Scenario (Cash-Flow Guardian)</h2>
+<p><strong>User prompt:</strong> (CLI) <code>cxo scenario run cfo-cash-flow-guardian</code> OR (API) POST /scenarios/cfo-cash-flow-guardian/run</p>
+<p><strong>End:</strong> ScenarioResult with step outputs, possibly pending approvals.</p>
+
+<div class="flow-diagram">
+  <div class="flow-row">
+    <span class="flow-box user">User / API</span>
+    <span class="flow-box arrow">→</span>
+    <span class="flow-box agent">Cockpit.run_scenario()</span>
+    <span class="flow-box arrow">→</span>
+    <span class="flow-box tool">ScenarioEngine.execute()</span>
+  </div>
+  <div class="flow-sub">
+    <p>Scenario: Cash-Flow Guardian. Steps: cfg-1 (expense spikes) → cfg-2 (audit) → cfg-3 (runway) → cfg-4 (briefing)</p>
+  </div>
+  <div class="flow-row">
+    <span class="flow-box tool">Step cfg-1</span>
+    <span class="flow-box arrow">→</span>
+    <span class="flow-box tool">Vault.query("non-payroll expenses...")</span>
+    <span class="flow-box arrow">→</span>
+    <span class="flow-box cxo">AgentCFO</span>
+  </div>
+  <div class="flow-sub">
+    <p>Vault returns chunks (or empty). CFO agent reasons, produces AgentAction. RiskAssessor, ApprovalGate if HIGH.</p>
+  </div>
+  <div class="flow-row">
+    <span class="flow-box tool">Steps cfg-2, cfg-3</span>
+    <span class="flow-box arrow">→</span>
+    <span class="flow-box cxo">AgentCFO</span>
+    <span class="flow-box">(depends_on: cfg-1 output)</span>
+  </div>
+  <div class="flow-row">
+    <span class="flow-box tool">Step cfg-4</span>
+    <span class="flow-box arrow">→</span>
+    <span class="flow-box cxo">AgentCFO</span>
+    <span class="flow-box">(compile briefing)</span>
+  </div>
+  <div class="flow-row">
+    <span class="flow-box agent">ScenarioEngine</span>
+    <span class="flow-box arrow">→</span>
+    <span class="flow-box user">ScenarioResult</span>
+  </div>
+</div>
+
+<h3>CXO Involvement</h3>
+<table class="comms-table">
+  <tr><td>CFO</td><td>All 4 steps. Each step: vault_query → agent.reason() → action. No PlanExecutor.</td></tr>
+  <tr><td>Other CXOs</td><td>None. Scenario is single-agent (CFO).</td></tr>
+</table>
+
+<h3>⚠️ Critical Gap</h3>
+<p>This flow is <strong>NOT</strong> triggered from the chat UI. Founders using the web app never run scenarios. Scenarios require CLI or explicit /scenarios API call.</p>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<section id="scenario-4" class="section">
+<h2>5. Scenario 4: Cross-CXO Communication</h2>
+<p><strong>User prompt:</strong> "Create a market expansion plan. Consider legal and tax implications."</p>
+<p><strong>End:</strong> Response combining CMO + CLO + CFO insights.</p>
+
+<div class="flow-diagram">
+  <div class="flow-row">
+    <span class="flow-box user">User</span>
+    <span class="flow-box arrow">→</span>
+    <span class="flow-box agent">Planner</span>
+  </div>
+  <div class="flow-sub">
+    <p>Plan includes: consult_agent CMO, consult_agent CLO, consult_agent CFO (or multi-step)</p>
+  </div>
+  <div class="flow-row">
+    <span class="flow-box cxo">CMO</span>
+    <span class="flow-box arrow">→</span>
+    <span class="flow-box agent">LLM</span>
+    <span class="flow-box arrow">→</span>
+    <span class="flow-box">Response</span>
+  </div>
+  <div class="flow-sub">
+    <p>If CMO output contains: <code>NEED_INPUT_FROM: CLO | What are the liability caps for our target market?</code></p>
+  </div>
+  <div class="flow-row">
+    <span class="flow-box tool">_handle_cross_agent_request()</span>
+    <span class="flow-box arrow">→</span>
+    <span class="flow-box cxo">CLO</span>
+    <span class="flow-box arrow">→</span>
+    <span class="flow-box agent">LLM (CLO persona)</span>
+  </div>
+  <div class="flow-sub">
+    <p>CLO response appended to CMO content. Validation loop (Review + Auditor). Retry if fail.</p>
+  </div>
+  <div class="flow-row">
+    <span class="flow-box agent">Synthesize</span>
+    <span class="flow-box arrow">→</span>
+    <span class="flow-box user">User</span>
+  </div>
+</div>
+
+<h3>Communication Table</h3>
+<table class="comms-table">
+  <tr><td>CMO → CLO</td><td>CMO output includes "NEED_INPUT_FROM: CLO | &lt;question&gt;". PlanExecutor parses, calls CLO, injects response.</td></tr>
+  <tr><td>CLO → CMO</td><td>CLO response merged into CMO content. Single round-trip (no CLO asking back).</td></tr>
+</table>
+
+<h3>⚠️ Limitation</h3>
+<p>Cross-CXO only happens when (a) plan includes consult_agent, and (b) LLM output contains NEED_INPUT_FROM. Not guaranteed. Direct presentation flow never uses CXOs.</p>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<section id="scenario-5" class="section">
+<h2>6. Scenario 5: Direct Presentation (No Plan)</h2>
+<p><strong>User prompt:</strong> "Create a ppt on AI trends"</p>
+<p><strong>Condition:</strong> Planner.should_plan() returns needs_planning: false, BUT _extract_presentation_request() finds topic.</p>
+<p><strong>End:</strong> PPT delivered. Bypasses full plan.</p>
+
+<div class="flow-diagram">
+  <div class="flow-row">
+    <span class="flow-box user">User</span>
+    <span class="flow-box arrow">→</span>
+    <span class="flow-box agent">CoFounder</span>
+    <span class="flow-box arrow">→</span>
+    <span class="flow-box agent">topic extracted: "AI trends"</span>
+  </div>
+  <div class="flow-row">
+    <span class="flow-box tool">Researcher.execute(topic="AI trends")</span>
+    <span class="flow-box arrow">→</span>
+    <span class="flow-box">findings, sources</span>
+  </div>
+  <div class="flow-sub">
+    <p>No Methodology Designer. No synthesis step. Outline = research.summary or findings joined.</p>
+  </div>
+  <div class="flow-row">
+    <span class="flow-box tool">PresentationGeneratorTool.execute()</span>
+    <span class="flow-box arrow">→</span>
+    <span class="flow-box">slide_spec (if CD) → generate_pptx</span>
+  </div>
+  <div class="flow-sub">
+    <p>No Methodology Designer for doc gen. No Review/Audit on output. No PPT QA in this path (varies by code path).</p>
+  </div>
+  <div class="flow-row">
+    <span class="flow-box agent">CoFounder</span>
+    <span class="flow-box arrow">→</span>
+    <span class="flow-box user">User</span>
+  </div>
+</div>
+
+<h3>CXO Involvement</h3>
+<table class="comms-table">
+  <tr><td>CD</td><td>Slide spec uses CD if available. No explicit CD consult step.</td></tr>
+  <tr><td>CFO, CMO, etc.</td><td>None. Zero CXO involvement.</td></tr>
+</table>
+
+<h3>⚠️ Quality Impact</h3>
+<p>This path produces lower-quality PPTs: no synthesis validation, no methodology brief, no multi-source consolidation structure. Same "basic and useless" output.</p>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<section id="summary" class="section">
+<h2>7. Summary & Recommendations</h2>
+
+<h3>Architecture Decisions Needed</h3>
+<ol>
+  <li><strong>Unify Chat and Cockpit:</strong> Should scenarios be runnable from chat? ("Run the Cash-Flow Guardian scenario")</li>
+  <li><strong>Kill or fix direct presentation path:</strong> Either route all PPT requests through full plan, or add Methodology Designer + synthesis to direct path.</li>
+  <li><strong>Title flow:</strong> Pass topic explicitly to presentation generator, not plan.intent.</li>
+  <li><strong>Synthesis prompt overhaul:</strong> Require study names, years, stats, definitions, comparison rows, benefits/risks.</li>
+  <li><strong>Slide spec tuning:</strong> When outline has numbers → data_metrics. When before/after → comparison_table. When pros/cons → benefits_risks.</li>
+  <li><strong>Chart support:</strong> Add bar-chart rendering in presentation.py.</li>
+</ol>
+
+<h3>Data Flow Summary Table</h3>
+<table>
+  <tr><th>Scenario</th><th>Entry</th><th>CXOs Involved</th><th>Tools</th><th>Output</th></tr>
+  <tr><td>PPT (plan)</td><td>Chat</td><td>CD</td><td>Researcher, PresentationGenerator, Methodology agents</td><td>PPT + summary</td></tr>
+  <tr><td>Simple question</td><td>Chat</td><td>Routed (CFO/CMO/etc)</td><td>CostAnalyzer, etc.</td><td>Text response</td></tr>
+  <tr><td>Scenario</td><td>CLI / API</td><td>Per scenario (CFO, CMO, etc)</td><td>Vault, agents</td><td>ScenarioResult</td></tr>
+  <tr><td>Cross-CXO</td><td>Chat (plan)</td><td>Multiple (NEED_INPUT_FROM)</td><td>LLM</td><td>Combined response</td></tr>
+  <tr><td>Direct PPT</td><td>Chat</td><td>None</td><td>Researcher, PresentationGenerator</td><td>PPT</td></tr>
+</table>
+</section>
+
+<hr style="margin-top: 3rem; border-color: #334155;">
+<p style="color: #64748b; font-size: 0.9rem;">Generated for architect review. Agentic CXO — Data Flows & Architecture Audit.</p>
+
+</body>
+</html>
