@@ -84,6 +84,117 @@ Return ONLY valid JSON:
   "feedback_for_agent": "specific feedback on what to add or improve"
 }}"""
 
+SYNTHESIS_DESIGNER_PROMPT = """You are the Methodology Designer for a Synthesis step. The agent will combine research findings + CXO insights into a document outline.
+
+Plan intent: {plan_intent}
+Document type: {doc_type}
+Input summary: {input_summary}
+
+Produce a brief defining:
+1. Section structure that must be present
+2. What each section should accomplish
+3. How to handle conflicting inputs from different CXOs
+4. Citation and source inclusion rules
+
+Return ONLY valid JSON:
+{{
+  "must_cover": ["section type 1", "section type 2", ...],
+  "structure_rules": ["rule 1", "rule 2"],
+  "brief_summary": "one paragraph for the synthesis agent"
+}}"""
+
+DOCGEN_DESIGNER_PROMPT = """You are the Methodology Designer for Document Generation. The agent will turn an outline into a final document (PPT/PDF).
+
+Plan intent: {plan_intent}
+Document type: {doc_type}
+Outline summary: {outline_summary}
+
+Produce a brief defining:
+1. Essential elements that must appear (title slide, sections, closing, sources)
+2. Visual hierarchy and clarity requirements
+3. Brand consistency requirements
+4. Any gaps to avoid
+
+Return ONLY valid JSON:
+{{
+  "must_cover": ["element 1", "element 2", ...],
+  "brief_summary": "one paragraph for the document generation"
+}}"""
+
+
+def design_synthesis_methodology(
+    plan_intent: str,
+    doc_type: str,
+    input_summary: str,
+) -> dict[str, Any]:
+    """Produce methodology brief for synthesis step."""
+    from agentic_cxo.infrastructure.llm_required import require_llm
+    from openai import OpenAI
+    from agentic_cxo.infrastructure.llm_retry import with_retry
+
+    require_llm("synthesis methodology design")
+    client = OpenAI(api_key=settings.llm.api_key, base_url=settings.llm.base_url)
+
+    prompt = SYNTHESIS_DESIGNER_PROMPT.format(
+        plan_intent=plan_intent[:400],
+        doc_type=doc_type or "presentation",
+        input_summary=input_summary[:600],
+    )
+    resp = with_retry(
+        lambda: client.chat.completions.create(
+            model=settings.llm.model,
+            temperature=0.2,
+            max_tokens=800,
+            messages=[
+                {"role": "system", "content": "You output only valid JSON. No markdown."},
+                {"role": "user", "content": prompt},
+            ],
+        )
+    )
+    raw = (resp.choices[0].message.content or "{}").strip()
+    raw = raw.removeprefix("```json").removeprefix("```").removesuffix("```").strip()
+    try:
+        return json.loads(raw)
+    except json.JSONDecodeError:
+        return {"must_cover": [], "brief_summary": "Create comprehensive outline. Cite sources."}
+
+
+def design_document_methodology(
+    plan_intent: str,
+    doc_type: str,
+    outline_summary: str,
+) -> dict[str, Any]:
+    """Produce methodology brief for document generation step."""
+    from agentic_cxo.infrastructure.llm_required import require_llm
+    from openai import OpenAI
+    from agentic_cxo.infrastructure.llm_retry import with_retry
+
+    require_llm("document generation methodology design")
+    client = OpenAI(api_key=settings.llm.api_key, base_url=settings.llm.base_url)
+
+    prompt = DOCGEN_DESIGNER_PROMPT.format(
+        plan_intent=plan_intent[:400],
+        doc_type=doc_type or "presentation",
+        outline_summary=outline_summary[:800],
+    )
+    resp = with_retry(
+        lambda: client.chat.completions.create(
+            model=settings.llm.model,
+            temperature=0.2,
+            max_tokens=600,
+            messages=[
+                {"role": "system", "content": "You output only valid JSON. No markdown."},
+                {"role": "user", "content": prompt},
+            ],
+        )
+    )
+    raw = (resp.choices[0].message.content or "{}").strip()
+    raw = raw.removeprefix("```json").removeprefix("```").removesuffix("```").strip()
+    try:
+        return json.loads(raw)
+    except json.JSONDecodeError:
+        return {"must_cover": ["title", "sections", "closing", "sources"], "brief_summary": ""}
+
 
 def design_methodology(
     task: str,

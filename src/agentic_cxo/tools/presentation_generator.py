@@ -71,6 +71,7 @@ class PresentationGeneratorTool(BaseTool):
         document_type: str = "presentation",
         subtitle: str = "",
         progress_callback=None,
+        methodology_brief: dict | None = None,
         **kwargs: object,
     ) -> ToolResult:
         if not title and not outline:
@@ -120,7 +121,7 @@ class PresentationGeneratorTool(BaseTool):
                 try:
                     from agentic_cxo.tools.slide_spec import generate_slide_spec
 
-                    slide_spec = generate_slide_spec(outline, title, cd)
+                    slide_spec = generate_slide_spec(outline, title, cd, methodology_brief)
                 except Exception:
                     logger.warning("Slide spec failed, using outline parse", exc_info=True)
 

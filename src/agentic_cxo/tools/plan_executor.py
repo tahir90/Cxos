@@ -479,7 +479,7 @@ class PlanExecutor:
         elif step.action == "consult_agent" and step.agent in CXO_CONSULT_PROMPTS:
             return self._consult_cxo(step, plan, results, events_out)
         elif step.action == "synthesize":
-            return self._synthesize(step, results, plan)
+            return self._synthesize(step, results, plan, events_out)
         elif step.action == "generate":
             return self._generate_document(step, results, plan, events_out)
         elif step.action == "validate":
@@ -844,8 +844,13 @@ class PlanExecutor:
         )
 
     def _synthesize(
-        self, step: PlanStep, results: dict[int, StepResult], plan: ExecutionPlan
+        self,
+        step: PlanStep,
+        results: dict[int, StepResult],
+        plan: ExecutionPlan,
+        events_out: list[dict[str, Any]] | None = None,
     ) -> StepResult:
+        events_out = events_out or []
         input_step_ids = step.params.get("input_steps", step.depends_on)
         input_data: list[str] = []
         all_sources: list[dict] = []
@@ -864,7 +869,7 @@ class PlanExecutor:
 
         cd_result = None
         for sid, sr in results.items():
-            if sr.data.get("visual_brief"):
+            if sr and sr.data.get("visual_brief"):
                 cd_result = sr
 
         doc_type = plan.document_type or "presentation"
@@ -872,11 +877,30 @@ class PlanExecutor:
         if self.creative_director:
             template = self.creative_director.get_document_template(doc_type)
 
+        methodology_brief = None
+        if settings.quality.use_methodology_designer:
+            try:
+                from agentic_cxo.agents.methodology import design_synthesis_methodology
+
+                events_out.append({
+                    "type": "step_progress",
+                    "message": "Methodology Designer: defining synthesis approach...",
+                })
+                input_summary = "\n".join(d[:150] for d in input_data[:5]) if input_data else "Research + CXO inputs"
+                methodology_brief = design_synthesis_methodology(
+                    plan_intent=plan.intent[:300],
+                    doc_type=doc_type,
+                    input_summary=input_summary,
+                )
+            except Exception:
+                logger.debug("Synthesis Methodology Designer skipped", exc_info=True)
+
         from agentic_cxo.infrastructure.llm_required import require_llm
 
         require_llm("synthesis")
         return self._llm_synthesize(
-            step, plan, input_data, all_findings, all_sources, cd_result, template
+            step, plan, input_data, all_findings, all_sources,
+            cd_result, template, methodology_brief, events_out,
         )
 
     def _llm_synthesize(
@@ -888,7 +912,10 @@ class PlanExecutor:
         sources: list[dict],
         cd_result: StepResult | None,
         template: dict | None,
+        methodology_brief: dict[str, Any] | None = None,
+        events_out: list[dict[str, Any]] | None = None,
     ) -> StepResult:
+        events_out = events_out or []
         client = self._get_client()
         from agentic_cxo.infrastructure.llm_retry import with_retry
 
@@ -897,11 +924,25 @@ class PlanExecutor:
         rules = template.get("rules", []) if template else []
         min_slides = template.get("min_slides", 8) if template else 8
 
+        brief_instruction = ""
+        if methodology_brief:
+            must_cover = methodology_brief.get("must_cover", [])
+            summary = methodology_brief.get("brief_summary", "")
+            if must_cover or summary:
+                brief_instruction = (
+                    "\n\nMETHODOLOGY BRIEF:\n"
+                    + (f"Must cover: {', '.join(must_cover[:8])}\n" if must_cover else "")
+                    + (f"{summary}\n" if summary else "")
+                )
+
         research_text = "\n\n---\n\n".join(input_data[:5])
         findings_text = "\n".join(f"- {f[:200]}" for f in findings[:20])
         sources_text = "\n".join(f"- {s.get('title', '')}: {s.get('url', '')}" for s in sources[:10])
 
-        prompt = (
+        task_desc = f"Synthesize research + CXO inputs into a {doc_type} outline for: {plan.intent}"
+        max_rounds = settings.quality.max_validation_rounds
+        outline = ""
+        prompt_base = (
             f"You are creating a {doc_type} outline on: {plan.intent}\n\n"
             f"QUALITY BAR: {plan.quality_bar}\n\n"
             f"DOCUMENT STRUCTURE: {', '.join(structure)}\n"
@@ -915,21 +956,77 @@ class PlanExecutor:
             "Each section should have 4-8 substantive bullets with real information, not generic placeholders. "
             "Include a Sources section at the end. "
             f"Create at least {min_slides} sections."
-        )
+        ) + brief_instruction
 
-        resp = with_retry(
-            lambda: client.chat.completions.create(
-                model=settings.llm.model,
-                temperature=0.3,
-                max_tokens=4096,
-                messages=[
-                    {"role": "system", "content": "You are an expert content strategist. Create detailed, data-rich document outlines."},
-                    {"role": "user", "content": prompt},
-                ],
+        for round_idx in range(max_rounds):
+            if round_idx > 0:
+                events_out.append({
+                    "type": "step_progress",
+                    "message": f"Synthesis: amending outline based on feedback (round {round_idx + 1})...",
+                })
+
+            resp = with_retry(
+                lambda: client.chat.completions.create(
+                    model=settings.llm.model,
+                    temperature=0.3,
+                    max_tokens=4096,
+                    messages=[
+                        {"role": "system", "content": "You are an expert content strategist. Create detailed, data-rich document outlines."},
+                        {"role": "user", "content": prompt_base},
+                    ],
+                )
             )
-        )
+            outline = (resp.choices[0].message.content or "").strip()
 
-        outline = (resp.choices[0].message.content or "").strip()
+            if not settings.quality.use_review_agent and not settings.quality.use_methodology_auditor:
+                break
+
+            review_ok = True
+            audit_ok = True
+            feedback_parts: list[str] = []
+
+            if settings.quality.use_review_agent:
+                try:
+                    from agentic_cxo.agents.methodology import review_output
+
+                    events_out.append({
+                        "type": "step_progress",
+                        "message": "Review Agent: validating synthesis output...",
+                    })
+                    review = review_output(task_desc, "Synthesis", outline, methodology_brief or {})
+                    review_ok = review.get("pass", True)
+                    if not review_ok and review.get("feedback_for_agent"):
+                        feedback_parts.append(f"Review: {review['feedback_for_agent']}")
+                except Exception:
+                    logger.debug("Synthesis Review Agent skipped", exc_info=True)
+
+            if settings.quality.use_methodology_auditor:
+                try:
+                    from agentic_cxo.agents.methodology import audit_methodology
+
+                    events_out.append({
+                        "type": "step_progress",
+                        "message": "Methodology Auditor: auditing synthesis reasoning...",
+                    })
+                    audit = audit_methodology(task_desc, "Synthesis", outline, methodology_brief or {})
+                    audit_ok = audit.get("pass", True)
+                    if not audit_ok and audit.get("feedback_for_agent"):
+                        feedback_parts.append(f"Audit: {audit['feedback_for_agent']}")
+                except Exception:
+                    logger.debug("Synthesis Methodology Auditor skipped", exc_info=True)
+
+            if review_ok and audit_ok:
+                break
+
+            if feedback_parts and round_idx < max_rounds - 1:
+                prompt_base = (
+                    f"ORIGINAL TASK: Create outline for: {plan.intent}\n"
+                    f"CONTEXT: {research_text[:2000]}\n\n"
+                    f"PREVIOUS OUTLINE:\n{outline[:2500]}\n\n"
+                    f"FEEDBACK (address this):\n" + "\n".join(feedback_parts) + "\n\n"
+                    "Produce a REVISED, improved outline addressing the feedback."
+                ) + brief_instruction
+
         return StepResult(
             step_id=step.id,
             success=True,
@@ -1078,6 +1175,25 @@ class PlanExecutor:
         topic = step.params.get("topic") or plan.intent
         brand_domain = step.params.get("brand_domain", "")
         max_cycles = settings.ppqa.max_qa_cycles
+        doc_type = plan.document_type or step.params.get("document_type") or "presentation"
+
+        methodology_brief = None
+        if settings.quality.use_methodology_designer:
+            try:
+                from agentic_cxo.agents.methodology import design_document_methodology
+
+                events_out.append({
+                    "type": "step_progress",
+                    "message": "Methodology Designer: defining document generation approach...",
+                })
+                outline_summary = outline[:600] if outline else "Presentation outline"
+                methodology_brief = design_document_methodology(
+                    plan_intent=plan.intent[:300],
+                    doc_type=doc_type,
+                    outline_summary=outline_summary,
+                )
+            except Exception:
+                logger.debug("Document Methodology Designer skipped", exc_info=True)
 
         def progress_cb(msg: str) -> None:
             events_out.append({"type": "step_progress", "message": msg})
@@ -1088,6 +1204,7 @@ class PlanExecutor:
                 outline=outline,
                 brand_domain=brand_domain,
                 progress_callback=progress_cb,
+                methodology_brief=methodology_brief,
             )
             if not result.success:
                 return StepResult(
@@ -1124,6 +1241,75 @@ class PlanExecutor:
                         "type": "narration",
                         "message": feedback[:500] if len(feedback) > 500 else feedback,
                     })
+
+                if passed and (settings.quality.use_review_agent or settings.quality.use_methodology_auditor):
+                    output_desc = f"Outline:\n{outline[:2000]}\n\nGenerated: {result.data.get('slides_count', 0)} slides. Path: {pptx_path}"
+                    review_ok = True
+                    audit_ok = True
+                    doc_feedback: list[str] = []
+
+                    if settings.quality.use_review_agent:
+                        try:
+                            from agentic_cxo.agents.methodology import review_output
+
+                            events_out.append({
+                                "type": "step_progress",
+                                "message": "Review Agent: validating document output...",
+                            })
+                            task_desc = f"Generate {doc_type} from outline for: {plan.intent}"
+                            review = review_output(task_desc, "Document Generator", output_desc, methodology_brief or {})
+                            review_ok = review.get("pass", True)
+                            if not review_ok and review.get("feedback_for_agent"):
+                                doc_feedback.append(f"Review: {review['feedback_for_agent']}")
+                        except Exception:
+                            logger.debug("Doc Review Agent skipped", exc_info=True)
+
+                    if settings.quality.use_methodology_auditor:
+                        try:
+                            from agentic_cxo.agents.methodology import audit_methodology
+
+                            events_out.append({
+                                "type": "step_progress",
+                                "message": "Methodology Auditor: auditing document generation...",
+                            })
+                            task_desc = f"Generate {doc_type} from outline for: {plan.intent}"
+                            audit = audit_methodology(task_desc, "Document Generator", output_desc, methodology_brief or {})
+                            audit_ok = audit.get("pass", True)
+                            if not audit_ok and audit.get("feedback_for_agent"):
+                                doc_feedback.append(f"Audit: {audit['feedback_for_agent']}")
+                        except Exception:
+                            logger.debug("Doc Methodology Auditor skipped", exc_info=True)
+
+                    if not (review_ok and audit_ok) and doc_feedback and cycle < max_cycles - 1:
+                        from agentic_cxo.infrastructure.llm_required import require_llm
+
+                        require_llm("outline fix for document quality feedback")
+                        fix_prompt = (
+                            f"Document quality feedback:\n{chr(10).join(doc_feedback)}\n\n"
+                            f"Current outline:\n{outline[:2500]}\n\n"
+                            "Revise the outline to address the feedback. Return ONLY the revised markdown outline."
+                        )
+                        client = self._get_client()
+                        from agentic_cxo.infrastructure.llm_retry import with_retry
+                        resp = with_retry(
+                            lambda: client.chat.completions.create(
+                                model=settings.llm.model,
+                                temperature=0.2,
+                                max_tokens=4096,
+                                messages=[
+                                    {"role": "system", "content": "You are a presentation editor. Improve outline based on feedback."},
+                                    {"role": "user", "content": fix_prompt},
+                                ],
+                            )
+                        )
+                        revised = (resp.choices[0].message.content or "").strip()
+                        if revised and len(revised) > 100:
+                            outline = revised
+                            events_out.append({
+                                "type": "narration",
+                                "message": "Applying quality feedback. Regenerating document...",
+                            })
+                            continue
 
                 if passed:
                     events_out.append({

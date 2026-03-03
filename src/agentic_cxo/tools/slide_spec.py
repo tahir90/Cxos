@@ -67,7 +67,9 @@ def _clean_title(raw: str, topic: str = "") -> str:
     return t[:120]
 
 
-def generate_slide_spec(outline: str, topic: str, creative_director: Any = None) -> list[dict[str, Any]]:
+def generate_slide_spec(
+    outline: str, topic: str, creative_director: Any = None, methodology_brief: dict | None = None
+) -> list[dict[str, Any]]:
     """Use LLM + CD to produce per-slide design specification."""
     from agentic_cxo.infrastructure.llm_required import require_llm
     from openai import OpenAI
@@ -82,7 +84,19 @@ def generate_slide_spec(outline: str, topic: str, creative_director: Any = None)
         c = creative_director.get_primary_color()
         v = creative_director.tokens.get("brand_identity", {}).get("visual_mood", "professional")
         brand_context = f"\nBRAND: primary color {c}, visual mood: {v}. Match layouts and treatments to brand."
-    prompt = SLIDE_SPEC_PROMPT.format(outline=outline[:8000], topic=topic_clean, brand_context=brand_context)
+
+    brief_context = ""
+    if methodology_brief:
+        must_cover = methodology_brief.get("must_cover", [])
+        summary = methodology_brief.get("brief_summary", "")
+        if must_cover or summary:
+            brief_context = (
+                "\n\nMETHODOLOGY BRIEF (follow these requirements):\n"
+                + (f"Must include: {', '.join(must_cover[:6])}\n" if must_cover else "")
+                + (f"{summary}\n" if summary else "")
+            )
+
+    prompt = SLIDE_SPEC_PROMPT.format(outline=outline[:8000], topic=topic_clean, brand_context=brand_context + brief_context)
 
     resp = with_retry(
         lambda: client.chat.completions.create(
