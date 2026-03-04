@@ -60,6 +60,7 @@ from agentic_cxo.conversation.router import IntentRouter, RoutingResult
 from agentic_cxo.conversation.sessions import SessionManager
 from agentic_cxo.memory.vault import ContextVault
 from agentic_cxo.pipeline.refinery import ContextRefinery
+from agentic_cxo.agents.agent_bus import AgentBus, CXO_ROLE_ICONS, CXO_ROLE_LABELS
 from agentic_cxo.agents.creative_director import CreativeDirectorAgent
 from agentic_cxo.tools.auditors.ads_auditor import AdsAuditorTool
 from agentic_cxo.tools.auditors.seo_auditor import SEOAuditorTool
@@ -91,28 +92,83 @@ ONBOARDING_QUESTIONS = [
 
 CXO_SYSTEM_PROMPTS = {
     "CFO": (
-        "You are the AI CFO. Analyze financial matters. Be specific with numbers. "
-        "Cite sources. Recommend concrete actions with expected dollar impact."
+        "You are the AI Chief Financial Officer. Your domain: financial analysis, "
+        "budgets, cash flow, cost optimization, tax strategy, investor reporting, "
+        "subscription audits, and revenue forecasting.\n\n"
+        "RULES:\n"
+        "- ALWAYS cite specific numbers and data sources\n"
+        "- Present every recommendation with expected dollar impact\n"
+        "- Flag any spending anomalies or budget overruns with severity\n"
+        "- Prioritize capital preservation over yield optimization\n"
+        "- Include risk/reward analysis for every financial recommendation\n"
+        "- When discussing costs, always provide comparison benchmarks\n\n"
+        "You can consult the CMO for marketing budget data, the COO for "
+        "operational costs, and the CSO for revenue pipeline metrics."
     ),
     "COO": (
-        "You are the AI COO. Handle operations, supply chain, and vendor issues. "
-        "Propose alternatives, timelines, and cost-benefit analyses."
+        "You are the AI Chief Operating Officer. Your domain: operations, "
+        "supply chain, vendor management, logistics, process optimization, "
+        "quality assurance, and capacity planning.\n\n"
+        "RULES:\n"
+        "- Present at least 3 alternatives for every vendor replacement\n"
+        "- Include cost-benefit analysis for every operational change\n"
+        "- Cite data sources for all vendor performance claims\n"
+        "- Respect existing contractual obligations\n"
+        "- Propose timelines with dependencies and milestones\n\n"
+        "You can consult the CFO for budget constraints, the CLO for "
+        "contract terms, and the CHRO for staffing availability."
     ),
     "CMO": (
-        "You are the AI CMO. Handle marketing, campaigns, and growth. "
-        "Be data-driven. Propose creatives, targeting, and budget allocation."
+        "You are the AI Chief Marketing Officer. Your domain: campaign strategy, "
+        "brand positioning, audience segmentation, growth marketing, content "
+        "strategy, SEO/SEM, social media, and competitive intelligence.\n\n"
+        "RULES:\n"
+        "- Be data-driven: cite campaign metrics, conversion rates, CAC/LTV\n"
+        "- Present A/B test recommendations with expected uplift\n"
+        "- Optimize for long-term customer lifetime value, not just clicks\n"
+        "- Include budget allocation recommendations with ROI projections\n"
+        "- Flag any campaign that could damage brand reputation\n\n"
+        "You can consult the CFO for marketing budget, the CSO for sales "
+        "conversion data, and the CHRO for employer brand alignment."
     ),
     "CLO": (
-        "You are the AI CLO. Handle contracts, compliance, and legal risk. "
-        "Flag specific clauses. Propose redlined language. Cite regulations."
+        "You are the AI Chief Legal Officer. Your domain: contracts, compliance, "
+        "regulatory analysis, IP protection, data privacy (GDPR/CCPA/EU AI Act), "
+        "and risk mitigation.\n\n"
+        "RULES:\n"
+        "- ALWAYS cite specific clause numbers and documents\n"
+        "- Include legal disclaimers on all advisory outputs\n"
+        "- Flag auto-renewal, IP assignment, and indemnification clauses\n"
+        "- Present risk severity with recommended remediation steps\n"
+        "- Escalate anything involving IP assignment immediately\n\n"
+        "You can consult the CFO for financial exposure, the COO for "
+        "vendor contracts, and the CHRO for employment law matters."
     ),
     "CHRO": (
-        "You are the AI CHRO. Handle hiring, culture, and people ops. "
-        "Be empathetic but data-driven. Propose concrete actions."
+        "You are the AI Chief Human Resources Officer. Your domain: talent "
+        "acquisition, culture assessment, onboarding, employee engagement, "
+        "performance management, compensation, and DEI.\n\n"
+        "RULES:\n"
+        "- ALWAYS respect candidate and employee privacy\n"
+        "- Anonymize all sentiment analysis — never attribute quotes\n"
+        "- Bias-check all outreach templates\n"
+        "- Cite specific data points for culture recommendations\n"
+        "- Be empathetic but actionable in people-related advice\n\n"
+        "You can consult the CFO for compensation benchmarks, the CLO for "
+        "employment law, and the CMO for employer brand strategy."
     ),
     "CSO": (
-        "You are the AI CSO. Handle sales pipeline, deal recovery, and revenue. "
-        "Research prospects. Draft personalized outreach. Quantify opportunities."
+        "You are the AI Chief Sales Officer. Your domain: pipeline optimization, "
+        "deal strategy, prospect research, sales forecasting, deal recovery, "
+        "competitive positioning, and account planning.\n\n"
+        "RULES:\n"
+        "- ALWAYS cite data sources for prospect intelligence\n"
+        "- Include specific, factual hooks in outreach — never generic\n"
+        "- Quantify the revenue opportunity for every recommendation\n"
+        "- Respect opt-out and do-not-contact lists\n"
+        "- Cross-reference lost-deal reasons with product roadmap\n\n"
+        "You can consult the CFO for deal financials, the CMO for lead "
+        "quality data, and the CLO for contract negotiation guidance."
     ),
 }
 
@@ -158,6 +214,7 @@ class CoFounderAgent:
     creative_director: CreativeDirectorAgent | None = field(
         default=None, init=False
     )
+    agent_bus: AgentBus | None = field(default=None, init=False)
     planner: PlannerTool | None = field(default=None, init=False)
     plan_executor: PlanExecutor | None = field(default=None, init=False)
     _client: OpenAI | None = field(default=None, init=False, repr=False)
@@ -171,6 +228,8 @@ class CoFounderAgent:
 
         self.creative_director = CreativeDirectorAgent()
         set_creative_director(self.creative_director)
+
+        self.agent_bus = AgentBus(use_llm=self.use_llm)
 
         self._tool_registry = ToolRegistry()
         self._tool_registry.register(WebSearchTool())
@@ -661,11 +720,22 @@ class CoFounderAgent:
         on_tool_end,
         events: list[dict],
     ) -> Iterator[dict[str, Any]]:
-        """Direct execution path for simple requests (no planning needed)."""
+        """Direct execution path — delegates to CXO agents when appropriate."""
         from agentic_cxo.tools.framework import ToolResult
 
         topic, brand = self._extract_presentation_request(message)
         tool_results: list[ToolResult] = []
+
+        # Check if CXO orchestration is warranted (non-tool requests)
+        if not topic and self._should_consult_cxos(message, route):
+            yield from self._stream_cxo_orchestration(message, route)
+
+            if attachments:
+                for att in attachments:
+                    doc_resp = self._handle_document(att)
+                    yield {"type": "message", "role": "agent", "content": doc_resp.content}
+                    self.memory.add(doc_resp)
+            return
 
         if topic:
             yield {"type": "status", "message": f"Creating presentation on: {topic[:50]}..."}
@@ -775,6 +845,247 @@ class CoFounderAgent:
         for r in responses:
             self.memory.add(r)
 
+    # ── CXO Orchestration ──────────────────────────────────────
+
+    def _should_consult_cxos(self, message: str, route: RoutingResult) -> bool:
+        """Determine if this message warrants CXO consultation."""
+        if not self.use_llm or not settings.llm.api_key:
+            return False
+        if not self.agent_bus:
+            return False
+        if route.agents:
+            return True
+        msg_lower = message.lower()
+        cxo_triggers = [
+            "how should", "what should", "help me", "advise", "strategy",
+            "recommend", "optimize", "improve", "reduce", "increase",
+            "analyze", "evaluate", "assess", "plan for", "deal with",
+            "budget", "revenue", "costs", "hiring", "marketing",
+            "legal", "compliance", "pipeline", "vendor", "campaign",
+        ]
+        return any(t in msg_lower for t in cxo_triggers)
+
+    def _orchestrate_cxos(
+        self, message: str, route: RoutingResult
+    ) -> ChatMessage | None:
+        """Orchestrate CXO agents for a comprehensive response."""
+        if not self.agent_bus:
+            return None
+
+        # Determine which CXOs to consult
+        if route.agents:
+            cxo_roles = route.agents[:3]
+        else:
+            cxo_roles = self.agent_bus.determine_relevant_cxos(message)
+
+        if not cxo_roles:
+            return None
+
+        # Build business context
+        business_context = ""
+        if self.profile_store and self.profile_store.profile:
+            p = self.profile_store.profile
+            parts = []
+            if p.company_name:
+                parts.append(f"Company: {p.company_name}")
+            if p.industry:
+                parts.append(f"Industry: {p.industry}")
+            if p.main_product:
+                parts.append(f"Product: {p.main_product}")
+            if p.arr:
+                parts.append(f"ARR: {p.arr}")
+            if p.team_size:
+                parts.append(f"Team: {p.team_size}")
+            business_context = ". ".join(parts)
+
+        # Get vault context
+        vault_context = ""
+        try:
+            hits = self.vault.query(message, top_k=3)
+            if hits:
+                vault_context = "\n".join(
+                    h.get("content", "")[:300] for h in hits
+                )
+        except Exception:
+            pass
+
+        # Consult each CXO
+        analyses = []
+        for role in cxo_roles:
+            analysis = self.agent_bus.consult_cxo(
+                role=role,
+                user_message=message,
+                business_context=business_context,
+                vault_context=vault_context,
+            )
+            analyses.append(analysis)
+
+        # If multiple CXOs, check for cross-consultation needs
+        if len(analyses) >= 2:
+            for analysis in analyses:
+                text_lower = analysis.analysis.lower()
+                for other_role in cxo_roles:
+                    if other_role != analysis.role and (
+                        f"consult {other_role.lower()}" in text_lower
+                        or f"ask the {other_role.lower()}" in text_lower
+                        or f"input from {other_role.lower()}" in text_lower
+                    ):
+                        consultation = self.agent_bus.cross_consult(
+                            requester=analysis.role,
+                            target=other_role,
+                            question=f"The {analysis.role} needs your input on: {message[:200]}",
+                            context=business_context,
+                        )
+                        analysis.consulted_peers.append(other_role)
+
+        # Synthesize if multiple CXOs contributed
+        if len(analyses) > 1:
+            synthesis = self.agent_bus.synthesize_analyses(message, analyses)
+        else:
+            synthesis = analyses[0].analysis if analyses else ""
+
+        if not synthesis:
+            return None
+
+        # Build the response with CXO attribution
+        cxo_labels = [
+            f"{CXO_ROLE_ICONS.get(a.role, '')} {CXO_ROLE_LABELS.get(a.role, a.role)}"
+            for a in analyses
+        ]
+        metadata = {
+            "type": "cxo_orchestrated",
+            "agents_consulted": [a.role for a in analyses],
+            "agent_labels": cxo_labels,
+        }
+
+        return ChatMessage(
+            role=MessageRole.AGENT,
+            content=synthesis,
+            metadata=metadata,
+        )
+
+    def _stream_cxo_orchestration(
+        self,
+        message: str,
+        route: RoutingResult,
+    ) -> Iterator[dict[str, Any]]:
+        """Stream CXO orchestration events for the UI."""
+        if not self.agent_bus:
+            return
+
+        if route.agents:
+            cxo_roles = route.agents[:3]
+        else:
+            cxo_roles = self.agent_bus.determine_relevant_cxos(message)
+
+        if not cxo_roles:
+            return
+
+        # Build context
+        business_context = ""
+        if self.profile_store and self.profile_store.profile:
+            p = self.profile_store.profile
+            parts = []
+            if p.company_name:
+                parts.append(f"Company: {p.company_name}")
+            if p.industry:
+                parts.append(f"Industry: {p.industry}")
+            if p.arr:
+                parts.append(f"ARR: {p.arr}")
+            business_context = ". ".join(parts)
+
+        vault_context = ""
+        try:
+            hits = self.vault.query(message, top_k=3)
+            if hits:
+                vault_context = "\n".join(
+                    h.get("content", "")[:300] for h in hits
+                )
+        except Exception:
+            pass
+
+        # Announce the consultation
+        yield {
+            "type": "orchestration_start",
+            "agents": cxo_roles,
+            "message": f"Consulting {', '.join(cxo_roles)} for a comprehensive analysis...",
+        }
+
+        # Stream each CXO analysis
+        events = []
+        self.agent_bus.set_event_callback(lambda e: events.append(e))
+
+        analyses = []
+        for role in cxo_roles:
+            events.clear()
+            analysis = self.agent_bus.consult_cxo(
+                role=role,
+                user_message=message,
+                business_context=business_context,
+                vault_context=vault_context,
+            )
+            analyses.append(analysis)
+            for ev in events:
+                yield ev
+
+        # Cross-consultation
+        if len(analyses) >= 2:
+            events.clear()
+            for analysis in analyses:
+                text_lower = analysis.analysis.lower()
+                for other_role in cxo_roles:
+                    if other_role != analysis.role and (
+                        f"consult {other_role.lower()}" in text_lower
+                        or f"input from {other_role.lower()}" in text_lower
+                    ):
+                        self.agent_bus.cross_consult(
+                            requester=analysis.role,
+                            target=other_role,
+                            question=f"{analysis.role} needs input on: {message[:200]}",
+                            context=business_context,
+                        )
+                        analysis.consulted_peers.append(other_role)
+            for ev in events:
+                yield ev
+
+        # Synthesize
+        events.clear()
+        synthesis = self.agent_bus.synthesize_analyses(message, analyses)
+        for ev in events:
+            yield ev
+
+        if synthesis:
+            cxo_labels = [
+                f"{CXO_ROLE_ICONS.get(a.role, '')} {CXO_ROLE_LABELS.get(a.role, a.role)}"
+                for a in analyses
+            ]
+            yield {
+                "type": "message",
+                "role": "agent",
+                "content": synthesis,
+                "metadata": {
+                    "type": "cxo_orchestrated",
+                    "agents_consulted": [a.role for a in analyses],
+                    "agent_labels": cxo_labels,
+                },
+            }
+
+            msg = ChatMessage(
+                role=MessageRole.AGENT,
+                content=synthesis,
+                metadata={
+                    "type": "cxo_orchestrated",
+                    "agents_consulted": [a.role for a in analyses],
+                },
+            )
+            self.memory.add(msg)
+
+        yield {
+            "type": "orchestration_complete",
+            "agents": [a.role for a in analyses],
+            "message": "C-Suite analysis complete",
+        }
+
     # ── Core response logic ───────────────────────────────────
 
     def _welcome_message(self) -> ChatMessage:
@@ -810,16 +1121,30 @@ class CoFounderAgent:
     def _respond_naturally(
         self, message: str, route: RoutingResult
     ) -> ChatMessage:
-        """Always respond to what the user actually said."""
+        """Always respond to what the user actually said.
+
+        When the message warrants CXO expertise, orchestrate the relevant
+        C-Suite officers to provide a comprehensive, multi-perspective response.
+        """
         query_type = self.query_classifier.classify(message)
 
+        # For product/self-knowledge questions, answer directly
+        if query_type == QueryType.SELF:
+            if self.use_llm and settings.llm.api_key:
+                return self._llm_natural_response(message, route, query_type)
+            return self._self_knowledge_response(message)
+
+        # For business questions that warrant CXO input, orchestrate
+        if self._should_consult_cxos(message, route):
+            cxo_response = self._orchestrate_cxos(message, route)
+            if cxo_response:
+                return cxo_response
+
+        # Fall back to standard response
         if self.use_llm and settings.llm.api_key:
             return self._llm_natural_response(
                 message, route, query_type
             )
-
-        if query_type == QueryType.SELF:
-            return self._self_knowledge_response(message)
 
         if route.agents:
             return self._agent_response(
