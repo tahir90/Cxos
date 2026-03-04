@@ -880,7 +880,7 @@ class CoFounderAgent:
                 tool_results = self._tool_executor.decide_and_execute(
                     message, on_tool_start=on_tool_start, on_tool_end=on_tool_end
                 )
-        else:
+        elif route.intent not in ("general", "onboarding"):
             yield {"type": "status", "message": "Deciding which tools to use..."}
             tool_results = self._tool_executor.decide_and_execute(
                 message, context="",
@@ -940,7 +940,9 @@ class CoFounderAgent:
             return False
         if not self.agent_bus:
             return False
-        if route.agents:
+        # Only consult CXOs when the router explicitly identified domain-specific agents.
+        # General/conversational messages should be answered directly.
+        if route.agents and route.intent != "general":
             return True
         msg_lower = message.lower()
         cxo_triggers = [

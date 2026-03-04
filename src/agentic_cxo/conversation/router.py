@@ -190,7 +190,9 @@ class IntentRouter:
                 return RoutingResult(
                     intent="document", agents=[], has_document=True
                 )
-            return RoutingResult(intent="general", agents=["COO"])
+            # No domain keywords matched → treat as general conversation.
+            # Do NOT default to COO; let the agent answer directly.
+            return RoutingResult(intent="general", agents=[])
 
         top_intent = max(scores, key=scores.get)
 
@@ -200,7 +202,7 @@ class IntentRouter:
                 agents.append(config["agent"])
         agents = list(dict.fromkeys(agents))
 
-        if not agents and top_intent not in ("onboarding", "reminder", "document"):
+        if not agents and top_intent not in ("onboarding", "reminder", "document", "general"):
             agents = ["COO"]
 
         reminder_needed = "reminder" in scores or any(

@@ -254,7 +254,7 @@ class AgentBus:
             if score > 0:
                 scores[role] = score
         if not scores:
-            return ["COO"]
+            return []
         sorted_roles = sorted(scores, key=scores.get, reverse=True)
         return sorted_roles[:3]
 
