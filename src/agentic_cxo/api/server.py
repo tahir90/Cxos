@@ -268,7 +268,14 @@ async def health() -> dict[str, Any]:
         checks["vault"] = "ok"
     except Exception as e:
         checks["vault"] = f"error: {str(e)[:60]}"
-    all_ok = all(v == "ok" for v in checks.values())
+    # LLM key diagnostics (mask key for security)
+    key = settings.llm.api_key or ""
+    if key:
+        checks["llm"] = f"ok (key: {key[:8]}...{key[-4:]})"
+    else:
+        checks["llm"] = "error: OPENAI_API_KEY not set"
+    checks["llm_model"] = settings.llm.model
+    all_ok = all(v.startswith("ok") for v in checks.values())
     return {
         "status": "ok" if all_ok else "degraded",
         "checks": checks,
@@ -400,7 +407,22 @@ async def _stream_chat_events(message: str, agent):
             for ev in agent.chat_stream_events(message):
                 ev_queue.put(ev)
         except Exception as e:
-            ev_queue.put({"type": "error", "message": str(e)[:200]})
+            err_msg = str(e)[:300]
+            # Provide actionable error messages for common OpenAI errors
+            if "429" in err_msg or "rate" in err_msg.lower() or "quota" in err_msg.lower():
+                err_msg = (
+                    "OpenAI API quota exceeded or rate limited. "
+                    "Please check your API key has available credits at "
+                    "https://platform.openai.com/account/billing. "
+                    f"Details: {err_msg[:150]}"
+                )
+            elif "401" in err_msg or "auth" in err_msg.lower() or "invalid" in err_msg.lower():
+                err_msg = (
+                    "OpenAI API key is invalid or expired. "
+                    "Please update your OPENAI_API_KEY environment variable. "
+                    f"Details: {err_msg[:150]}"
+                )
+            ev_queue.put({"type": "error", "message": err_msg[:400]})
         finally:
             ev_queue.put(None)
 
