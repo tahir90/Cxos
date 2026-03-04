@@ -78,6 +78,7 @@ logging.basicConfig(level=logging.INFO)
 _logger = logging.getLogger(__name__)
 
 STATIC_DIR = Path(__file__).parent / "static"
+(STATIC_DIR / "presentations").mkdir(parents=True, exist_ok=True)
 
 def _rate_limit_key(request: Request) -> str:
     """Use unique key per request in test to avoid test rate-limit collisions."""
@@ -403,17 +404,27 @@ async def _stream_chat_events(message: str, agent):
         finally:
             ev_queue.put(None)
 
-    thread = threading.Thread(target=run)
+    thread = threading.Thread(target=run, daemon=True)
     thread.start()
 
+    idle_ticks = 0
     while True:
         try:
             ev = ev_queue.get_nowait()
         except queue.Empty:
-            await asyncio.sleep(0.02)
+            await asyncio.sleep(0.05)
+            idle_ticks += 1
+            # Send keepalive comment every ~2 seconds to prevent connection timeout
+            if idle_ticks % 40 == 0:
+                yield {"comment": "keepalive"}
             continue
         if ev is None:
             break
+        idle_ticks = 0
+        # Skip internal heartbeat events (used by parallel executor)
+        if ev.get("type") == "heartbeat":
+            yield {"comment": "keepalive"}
+            continue
         yield {"data": json.dumps(ev)}
 
 
@@ -669,6 +680,28 @@ async def generate_ppt_from_text(
         media_type="application/vnd.openxmlformats-officedocument.presentationml.presentation",
         headers={"Content-Disposition": f'attachment; filename="{filepath.name}"'},
     )
+
+
+@app.get("/download/{filename:path}")
+async def download_file(filename: str, user=Depends(get_current_user)):
+    """Download a generated file (presentations, reports) by filename."""
+    # Check static/presentations first
+    static_path = STATIC_DIR / "presentations" / Path(filename).name
+    if static_path.exists():
+        return FileResponse(
+            str(static_path),
+            media_type="application/vnd.openxmlformats-officedocument.presentationml.presentation",
+            headers={"Content-Disposition": f'attachment; filename="{static_path.name}"'},
+        )
+    # Check .cxo_data/presentations
+    data_path = Path(".cxo_data") / "presentations" / Path(filename).name
+    if data_path.exists():
+        return FileResponse(
+            str(data_path),
+            media_type="application/vnd.openxmlformats-officedocument.presentationml.presentation",
+            headers={"Content-Disposition": f'attachment; filename="{data_path.name}"'},
+        )
+    raise HTTPException(404, "File not found")
 
 
 # ── Seed & Reset ─────────────────────────────────────────────────

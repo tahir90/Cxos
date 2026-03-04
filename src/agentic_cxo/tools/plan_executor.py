@@ -14,6 +14,8 @@ from __future__ import annotations
 
 import concurrent.futures
 import logging
+import queue
+import threading
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Iterator
@@ -22,6 +24,17 @@ from agentic_cxo.config import settings
 from agentic_cxo.tools.planner import ExecutionPlan, PlanStep
 
 logger = logging.getLogger(__name__)
+
+# Type for streaming events — works with both list.append and queue.put
+EventSink = list | queue.Queue
+
+
+def _emit(sink: EventSink, event: dict[str, Any]) -> None:
+    """Push an event to either a list or a Queue."""
+    if isinstance(sink, queue.Queue):
+        sink.put(event)
+    else:
+        sink.append(event)
 
 
 @dataclass
@@ -359,32 +372,45 @@ class PlanExecutor:
         results: dict[int, StepResult],
         plan: ExecutionPlan,
     ) -> Iterator[dict[str, Any]]:
-        """Execute steps in a group, collecting events."""
-        step_events_map: dict[int, list[dict[str, Any]]] = {s.id: [] for s in steps}
+        """Execute steps in a group, yielding events in real-time via shared queue."""
+        event_queue: queue.Queue[dict[str, Any] | None] = queue.Queue()
+        active_count = threading.Semaphore(0)
+        done_count = [0]
+        lock = threading.Lock()
+        total = len(steps)
 
         def run_step(step: PlanStep) -> None:
             try:
                 for ev in self._execute_step(step, results, plan):
-                    step_events_map[step.id].append(ev)
+                    event_queue.put(ev)
             except Exception as e:
                 logger.exception("Parallel step %d failed: %s", step.id, e)
                 step.status = "failed"
                 results[step.id] = StepResult(step_id=step.id, success=False, error=str(e))
-                step_events_map[step.id].append({
+                event_queue.put({
                     "type": "step_complete", "step_id": step.id,
                     "success": False, "error": str(e)[:200],
                 })
+            finally:
+                with lock:
+                    done_count[0] += 1
+                    if done_count[0] >= total:
+                        event_queue.put(None)  # sentinel
 
         with concurrent.futures.ThreadPoolExecutor(max_workers=4) as pool:
-            futures = {pool.submit(run_step, s): s for s in steps}
-            for future in concurrent.futures.as_completed(futures):
-                exc = future.exception()
-                if exc:
-                    step = futures[future]
-                    logger.error("Thread for step %d raised: %s", step.id, exc)
+            for s in steps:
+                pool.submit(run_step, s)
 
-        for step in steps:
-            for ev in step_events_map[step.id]:
+            # Yield events as they arrive from threads
+            while True:
+                try:
+                    ev = event_queue.get(timeout=0.1)
+                except queue.Empty:
+                    # Yield heartbeat so SSE connection stays alive
+                    yield {"type": "heartbeat"}
+                    continue
+                if ev is None:
+                    break
                 yield ev
 
     def _execute_step(
@@ -404,10 +430,43 @@ class PlanExecutor:
         }
 
         try:
-            events_out: list[dict[str, Any]] = []
-            result = self._dispatch_step(step, results, plan, events_out=events_out)
-            for ev in events_out:
+            # Use a thread-safe queue so progress events stream in real-time
+            # instead of being batched until _dispatch_step returns.
+            ev_queue: queue.Queue[dict[str, Any] | None] = queue.Queue()
+            dispatch_result: list[StepResult] = []
+            dispatch_error: list[Exception] = []
+
+            def _run_dispatch() -> None:
+                try:
+                    r = self._dispatch_step(step, results, plan, events_out=ev_queue)
+                    dispatch_result.append(r)
+                except Exception as exc:
+                    dispatch_error.append(exc)
+                finally:
+                    ev_queue.put(None)  # sentinel
+
+            t = threading.Thread(target=_run_dispatch, daemon=True)
+            t.start()
+
+            # Drain events in real-time while dispatch runs
+            while True:
+                try:
+                    ev = ev_queue.get(timeout=0.15)
+                except queue.Empty:
+                    yield {"type": "heartbeat"}
+                    continue
+                if ev is None:
+                    break
                 yield ev
+
+            t.join(timeout=2)
+
+            if dispatch_error:
+                raise dispatch_error[0]
+
+            result = dispatch_result[0] if dispatch_result else StepResult(
+                step_id=step.id, success=False, error="Dispatch returned no result"
+            )
             step.status = "completed" if result.success else "failed"
             step.result = result
             results[step.id] = result
@@ -469,7 +528,7 @@ class PlanExecutor:
         step: PlanStep,
         results: dict[int, StepResult],
         plan: ExecutionPlan,
-        events_out: list[dict[str, Any]] | None = None,
+        events_out: EventSink | None = None,
     ) -> StepResult:
         events_out = events_out or []
         if step.action == "research" and step.tool == "researcher":
@@ -497,7 +556,7 @@ class PlanExecutor:
         self,
         step: PlanStep,
         plan: ExecutionPlan,
-        events_out: list[dict[str, Any]] | None = None,
+        events_out: EventSink | None = None,
     ) -> StepResult:
         events_out = events_out or []
         tool = self.tool_registry.get("researcher") if self.tool_registry else None
@@ -513,7 +572,7 @@ class PlanExecutor:
             try:
                 from agentic_cxo.agents.methodology import design_methodology
 
-                events_out.append({
+                _emit(events_out,{
                     "type": "step_progress",
                     "message": "Methodology Designer: defining research approach...",
                 })
@@ -561,7 +620,7 @@ class PlanExecutor:
                 try:
                     from agentic_cxo.agents.methodology import review_output
 
-                    events_out.append({"type": "step_progress", "message": "Review Agent: validating research..."})
+                    _emit(events_out,{"type": "step_progress", "message": "Review Agent: validating research..."})
                     review = review_output(topic, "Researcher", research_text, methodology_brief)
                     review_ok = review.get("pass", True)
                     if not review_ok and review.get("feedback_for_agent"):
@@ -573,7 +632,7 @@ class PlanExecutor:
                 try:
                     from agentic_cxo.agents.methodology import audit_methodology
 
-                    events_out.append({"type": "step_progress", "message": "Methodology Auditor: auditing research reasoning..."})
+                    _emit(events_out,{"type": "step_progress", "message": "Methodology Auditor: auditing research reasoning..."})
                     audit = audit_methodology(topic, "Researcher", research_text, methodology_brief)
                     audit_ok = audit.get("pass", True)
                     if not audit_ok and audit.get("feedback_for_agent"):
@@ -591,7 +650,7 @@ class PlanExecutor:
                     fb[:80] for fb in feedback_parts[:2]
                 ]
                 methodology_brief = must_cover
-                events_out.append({
+                _emit(events_out,{
                     "type": "step_progress",
                     "message": "Research quality feedback: deepening research...",
                 })
@@ -657,7 +716,7 @@ class PlanExecutor:
         step: PlanStep,
         plan: ExecutionPlan,
         results: dict[int, StepResult],
-        events_out: list[dict[str, Any]] | None = None,
+        events_out: EventSink | None = None,
     ) -> StepResult:
         """Consult a CXO agent with Methodology Designer, Review Agent, and Methodology Auditor.
 
@@ -682,7 +741,7 @@ class PlanExecutor:
             try:
                 from agentic_cxo.agents.methodology import design_methodology
 
-                events_out.append({
+                _emit(events_out,{
                     "type": "step_progress",
                     "message": f"Methodology Designer: defining approach for {agent_role}...",
                 })
@@ -733,7 +792,7 @@ class PlanExecutor:
         content = ""
         for round_idx in range(max_rounds):
             if round_idx > 0:
-                events_out.append({
+                _emit(events_out,{
                     "type": "step_progress",
                     "message": f"{agent_role}: amending based on feedback (round {round_idx + 1})...",
                 })
@@ -767,7 +826,7 @@ class PlanExecutor:
                 try:
                     from agentic_cxo.agents.methodology import review_output
 
-                    events_out.append({
+                    _emit(events_out,{
                         "type": "step_progress",
                         "message": f"Review Agent: validating {agent_role} output...",
                     })
@@ -782,7 +841,7 @@ class PlanExecutor:
                 try:
                     from agentic_cxo.agents.methodology import audit_methodology
 
-                    events_out.append({
+                    _emit(events_out,{
                         "type": "step_progress",
                         "message": f"Methodology Auditor: auditing {agent_role} reasoning...",
                     })
@@ -848,7 +907,7 @@ class PlanExecutor:
         step: PlanStep,
         results: dict[int, StepResult],
         plan: ExecutionPlan,
-        events_out: list[dict[str, Any]] | None = None,
+        events_out: EventSink | None = None,
     ) -> StepResult:
         events_out = events_out or []
         input_step_ids = step.params.get("input_steps", step.depends_on)
@@ -882,7 +941,7 @@ class PlanExecutor:
             try:
                 from agentic_cxo.agents.methodology import design_synthesis_methodology
 
-                events_out.append({
+                _emit(events_out,{
                     "type": "step_progress",
                     "message": "Methodology Designer: defining synthesis approach...",
                 })
@@ -913,7 +972,7 @@ class PlanExecutor:
         cd_result: StepResult | None,
         template: dict | None,
         methodology_brief: dict[str, Any] | None = None,
-        events_out: list[dict[str, Any]] | None = None,
+        events_out: EventSink | None = None,
     ) -> StepResult:
         events_out = events_out or []
         client = self._get_client()
@@ -960,7 +1019,7 @@ class PlanExecutor:
 
         for round_idx in range(max_rounds):
             if round_idx > 0:
-                events_out.append({
+                _emit(events_out,{
                     "type": "step_progress",
                     "message": f"Synthesis: amending outline based on feedback (round {round_idx + 1})...",
                 })
@@ -989,7 +1048,7 @@ class PlanExecutor:
                 try:
                     from agentic_cxo.agents.methodology import review_output
 
-                    events_out.append({
+                    _emit(events_out,{
                         "type": "step_progress",
                         "message": "Review Agent: validating synthesis output...",
                     })
@@ -1004,7 +1063,7 @@ class PlanExecutor:
                 try:
                     from agentic_cxo.agents.methodology import audit_methodology
 
-                    events_out.append({
+                    _emit(events_out,{
                         "type": "step_progress",
                         "message": "Methodology Auditor: auditing synthesis reasoning...",
                     })
@@ -1142,7 +1201,7 @@ class PlanExecutor:
         step: PlanStep,
         results: dict[int, StepResult],
         plan: ExecutionPlan,
-        events_out: list[dict[str, Any]] | None = None,
+        events_out: EventSink | None = None,
     ) -> StepResult:
         events_out = events_out or []
         outline = ""
@@ -1182,7 +1241,7 @@ class PlanExecutor:
             try:
                 from agentic_cxo.agents.methodology import design_document_methodology
 
-                events_out.append({
+                _emit(events_out,{
                     "type": "step_progress",
                     "message": "Methodology Designer: defining document generation approach...",
                 })
@@ -1196,7 +1255,7 @@ class PlanExecutor:
                 logger.debug("Document Methodology Designer skipped", exc_info=True)
 
         def progress_cb(msg: str) -> None:
-            events_out.append({"type": "step_progress", "message": msg})
+            _emit(events_out,{"type": "step_progress", "message": msg})
 
         for cycle in range(max_cycles):
             result = tool.execute(
@@ -1237,7 +1296,7 @@ class PlanExecutor:
                 passed = qa_result.get("pass", True)
 
                 if feedback:
-                    events_out.append({
+                    _emit(events_out,{
                         "type": "narration",
                         "message": feedback[:500] if len(feedback) > 500 else feedback,
                     })
@@ -1252,7 +1311,7 @@ class PlanExecutor:
                         try:
                             from agentic_cxo.agents.methodology import review_output
 
-                            events_out.append({
+                            _emit(events_out,{
                                 "type": "step_progress",
                                 "message": "Review Agent: validating document output...",
                             })
@@ -1268,7 +1327,7 @@ class PlanExecutor:
                         try:
                             from agentic_cxo.agents.methodology import audit_methodology
 
-                            events_out.append({
+                            _emit(events_out,{
                                 "type": "step_progress",
                                 "message": "Methodology Auditor: auditing document generation...",
                             })
@@ -1305,14 +1364,14 @@ class PlanExecutor:
                         revised = (resp.choices[0].message.content or "").strip()
                         if revised and len(revised) > 100:
                             outline = revised
-                            events_out.append({
+                            _emit(events_out,{
                                 "type": "narration",
                                 "message": "Applying quality feedback. Regenerating document...",
                             })
                             continue
 
                 if passed:
-                    events_out.append({
+                    _emit(events_out,{
                         "type": "narration",
                         "message": "The slides look great. Design is clean and professional. Copying to outputs.",
                     })
@@ -1346,12 +1405,12 @@ class PlanExecutor:
                     revised = (resp.choices[0].message.content or "").strip()
                     if revised and len(revised) > 100:
                         outline = revised
-                        events_out.append({
+                        _emit(events_out,{
                             "type": "narration",
                             "message": f"Applying fixes for {len(issues)} issue(s). Regenerating...",
                         })
             except PPQAError as e:
-                events_out.append({
+                _emit(events_out,{
                     "type": "narration",
                     "message": f"QA skipped (missing dependencies): {str(e)[:120]}. Output ready.",
                 })
@@ -1413,7 +1472,18 @@ class PlanExecutor:
         if not tool:
             return StepResult(step.id, False, error=f"Tool {tool_name} not found")
 
-        result = tool.execute(**step.params)
+        try:
+            result = tool.execute(**step.params)
+        except Exception as e:
+            logger.warning("Tool %s failed: %s", tool_name, e, exc_info=True)
+            # Graceful degradation: non-critical tools should not block the pipeline
+            return StepResult(
+                step_id=step.id,
+                success=False,
+                data={},
+                summary=f"{tool_name} encountered an error but pipeline continues.",
+                error=str(e)[:200],
+            )
         return StepResult(
             step_id=step.id,
             success=result.success,
