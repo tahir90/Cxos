@@ -479,9 +479,6 @@ class PlanExecutor:
             }
             if result.data.get("sources"):
                 event["sources"] = result.data["sources"][:8]
-            if result.data.get("url"):
-                event["url"] = result.data["url"]
-                event["document_type"] = result.data.get("document_type", "pptx")
             yield event
 
             if result.data.get("sources"):
