@@ -591,6 +591,24 @@ class CoFounderAgent:
             self.memory.add(user_msg)
 
             has_attach = bool(attachments)
+
+            # Detect short follow-up messages ("?", "status", "hello?", etc.)
+            # and provide a contextual response using conversation history
+            # instead of routing as a brand-new query.
+            stripped = message.strip().lower().rstrip("?!.")
+            is_short_followup = (
+                len(message.strip()) <= 20
+                and stripped in (
+                    "", "?", "status", "update", "hello", "hi", "hey",
+                    "what happened", "whats happening", "what's happening",
+                    "anything", "progress", "still working", "are you there",
+                    "you there", "stuck", "help", "continue",
+                )
+            )
+            if is_short_followup:
+                yield from self._handle_short_followup(message)
+                return
+
             route = self.router.route(message, has_attachment=has_attach)
 
             yield {"type": "status", "message": "Understanding your request..."}
@@ -611,6 +629,75 @@ class CoFounderAgent:
             yield {"type": "error", "message": str(e)[:200]}
         finally:
             yield {"type": "done"}
+
+    def _handle_short_followup(self, message: str) -> Iterator[dict[str, Any]]:
+        """Handle short/ambiguous follow-up messages by referencing conversation history."""
+        recent = self.memory.recent(6)
+        if not recent:
+            yield {"type": "message", "role": "agent",
+                   "content": "I'm here! How can I help you? Could you describe what you need?"}
+            self.memory.add(ChatMessage(
+                role=MessageRole.AGENT,
+                content="I'm here! How can I help you? Could you describe what you need?",
+            ))
+            return
+
+        # Build context from recent conversation
+        recent_summary = []
+        for m in recent:
+            prefix = "You" if m.role == MessageRole.USER else "Agent"
+            recent_summary.append(f"{prefix}: {m.content[:150]}")
+        context = "\n".join(recent_summary[-6:])
+
+        if self.use_llm and settings.llm.api_key:
+            try:
+                client = OpenAI(
+                    api_key=settings.llm.api_key,
+                    base_url=settings.llm.base_url or None,
+                )
+                resp = with_retry(
+                    lambda: client.chat.completions.create(
+                        model=settings.llm.model,
+                        temperature=0.3,
+                        max_tokens=300,
+                        messages=[
+                            {"role": "system", "content": (
+                                "You are an AI co-founder assistant. The user just sent a short "
+                                "follow-up message (like '?' or 'status'). Based on the recent "
+                                "conversation below, provide a brief, helpful status update or "
+                                "ask a clarifying question. Be concise (2-3 sentences max). "
+                                "If a task was recently completed, summarize what was done. "
+                                "If a task seems to be in progress, reassure the user."
+                            )},
+                            {"role": "user", "content": (
+                                f"Recent conversation:\n{context}\n\n"
+                                f"User's follow-up: \"{message}\"\n\n"
+                                "Respond helpfully based on the conversation context."
+                            )},
+                        ],
+                    )
+                )
+                reply = (resp.choices[0].message.content or "").strip()
+                if reply:
+                    yield {"type": "message", "role": "agent", "content": reply}
+                    self.memory.add(ChatMessage(role=MessageRole.AGENT, content=reply))
+                    return
+            except Exception:
+                logger.debug("Short followup LLM failed", exc_info=True)
+
+        # Fallback: summarize last agent message
+        last_agent = None
+        for m in reversed(recent):
+            if m.role == MessageRole.AGENT:
+                last_agent = m
+                break
+
+        if last_agent:
+            reply = f"I'm here! My last update was: {last_agent.content[:200]}... Is there anything else you'd like me to help with?"
+        else:
+            reply = "I'm here and ready to help! What would you like me to work on?"
+        yield {"type": "message", "role": "agent", "content": reply}
+        self.memory.add(ChatMessage(role=MessageRole.AGENT, content=reply))
 
     def _stream_planned_execution(
         self,
