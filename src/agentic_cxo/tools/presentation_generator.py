@@ -198,8 +198,18 @@ class PresentationGeneratorTool(BaseTool):
 
     def _copy_to_static(self, pptx_path: Path) -> str:
         import shutil
+        pptx_path = Path(pptx_path)
+        if not pptx_path.is_absolute():
+            pptx_path = pptx_path.resolve()
+        if not pptx_path.exists():
+            logger.warning("PPT file not found at %s", pptx_path)
+            return f"/download/{pptx_path.name}"
         # Use absolute path relative to this package's static directory
         api_static = Path(__file__).resolve().parent.parent / "api" / "static" / "presentations"
         api_static.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(str(pptx_path), str(api_static / pptx_path.name))
+        try:
+            shutil.copy2(str(pptx_path), str(api_static / pptx_path.name))
+        except Exception as e:
+            logger.warning("Failed to copy PPT to static: %s", e)
+            return f"/download/{pptx_path.name}"
         return f"/static/presentations/{pptx_path.name}"

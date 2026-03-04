@@ -57,7 +57,8 @@
     .step-item:last-child{border-bottom:none}
     .step-icon{width:18px;height:18px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:9px;flex-shrink:0;margin-top:2px}
     .step-icon.pending{background:#27272a;color:#71717a}
-    .step-icon.running{background:#6366f1/20;color:#818cf8;animation:pulse 1.5s infinite}
+    .step-icon.running{background:rgba(99,102,241,.2);color:#818cf8;animation:spin 1s linear infinite}
+    @keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
     .step-icon.done{background:rgba(34,197,94,.15);color:#22c55e}
     .step-icon.failed{background:rgba(239,68,68,.15);color:#ef4444}
 
@@ -67,7 +68,8 @@
     .source-dot{width:6px;height:6px;border-radius:50%;flex-shrink:0}
 
     /* Step Group */
-    .step-group{margin:4px 0;padding:8px 16px;background:#0f0f14;border-left:2px solid #6366f1;border-radius:0 8px 8px 0}
+    .step-group{margin:4px 0;padding:8px 16px;background:#0f0f14;border-left:2px solid #6366f1;border-radius:0 8px 8px 0;animation:groupPulse 2s ease-in-out infinite}
+    @keyframes groupPulse{0%,100%{border-left-color:#6366f1}50%{border-left-color:#818cf8}}
     .step-group-header{display:flex;align-items:center;gap:8px;cursor:pointer;padding:4px 0}
     .step-group-header .label{font-size:12px;font-weight:600;color:#a1a1aa}
     .step-group-header .badge{font-size:10px;background:#27272a;color:#71717a;padding:1px 6px;border-radius:10px}
@@ -514,9 +516,12 @@ function _addSourceCards(sources){
   scrollBottom();
 }
 
+const _seenDocUrls=new Set();
 function _addDocumentCard(ev){
   const area=document.getElementById('chat-area');
   const rawUrl=ev.url||'';
+  if(_seenDocUrls.has(rawUrl))return;
+  _seenDocUrls.add(rawUrl);
   const title=ev.title||'Document';
   const slides=ev.slide_count||ev.slides_count||0;
   const type=(ev.document_type||'pptx').toUpperCase();
@@ -591,7 +596,7 @@ async function sendMsg(){
     if(!res.body){hideTyping();addMessage('system','Stream not available');refreshSidebar();return;}
     const reader=res.body.getReader();
     const dec=new TextDecoder();
-    let buf='';let lastMsgRole=null;let currentGroup='';let groupCompleted=0;let allSources=[];
+    let buf='';let lastMsgRole=null;let currentGroup='';let groupCompleted=0;let allSources=[];_seenDocUrls.clear();
     while(true){
       const {done,value}=await reader.read();
       if(done)break;
@@ -607,8 +612,8 @@ async function sendMsg(){
 
           /* ── New Plan Events ── */
           if(ev.type==='plan_created'){
-            hideTyping();
             _createPlanUI(ev);
+            updateTypingStatus('Executing plan...');
           }
           else if(ev.type==='narration'){
             _addNarration(ev.message);
@@ -633,16 +638,18 @@ async function sendMsg(){
               _addGroupStepActivity(currentGroup,(ev.success?'\u2713 ':'\u2717 ')+(ev.summary||'').slice(0,120),ev.success?'\u2713':'\u2717');
             }
             if(ev.sources){allSources.push(...ev.sources);}
-            if(ev.url){_addDocumentCard(ev);}
           }
           else if(ev.type==='step_group_complete'){
+            /* Sources already collected from step_complete; render only new ones */
             if(allSources.length>_sourceCount){
               _addSourceCards(allSources.slice(_sourceCount));
               _sourceCount=allSources.length;
             }
           }
           else if(ev.type==='source_found'){
-            allSources.push({title:ev.title,url:ev.url});
+            /* Deduplicate: only add if URL not already in allSources */
+            const exists=allSources.some(s=>s.url===ev.url);
+            if(!exists)allSources.push({title:ev.title,url:ev.url});
           }
           else if(ev.type==='agent_consulted'){
             addAgentActivity('\u{1F464} '+ev.agent+': '+(ev.summary||'').slice(0,100),'\u{1F464}');
@@ -651,6 +658,7 @@ async function sendMsg(){
             _addDocumentCard(ev);
           }
           else if(ev.type==='plan_complete'){
+            /* Only render sources that haven't been rendered yet */
             if(allSources.length>_sourceCount){
               _addSourceCards(allSources.slice(_sourceCount));
               _sourceCount=allSources.length;

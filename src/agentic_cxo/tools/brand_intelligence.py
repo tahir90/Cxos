@@ -365,7 +365,28 @@ class BrandIntelligenceTool(BaseTool):
             brand = extract_brand(url)
             self._store.store(brand)
         except Exception as e:
-            return ToolResult(self.name, False, error=f"Extraction failed: {e}")
+            # Graceful degradation: create a minimal brand profile from the domain
+            # so downstream tools (PPT generator) still have something to work with
+            from urllib.parse import urlparse
+            parsed = urlparse(url)
+            domain = parsed.netloc.replace("www.", "") or url.replace("https://", "").replace("http://", "").split("/")[0]
+            brand = BrandProfile(
+                domain=domain,
+                company_name=domain.split(".")[0].upper(),
+                extracted_at=datetime.now(timezone.utc).isoformat(),
+            )
+            self._store.store(brand)
+            return ToolResult(
+                self.name, True,
+                data=brand.to_dict(),
+                summary=(
+                    f"## Brand Intelligence: {brand.company_name}\n\n"
+                    f"Could not reach {url} for full brand extraction ({str(e)[:100]}). "
+                    f"Created a minimal brand profile for **{brand.company_name}** ({domain}). "
+                    f"You can update brand colors and fonts manually later.\n\n"
+                    f"*Pipeline continuing with default professional styling.*"
+                ),
+            )
 
         report = f"## Brand Intelligence: {brand.company_name or brand.domain}\n\n"
 

@@ -21,7 +21,7 @@ from pptx.util import Inches, Pt, Emu
 
 logger = logging.getLogger(__name__)
 
-DATA_DIR = Path(".cxo_data") / "presentations"
+DATA_DIR = Path(".cxo_data").resolve() / "presentations"
 
 
 def _hex(h: str) -> RGBColor:
