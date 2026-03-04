@@ -55,11 +55,29 @@ def _parse_sections(content: str) -> list[dict[str, Any]]:
 
 def _bullets(text: str) -> list[str]:
     out: list[str] = []
+    parent_bullet: str = ""
     for line in text.split("\n"):
-        line = line.strip()
-        m = re.match(r"^[-*•]\s+(.+)", line) or re.match(r"^\d+[.)]\s+(.+)", line)
+        stripped = line.strip()
+        # Detect indentation level for nested bullets
+        indent = len(line) - len(line.lstrip())
+        # Match top-level bullets: - item, * item, bullet item, 1. item, 1) item
+        m = re.match(r"^[-*•]\s+(.+)", stripped) or re.match(r"^\d+[.)]\s+(.+)", stripped)
         if m:
-            out.append(_clean(m.group(1).strip()))
+            content = _clean(m.group(1).strip())
+            if indent >= 4 and parent_bullet:
+                # Nested bullet — merge with parent for richer context
+                out.append(f"{parent_bullet}: {content}")
+            else:
+                parent_bullet = content
+                out.append(content)
+        elif stripped.startswith(">"):
+            # Blockquote lines — include as content
+            quote_text = _clean(stripped.lstrip("> ").strip())
+            if quote_text:
+                out.append(quote_text)
+        elif re.match(r"^[A-Z].*:\s+.+", stripped):
+            # "Label: value" lines (common in research output)
+            out.append(_clean(stripped))
     return out
 
 
@@ -73,6 +91,7 @@ def _clean(t: str) -> str:
 
 def _slide_type(title: str, bullets: list[str], body: str, idx: int, total: int) -> str:
     t = title.lower()
+    combined = (t + " " + " ".join(bullets).lower() + " " + body.lower())
     if any(k in t for k in ["agenda", "table of contents", "outline"]):
         return "agenda"
     if any(k in t for k in ["executive summary", "overview", "introduction"]):
@@ -85,6 +104,24 @@ def _slide_type(title: str, bullets: list[str], body: str, idx: int, total: int)
         return "perspectives"
     if any(k in t for k in ["quote", "testimonial"]):
         return "quote"
+    # Detect warning/risk slides
+    if any(k in t for k in ["warning", "critical", "alert", "caution", "urgent"]):
+        return "warning_callout"
+    # Detect comparison slides
+    if any(k in t for k in ["compare", "comparison", "vs", "versus", "before", "after"]):
+        return "comparison_table"
+    # Detect benefit/risk slides
+    if any(k in t for k in ["benefit", "risk", "advantage", "disadvantage", "pro", "con",
+                             "opportunity", "threat", "strength", "weakness"]):
+        return "benefits_risks"
+    # Detect data-heavy slides by checking for numbers in bullets
+    if any(k in t for k in ["statistic", "data", "number", "growth", "decline",
+                             "metric", "performance", "market size", "adoption"]):
+        return "data_metrics"
+    # Check bullet content for numeric data patterns
+    numeric_bullets = sum(1 for b in bullets if re.search(r'\d+[%$xX]|\$\d|billion|million|trillion', b))
+    if numeric_bullets >= 2:
+        return "data_metrics"
     if len(bullets) > 8:
         return "two_column"
     return "content"
@@ -480,7 +517,7 @@ def generate_pptx(
                 _rect(s, 12.5, 1.5, 0.5, 5.0, OFFWHITE)
 
             if bullets:
-                _bullet_block(s, 0.6, 1.5, 11.5, 5.5, bullets, 17, TEXT_BODY, b_font, 13, 7)
+                _bullet_block(s, 0.6, 1.5, 11.5, 5.5, bullets, 17, TEXT_BODY, b_font, 13, 8)
             elif body:
                 lines = _clean(body).split("\n")[:15]
                 _textbox(s, 0.6, 1.5, 11.5, 5.5, "\n".join(lines), 16, TEXT_BODY, font=b_font, line_spacing=26)

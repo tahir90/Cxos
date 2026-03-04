@@ -239,13 +239,13 @@ class ResearcherTool(BaseTool):
             progress_callback(f"Found {len(all_results)} results. Fetching top source pages...")
 
         top_urls = []
-        for r in all_results[:6]:
+        for r in all_results[:10]:
             url = r.get("source", "")
             if url and url.startswith("http") and url not in top_urls:
                 top_urls.append(url)
 
         page_contents: dict[str, str] = {}
-        for url in top_urls[:4]:
+        for url in top_urls[:6]:
             if progress_callback:
                 domain = re.sub(r"https?://(?:www\.)?", "", url).split("/")[0]
                 progress_callback(f"Reading: {domain}...")
@@ -293,6 +293,9 @@ class ResearcherTool(BaseTool):
             topic,
             f"{topic} {CURRENT_YEAR}",
             f"{topic} overview analysis",
+            f"{topic} statistics data numbers {CURRENT_YEAR}",
+            f"{topic} case study real-world example",
+            f"{topic} expert opinion analysis",
         ]
         if focus:
             base.append(f"{topic} {focus}")
@@ -300,33 +303,43 @@ class ResearcherTool(BaseTool):
         focus_lower = (focus or "").lower()
         if "market" in focus_lower:
             base.extend([
-                f"{topic} market size {CURRENT_YEAR}",
-                f"{topic} industry trends growth",
-                f"{topic} market analysis report",
+                f"{topic} market size revenue {CURRENT_YEAR}",
+                f"{topic} industry trends growth CAGR forecast",
+                f"{topic} market analysis report Gartner McKinsey",
+                f"{topic} market share leaders breakdown",
+                f"{topic} investment funding deals {CURRENT_YEAR}",
             ])
         elif "competitor" in focus_lower:
             base.extend([
-                f"{topic} competitors comparison",
-                f"{topic} competitive landscape {CURRENT_YEAR}",
-                f"{topic} market leaders",
+                f"{topic} competitors comparison strengths weaknesses",
+                f"{topic} competitive landscape {CURRENT_YEAR} market share",
+                f"{topic} market leaders revenue comparison",
+                f"{topic} competitive advantage differentiation strategy",
+                f"{topic} emerging competitors disruptors startups",
             ])
         elif "regulatory" in focus_lower:
             base.extend([
-                f"{topic} regulation compliance {CURRENT_YEAR}",
-                f"{topic} legal requirements",
+                f"{topic} regulation compliance {CURRENT_YEAR} new rules",
+                f"{topic} legal requirements penalties enforcement",
+                f"{topic} regulatory impact assessment",
+                f"{topic} compliance framework standards",
             ])
         elif "technology" in focus_lower:
             base.extend([
-                f"{topic} technology solutions {CURRENT_YEAR}",
-                f"{topic} technical architecture",
+                f"{topic} technology solutions {CURRENT_YEAR} benchmarks",
+                f"{topic} technical architecture implementation",
+                f"{topic} technology adoption rate statistics",
+                f"{topic} technology ROI case study",
             ])
         else:
             base.extend([
-                f"{topic} best practices",
-                f"{topic} key statistics data",
-                f"{topic} challenges opportunities",
+                f"{topic} best practices lessons learned",
+                f"{topic} key statistics data quantified",
+                f"{topic} challenges opportunities risks",
+                f"{topic} research study findings peer-reviewed",
+                f"{topic} industry report forecast {CURRENT_YEAR}",
             ])
-        return base[:8]
+        return base[:12]
 
     def _synthesize_report(
         self,
@@ -339,7 +352,7 @@ class ResearcherTool(BaseTool):
         sources: list[dict[str, str]] = []
         seen_urls: set[str] = set()
 
-        for r in results[:30]:
+        for r in results[:40]:
             snip = r.get("snippet", "").strip()
             if snip and len(snip) > 30:
                 findings.append(snip)
@@ -351,7 +364,7 @@ class ResearcherTool(BaseTool):
         page_snippets: list[str] = []
         for url, content in page_contents.items():
             if len(content) > 100:
-                page_snippets.append(content[:1500])
+                page_snippets.append(content[:2000])
 
         from agentic_cxo.infrastructure.llm_required import require_llm
 
@@ -375,38 +388,72 @@ class ResearcherTool(BaseTool):
                 base_url=settings.llm.base_url,
             )
 
-            findings_text = "\n".join(f"- {f[:300]}" for f in findings[:20])
-            pages_text = "\n\n---\n\n".join(page_contents[:4])
-            sources_text = "\n".join(f"- {s['title']}: {s['url']}" for s in sources[:12])
+            findings_text = "\n".join(f"- {f[:400]}" for f in findings[:30])
+            pages_text = "\n\n---\n\n".join(page_contents[:6])
+            sources_text = "\n".join(f"- [{s['title']}]({s['url']})" for s in sources[:15])
 
             prompt = (
-                f"You are a senior research analyst. Synthesize these raw search results "
-                f"into a comprehensive, insight-rich research report on: {topic}\n"
-                f"{'Focus: ' + focus if focus else ''}\n\n"
+                f"Synthesize these raw search results into an executive-grade research "
+                f"briefing on: **{topic}**\n"
+                f"{'Focus area: ' + focus if focus else ''}\n\n"
                 f"RAW FINDINGS:\n{findings_text}\n\n"
-                f"PAGE CONTENT:\n{pages_text[:4000]}\n\n"
+                f"FULL PAGE CONTENT:\n{pages_text[:6000]}\n\n"
                 f"SOURCES:\n{sources_text}\n\n"
-                "Create a markdown research report with these sections:\n"
-                "1. Executive Summary (2-3 sentences with key insight)\n"
-                "2. Key Findings (6-10 specific, data-backed bullets)\n"
-                "3. Market/Industry Context (if relevant)\n"
-                "4. Opportunities & Challenges\n"
-                "5. Recommendations\n"
-                "6. Sources\n\n"
-                "RULES:\n"
-                "- Include SPECIFIC numbers, statistics, and data points\n"
-                "- Every finding should be substantive, not generic\n"
-                "- Cite sources where possible\n"
-                "- Be thorough but concise"
+                "REQUIRED REPORT STRUCTURE (use markdown):\n\n"
+                "## Executive Summary\n"
+                "3-4 sentences. Lead with the single most important insight a C-suite "
+                "executive needs to know. Include at least one specific number.\n\n"
+                "## Critical Data Points\n"
+                "A table or bullet list of the 5-8 most important quantified facts. "
+                "Each MUST include a specific number, percentage, dollar amount, or date. "
+                "Cite the source for each. If the data contains conflicting numbers, note the range. "
+                "Format: `[Metric]: [Value] — [Source]`\n\n"
+                "## Key Findings\n"
+                "8-12 substantive bullets. Each finding must be:\n"
+                "- Specific (named companies, named studies, real numbers)\n"
+                "- Non-obvious (skip anything a reader could guess without research)\n"
+                "- Source-attributed (cite which source supports the claim)\n\n"
+                "## Strategic Implications\n"
+                "What do these findings MEAN for decision-makers? Include:\n"
+                "- 2-3 non-obvious implications that require connecting dots across sources\n"
+                "- At least 1 contrarian or counterintuitive insight\n"
+                "- Specific risks of inaction with quantified potential impact\n\n"
+                "## Competitive & Market Context\n"
+                "Name specific players. Quantify market positions where possible. "
+                "Identify who is winning, losing, and why.\n\n"
+                "## Opportunities & Risks\n"
+                "Split into two sub-sections. Each opportunity/risk must be specific and "
+                "actionable, not generic platitudes. Quantify where possible.\n\n"
+                "## Recommendations\n"
+                "3-5 specific, prioritized actions. Each should state WHO should do WHAT by WHEN "
+                "and the expected impact.\n\n"
+                "## Sources\n"
+                "List all sources used with URLs.\n\n"
+                "QUALITY RULES:\n"
+                "- NEVER write generic filler like 'this is a rapidly evolving space' or "
+                "'further research is needed.' Every sentence must carry specific information.\n"
+                "- Every major claim MUST cite its source in parentheses.\n"
+                "- Prefer named studies (e.g., 'McKinsey 2024 Global Survey') over vague "
+                "references ('industry reports suggest').\n"
+                "- When data conflicts between sources, present both figures and note the discrepancy.\n"
+                "- Write for a time-pressed executive: lead with insight, follow with evidence.\n"
+                "- If the data doesn't support a section, say so explicitly rather than padding with generalities."
             )
 
             resp = with_retry(
                 lambda: client.chat.completions.create(
                     model=settings.llm.model,
-                    temperature=0.2,
-                    max_tokens=3000,
+                    temperature=0.15,
+                    max_tokens=4500,
                     messages=[
-                        {"role": "system", "content": "You are a world-class research analyst producing investment-grade reports."},
+                        {"role": "system", "content": (
+                            "You are a senior analyst at a top-tier strategy firm. You produce "
+                            "research that rivals McKinsey and Goldman Sachs briefings. Your reports "
+                            "are known for: (1) specific numbers, not vague claims, (2) named sources "
+                            "for every assertion, (3) non-obvious insights that connect dots others miss, "
+                            "(4) clear strategic implications, not just facts. You never produce generic "
+                            "content — every sentence must earn its place with specific, sourced information."
+                        )},
                         {"role": "user", "content": prompt},
                     ],
                 )
@@ -432,26 +479,53 @@ class ResearcherTool(BaseTool):
             base_url=settings.llm.base_url,
         )
         prompt = (
-            f"You are a senior research analyst. Create a comprehensive research report on: {topic}\n"
+            f"Create an executive-grade research briefing on: **{topic}**\n"
             f"{'Focus area: ' + focus if focus else ''}\n\n"
-            "Create a markdown research report with these sections:\n"
-            "1. Executive Summary (2-3 sentences with key insight)\n"
-            "2. Key Findings (6-10 specific, data-backed bullets)\n"
-            "3. Market/Industry Context\n"
-            "4. Opportunities & Challenges\n"
-            "5. Recommendations\n\n"
-            "RULES:\n"
-            "- Use your knowledge to include realistic numbers and statistics\n"
-            "- Be substantive and specific, not generic\n"
-            f"- Reference current year {CURRENT_YEAR} where relevant"
+            "NOTE: No live search results are available. You must draw on your training "
+            "knowledge to produce a substantive analysis. Be explicit about what you know "
+            "with high confidence vs. what may have changed since your training data.\n\n"
+            "REQUIRED STRUCTURE (markdown):\n\n"
+            "## Executive Summary\n"
+            "3-4 sentences. Lead with the most important strategic insight. "
+            "Include specific numbers from your knowledge base.\n\n"
+            "## Critical Data Points\n"
+            "5-8 specific, quantified facts. For each, include:\n"
+            "- The specific number/statistic\n"
+            "- The source (e.g., 'Gartner 2024', 'Company 10-K filing')\n"
+            "- Note if the figure may be outdated with '[as of YYYY]'\n\n"
+            "## Key Findings & Analysis\n"
+            "8-10 substantive bullets. Each must name specific companies, studies, "
+            "or frameworks. No generic observations.\n\n"
+            "## Strategic Implications\n"
+            "3-4 non-obvious implications for decision-makers. Include at least one "
+            "contrarian perspective that challenges conventional wisdom.\n\n"
+            "## Competitive Landscape\n"
+            "Name the top 5+ players with specific differentiators. Quantify market "
+            "positions where known.\n\n"
+            "## Opportunities & Risks\n"
+            "Specific and actionable. Quantify potential impact where possible.\n\n"
+            "## Recommended Actions\n"
+            "3-5 prioritized, specific actions with expected impact.\n\n"
+            "QUALITY RULES:\n"
+            "- Every claim must cite a specific source from your knowledge\n"
+            "- Never write generic filler — every sentence must carry specific information\n"
+            "- Flag any data points that are likely outdated with the year of the source\n"
+            f"- Current year is {CURRENT_YEAR}; note what may have changed since your training data\n"
+            "- Write for a time-pressed C-suite executive"
         )
         resp = with_retry(
             lambda: client.chat.completions.create(
                 model=settings.llm.model,
                 temperature=0.2,
-                max_tokens=3000,
+                max_tokens=4000,
                 messages=[
-                    {"role": "system", "content": "You are a world-class research analyst."},
+                    {"role": "system", "content": (
+                        "You are a senior analyst at a top-tier strategy firm. Even without live "
+                        "search data, you produce substantive analysis using your deep knowledge "
+                        "of industries, markets, and technology. You always cite specific sources, "
+                        "name specific companies and studies, and flag when information may be outdated. "
+                        "You never produce generic filler content."
+                    )},
                     {"role": "user", "content": prompt},
                 ],
             )
@@ -466,101 +540,129 @@ class ResearcherTool(BaseTool):
         findings: list[str],
         sources: list[dict[str, str]],
     ) -> dict[str, Any]:
+        """Build a structured report directly from findings when LLM is unavailable.
+
+        Organizes raw findings into a coherent structure with deduplication,
+        relevance sorting, and meaningful section headers.
+        """
+        # Deduplicate and rank findings by length (longer = more substantive)
+        seen: set[str] = set()
+        unique_findings: list[str] = []
+        for f in findings:
+            key = f[:80].lower().strip()
+            if key not in seen:
+                seen.add(key)
+                clean = f[:400].replace("\n", " ").strip()
+                if clean and len(clean) > 40:
+                    unique_findings.append(clean)
+        unique_findings.sort(key=len, reverse=True)
+
+        # Separate findings that contain numbers/stats from qualitative ones
+        data_findings: list[str] = []
+        qualitative_findings: list[str] = []
+        for f in unique_findings:
+            if any(c.isdigit() for c in f) and any(
+                kw in f.lower() for kw in ["%", "$", "billion", "million", "growth", "revenue", "market"]
+            ):
+                data_findings.append(f)
+            else:
+                qualitative_findings.append(f)
+
         lines = [
-            f"## Research Report: {topic}",
+            f"## Research Briefing: {topic}",
             "",
-            f"*{len(findings)} findings from {len(sources)} sources*",
+            f"*Compiled from {len(unique_findings)} unique findings across {len(sources)} sources "
+            f"({CURRENT_YEAR})*",
             "",
             "### Executive Summary",
             "",
-            f"This report presents research findings on {topic}. "
-            f"Analysis covers {'the ' + focus + ' landscape' if focus else 'key aspects'} "
-            f"based on {len(sources)} sources gathered in {CURRENT_YEAR}.",
-            "",
-            "### Key Findings",
-            "",
         ]
-        for i, f in enumerate(findings[:12], 1):
-            clean = f[:300].replace("\n", " ").strip()
-            if clean:
-                lines.append(f"{i}. {clean}")
+
+        # Use the top 2-3 most substantive findings as summary
+        summary_items = unique_findings[:3]
+        if summary_items:
+            lines.append(
+                f"Research across {len(sources)} sources reveals key developments in {topic}. "
+                + summary_items[0][:250]
+            )
+        else:
+            lines.append(f"Research on {topic} aggregated from {len(sources)} sources.")
         lines.append("")
 
-        if len(findings) > 12:
-            lines.append("### Additional Insights")
+        if data_findings:
+            lines.append("### Critical Data Points")
             lines.append("")
-            for f in findings[12:20]:
-                clean = f[:200].replace("\n", " ").strip()
-                if clean:
-                    lines.append(f"- {clean}")
+            for f in data_findings[:8]:
+                lines.append(f"- {f}")
             lines.append("")
 
-        lines.append("### Opportunities & Challenges")
+        lines.append("### Key Findings")
         lines.append("")
-        lines.append(f"- Further analysis of {topic} reveals both growth opportunities and implementation challenges")
-        lines.append(f"- Staying current with {CURRENT_YEAR} trends is critical for competitive positioning")
+        primary = qualitative_findings if data_findings else unique_findings
+        for i, f in enumerate(primary[:12], 1):
+            lines.append(f"{i}. {f}")
         lines.append("")
+
+        if len(unique_findings) > 12:
+            lines.append("### Additional Evidence")
+            lines.append("")
+            for f in unique_findings[12:20]:
+                lines.append(f"- {f}")
+            lines.append("")
 
         lines.append("### Sources")
         lines.append("")
-        for s in sources[:12]:
+        for s in sources[:15]:
             title = s.get("title", "Source")
             url = s.get("url", "")
             lines.append(f"- [{title}]({url})")
 
         return {
-            "findings": findings,
+            "findings": unique_findings,
             "sources": sources,
             "summary": "\n".join(lines),
         }
 
     def _fallback_outline(self, topic: str) -> dict[str, Any]:
+        """Generate a structured research framework when both search and LLM are unavailable.
+
+        Instead of generic boilerplate, produces a research framework with specific
+        investigative questions that guide the user toward actionable next steps.
+        """
         t = topic[:80]
         findings = [
-            f"Introduction to {t}",
-            "Key concepts and definitions",
-            "Current landscape and market context",
-            "Major players and stakeholders",
-            "Technology and innovation trends",
-            f"Applications and use cases for {t}",
-            "Benefits and positive impacts",
-            "Challenges and risk factors",
-            "Regulatory and compliance considerations",
-            "Future outlook and predictions",
-            "Strategic recommendations",
-            "Summary and next steps",
+            f"Research target identified: {t}",
+            "No live search results or LLM synthesis available for this query",
+            "Manual research recommended using the framework below",
         ]
         summary = (
-            f"## {t}\n\n"
-            "- Definition, scope, and relevance\n"
-            "- Historical context and evolution\n\n"
-            "## Market Landscape\n\n"
-            "- Current market size and growth trajectory\n"
-            "- Key players and competitive dynamics\n"
-            "- Regional and segment variations\n\n"
-            "## Key Concepts & Technology\n\n"
-            "- Core principles and how it works\n"
-            "- Technical architecture and components\n"
-            "- Innovation trends and emerging approaches\n\n"
-            "## Applications & Use Cases\n\n"
-            "- Primary use cases and implementations\n"
-            "- Industry-specific applications\n"
-            "- Case studies and success stories\n\n"
-            "## Benefits & Opportunities\n\n"
-            "- Quantified benefits and ROI potential\n"
-            "- Competitive advantages\n"
-            "- Growth opportunities\n\n"
-            "## Challenges & Risks\n\n"
-            "- Implementation challenges\n"
-            "- Risk factors and mitigation strategies\n"
-            "- Regulatory and compliance considerations\n\n"
-            "## Future Outlook\n\n"
-            f"- Predictions for {CURRENT_YEAR} and beyond\n"
-            "- Emerging trends to watch\n"
-            "- Strategic recommendations\n\n"
-            "## Summary & Recommendations\n\n"
-            "- Key takeaways\n"
-            "- Recommended next steps\n"
-            "- Action items"
+            f"## Research Framework: {t}\n\n"
+            f"*Note: Live search and LLM synthesis were unavailable. This framework "
+            f"provides structured research questions to investigate manually.*\n\n"
+            "## Quantitative Questions to Investigate\n\n"
+            f"- What is the total addressable market (TAM) for {t}? What are the latest "
+            "estimates from Gartner, IDC, or McKinsey?\n"
+            f"- What is the year-over-year growth rate and projected CAGR through {CURRENT_YEAR + 3}?\n"
+            f"- Who are the top 5 players by revenue/market share in {t}?\n"
+            "- What is the average deal size, customer acquisition cost, or unit economics?\n"
+            "- What are the key financial metrics (margins, growth rates, churn) for leading companies?\n\n"
+            "## Strategic Questions to Investigate\n\n"
+            f"- What structural shifts are disrupting {t} right now?\n"
+            "- Which incumbents are most vulnerable and why?\n"
+            "- What are the barriers to entry and how are they changing?\n"
+            "- Where is venture capital flowing? What do recent funding rounds signal?\n"
+            "- What regulatory changes could reshape the competitive landscape?\n\n"
+            "## Recommended Research Sources\n\n"
+            "- **Market data**: Gartner, IDC, Statista, PitchBook, CB Insights\n"
+            "- **Company filings**: SEC EDGAR (10-K, 10-Q), investor presentations\n"
+            "- **Industry analysis**: McKinsey Global Institute, BCG Henderson Institute\n"
+            "- **News & trends**: TechCrunch, The Information, industry-specific trade publications\n"
+            "- **Academic research**: Google Scholar, SSRN, NBER working papers\n\n"
+            "## Suggested Next Steps\n\n"
+            f"1. Re-run this research query when search APIs are available\n"
+            f"2. Search directly for: `{t} market size {CURRENT_YEAR} report`\n"
+            f"3. Search for: `{t} competitive landscape analysis`\n"
+            f"4. Check recent earnings calls from public companies in this space\n"
+            f"5. Review latest VC funding rounds on Crunchbase/PitchBook"
         )
         return {"findings": findings, "summary": summary}

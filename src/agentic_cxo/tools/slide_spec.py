@@ -16,17 +16,58 @@ from agentic_cxo.config import settings
 
 logger = logging.getLogger(__name__)
 
-SLIDE_SPEC_PROMPT = """You are an expert presentation designer. Analyze this research outline and produce a slide-by-slide specification.
+SLIDE_SPEC_PROMPT = """You are an expert McKinsey-level presentation designer. Analyze this research outline and produce a rich, visually varied slide-by-slide specification.
 
-RULES:
-1. For each section (##), decide: layout, visual_treatment, icon, and extract any metrics or table data.
-2. layout: title | agenda | content_bullets | two_column | comparison_table | data_metrics | quote | benefits_risks | warning_callout | recommendations | sources | closing
-3. visual_treatment: none | emphasis | warning_box | colored_boxes | metric_highlight
-4. icon: use unicode/emoji that fits the content (e.g. ✓ for benefits, ✗ for risks, ⚠ for warnings, 📊 for data)
-5. For comparison_table: extract "before" and "after" or "column_a" and "column_b" as lists
-6. For data_metrics: extract numbers with labels, e.g. [{"value":"77%","label":"workers use AI"}]
-7. For benefits_risks: split bullets into benefits (✓) and risks (✗)
-8. NEVER use "create", "powerpoint", "presentation" as a slide title — use the actual topic/concept
+YOUR GOAL: Transform raw research into a compelling visual narrative. Do NOT just copy bullet points — enrich, restructure, and extract data into the best visual format.
+
+LAYOUT SELECTION RULES (follow strictly):
+1. data_metrics — USE when content contains ANY percentages, dollar amounts, growth figures, market sizes, adoption rates, or quantitative statistics. Extract ALL numbers into metrics format. This is your #1 priority layout.
+2. comparison_table — USE when content discusses before/after, old vs new, pros/cons, option A vs option B, or any side-by-side comparison. Extract into headers + rows.
+3. benefits_risks — USE when content discusses advantages vs disadvantages, opportunities vs threats, strengths vs weaknesses. Split into two clear lists.
+4. warning_callout — USE when content mentions critical risks, urgent notices, compliance issues, security threats, or anything requiring immediate attention.
+5. recommendations — USE for action items, next steps, strategic priorities, implementation steps.
+6. quote — USE when there is a notable quote, expert opinion, or key insight that deserves emphasis.
+7. two_column — USE when there are 8+ bullets that can be logically grouped into two themes.
+8. content_bullets — USE ONLY as a last resort when no other layout fits. NEVER use content_bullets for more than 40% of all slides.
+
+LAYOUT TYPES: title | agenda | content_bullets | two_column | comparison_table | data_metrics | quote | benefits_risks | warning_callout | recommendations | sources | closing
+
+VISUAL TREATMENT: none | emphasis | warning_box | colored_boxes | metric_highlight
+- Use "metric_highlight" with data_metrics
+- Use "colored_boxes" with comparison_table or benefits_risks
+- Use "warning_box" with warning_callout
+- Use "emphasis" for executive summary or key insights
+
+ICON: use unicode that fits (e.g. ✓ benefits, ✗ risks, ⚠ warnings, 📊 data, 🎯 strategy, 💡 insights, 🔄 change, 📈 growth, 💰 financial)
+
+DATA EXTRACTION (critical):
+- For data_metrics: extract EVERY number, percentage, dollar amount, or statistic. Format: [{{"value":"77%","label":"workers use AI tools"}}]
+- For comparison_table: extract into {{"headers": ["Before","After"], "rows": [["Manual process","Automated"],["3 days","2 hours"]]}}
+- For benefits_risks: split ALL points into "benefits" and "risks" arrays
+- For warning_callout: put the most critical warning in "warning_text", supporting points in "bullets"
+
+CONTENT ENRICHMENT:
+- Rewrite vague bullets like "Key findings" into specific, substantive points
+- If a section says "Data insights", extract the actual data and use data_metrics layout
+- Break long paragraphs into structured bullets with clear takeaways
+- Every bullet should convey a specific fact, insight, or recommendation
+
+TITLE RULES:
+- NEVER use "create", "powerpoint", "presentation", "slide", "deck" in a section_title
+- Titles should be concise topic descriptors (e.g. "Market Impact Analysis", "AI Adoption Trends")
+- Clean up any prompt-like language from titles
+
+EXAMPLE — BAD (do not do this):
+  {{"section_title": "Key Statistics", "layout": "content_bullets", "bullets": ["77% of workers use AI", "Market grew 40%", "$500B market size"]}}
+
+EXAMPLE — GOOD (do this instead):
+  {{"section_title": "AI Adoption at Scale", "layout": "data_metrics", "visual_treatment": "metric_highlight", "icon": "📊", "metrics": [{{"value":"77%","label":"Workers actively using AI tools"}},{{"value":"40%","label":"Year-over-year market growth"}},{{"value":"$500B","label":"Total addressable market size"}}], "bullets": ["Enterprise adoption accelerating across all sectors"]}}
+
+EXAMPLE — BAD comparison:
+  {{"section_title": "Before and After", "layout": "content_bullets", "bullets": ["Before: manual processes", "After: automated workflows"]}}
+
+EXAMPLE — GOOD comparison:
+  {{"section_title": "Transformation Impact", "layout": "comparison_table", "visual_treatment": "colored_boxes", "icon": "🔄", "table_data": {{"headers": ["Traditional Approach","AI-Powered Approach"], "rows": [["Manual data entry","Automated ingestion"],["3-day turnaround","Real-time processing"],["60% accuracy","95%+ accuracy"]]}}, "bullets": []}}
 
 OUTLINE:
 {outline}
@@ -36,21 +77,22 @@ TOPIC/CONTEXT:
 {brand_context}
 
 Return ONLY valid JSON array. Each element:
-{
-  "section_title": "cleaned section title (not the prompt)",
-  "layout": "layout type",
-  "visual_treatment": "treatment",
+{{
+  "section_title": "cleaned descriptive title",
+  "layout": "layout type from the list above",
+  "visual_treatment": "treatment type",
   "icon": "unicode character",
-  "bullets": ["bullet1", "bullet2"],
-  "table_data": {"headers": ["A","B"], "rows": [["x","y"]]} or null,
-  "metrics": [{"value":"X","label":"Y"}] or null,
-  "benefits": ["..."], "risks": ["..."] or null,
+  "bullets": ["substantive bullet 1", "substantive bullet 2"],
+  "table_data": {{"headers": ["A","B"], "rows": [["x","y"]]}} or null,
+  "metrics": [{{"value":"X","label":"Y"}}] or null,
+  "benefits": ["..."] or null,
+  "risks": ["..."] or null,
   "warning_text": "..." or null,
   "quote": "..." or null,
   "quote_attribution": "..." or null
-}
+}}
 
-Preserve all substantive content. Extract metrics (%, numbers) when present."""
+Remember: at least 60% of slides MUST use rich layouts (data_metrics, comparison_table, benefits_risks, warning_callout, recommendations). Preserve all substantive content and extract every metric."""
 
 
 def _clean_title(raw: str, topic: str = "") -> str:

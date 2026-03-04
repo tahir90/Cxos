@@ -85,10 +85,34 @@ class PresentationGeneratorTool(BaseTool):
         title = _clean_title(raw_title, raw_title[:80])
         if not outline:
             outline = (
-                f"## {title}\n- Key points to cover\n- Context and background\n\n"
-                f"## Analysis\n- Key findings\n- Data insights\n\n"
-                f"## Recommendations\n- Action items\n- Next steps\n\n"
-                f"## Summary\n- Key takeaways\n- Conclusions"
+                f"## Executive Summary\n"
+                f"- Overview of {title}\n"
+                f"- Strategic context and business relevance\n"
+                f"- Scope of analysis\n\n"
+                f"## Market Landscape & Key Statistics\n"
+                f"- Current market size and growth trajectory\n"
+                f"- Key adoption and performance metrics\n"
+                f"- Industry benchmarks and data points\n\n"
+                f"## Core Analysis\n"
+                f"- Primary findings from research\n"
+                f"- Evidence-based insights\n"
+                f"- Emerging patterns and trends\n\n"
+                f"## Comparative Assessment\n"
+                f"- Current state vs future opportunity\n"
+                f"- Strengths and gaps identified\n"
+                f"- Competitive positioning\n\n"
+                f"## Benefits & Risk Analysis\n"
+                f"- Key advantages and opportunities\n"
+                f"- Potential risks and mitigation strategies\n"
+                f"- Trade-offs to consider\n\n"
+                f"## Strategic Recommendations\n"
+                f"- Priority action items\n"
+                f"- Implementation roadmap\n"
+                f"- Quick wins vs long-term initiatives\n\n"
+                f"## Key Takeaways\n"
+                f"- Critical success factors\n"
+                f"- Measurable outcomes expected\n"
+                f"- Immediate next steps"
             )
 
         if progress_callback:
