@@ -7,6 +7,7 @@ Every agent:
   3. Reasons through a chain of actions.
   4. Submits high-risk actions through the Approval Gate.
   5. Cites sources for every decision ("Citation-Only" constraint).
+  6. Can consult peer CXO agents via the Agent Bus.
 """
 
 from __future__ import annotations
@@ -40,6 +41,32 @@ class BaseAgent(ABC):
     _client: OpenAI | None = field(default=None, init=False, repr=False)
     _action_log: list[AgentAction] = field(default_factory=list, init=False)
     _message_log: list[AgentMessage] = field(default_factory=list, init=False)
+    _agent_bus: Any = field(default=None, init=False, repr=False)
+
+    def set_agent_bus(self, bus: Any) -> None:
+        """Connect this agent to the inter-CXO communication bus."""
+        self._agent_bus = bus
+
+    def consult_peer(self, peer_role: str, question: str, context: str = "") -> str:
+        """Ask another CXO agent for their input via the Agent Bus.
+
+        Example: CFO.consult_peer("CMO", "What's the marketing budget utilization?")
+        """
+        if not self._agent_bus:
+            return f"[{peer_role}] consultation unavailable — agent bus not connected."
+        try:
+            result = self._agent_bus.cross_consult(
+                requester=self.role,
+                target=peer_role,
+                question=question,
+                context=context,
+            )
+            return result.response
+        except Exception:
+            logger.warning(
+                "%s failed to consult %s", self.role, peer_role, exc_info=True
+            )
+            return f"Unable to reach {peer_role} at this time."
 
     def _get_client(self) -> OpenAI:
         if self._client is None:
