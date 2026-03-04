@@ -880,7 +880,7 @@ class CoFounderAgent:
                 tool_results = self._tool_executor.decide_and_execute(
                     message, on_tool_start=on_tool_start, on_tool_end=on_tool_end
                 )
-        elif route.intent != "general":
+        elif route.intent not in ("general", "onboarding"):
             yield {"type": "status", "message": "Deciding which tools to use..."}
             tool_results = self._tool_executor.decide_and_execute(
                 message, context="",
