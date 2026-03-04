@@ -198,7 +198,8 @@ class PresentationGeneratorTool(BaseTool):
 
     def _copy_to_static(self, pptx_path: Path) -> str:
         import shutil
-        static_dir = Path("src/agentic_cxo/api/static/presentations")
-        static_dir.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(str(pptx_path), str(static_dir / pptx_path.name))
+        # Use absolute path relative to this package's static directory
+        api_static = Path(__file__).resolve().parent.parent / "api" / "static" / "presentations"
+        api_static.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(str(pptx_path), str(api_static / pptx_path.name))
         return f"/static/presentations/{pptx_path.name}"

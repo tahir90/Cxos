@@ -14,6 +14,8 @@ from __future__ import annotations
 
 import concurrent.futures
 import logging
+import queue
+import threading
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Iterator
@@ -359,32 +361,45 @@ class PlanExecutor:
         results: dict[int, StepResult],
         plan: ExecutionPlan,
     ) -> Iterator[dict[str, Any]]:
-        """Execute steps in a group, collecting events."""
-        step_events_map: dict[int, list[dict[str, Any]]] = {s.id: [] for s in steps}
+        """Execute steps in a group, yielding events in real-time via shared queue."""
+        event_queue: queue.Queue[dict[str, Any] | None] = queue.Queue()
+        active_count = threading.Semaphore(0)
+        done_count = [0]
+        lock = threading.Lock()
+        total = len(steps)
 
         def run_step(step: PlanStep) -> None:
             try:
                 for ev in self._execute_step(step, results, plan):
-                    step_events_map[step.id].append(ev)
+                    event_queue.put(ev)
             except Exception as e:
                 logger.exception("Parallel step %d failed: %s", step.id, e)
                 step.status = "failed"
                 results[step.id] = StepResult(step_id=step.id, success=False, error=str(e))
-                step_events_map[step.id].append({
+                event_queue.put({
                     "type": "step_complete", "step_id": step.id,
                     "success": False, "error": str(e)[:200],
                 })
+            finally:
+                with lock:
+                    done_count[0] += 1
+                    if done_count[0] >= total:
+                        event_queue.put(None)  # sentinel
 
         with concurrent.futures.ThreadPoolExecutor(max_workers=4) as pool:
-            futures = {pool.submit(run_step, s): s for s in steps}
-            for future in concurrent.futures.as_completed(futures):
-                exc = future.exception()
-                if exc:
-                    step = futures[future]
-                    logger.error("Thread for step %d raised: %s", step.id, exc)
+            for s in steps:
+                pool.submit(run_step, s)
 
-        for step in steps:
-            for ev in step_events_map[step.id]:
+            # Yield events as they arrive from threads
+            while True:
+                try:
+                    ev = event_queue.get(timeout=0.1)
+                except queue.Empty:
+                    # Yield heartbeat so SSE connection stays alive
+                    yield {"type": "heartbeat"}
+                    continue
+                if ev is None:
+                    break
                 yield ev
 
     def _execute_step(

@@ -336,30 +336,46 @@ function copyMsg(btn){
 
 function escHtml(s){return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}
 
+let _typingStart=0;let _typingTimer=null;
 function showTyping(agent='Co-Founder',status=''){
   const area=document.getElementById('chat-area');
   document.getElementById('empty-state').classList.add('hidden');
   area.classList.remove('hidden');
   const c=COLORS[agent.toLowerCase()]||'indigo';
   const statusText=status||(agent+' is thinking');
+  _typingStart=Date.now();
   area.insertAdjacentHTML('beforeend',`<div id="typing" class="px-4 sm:px-6 py-2 fade-up">
     <div class="max-w-2xl flex gap-3">
       <div class="shrink-0 w-7 h-7 rounded-lg bg-${c}-500/10 border border-${c}-500/10 flex items-center justify-center animate-pulse">
         <span class="text-${c}-400 text-[10px] font-bold">${ICONS[agent.toLowerCase()]||'CX'}</span>
       </div>
-      <div class="flex items-center gap-1.5 mt-1.5">
-        <span class="text-[11px] text-zinc-500">${statusText}</span>
-        <span class="thinking-dots text-zinc-500"><span>.</span><span>.</span><span>.</span></span>
+      <div class="flex-1">
+        <div class="flex items-center gap-1.5 mt-1.5">
+          <span class="text-[11px] text-zinc-500" id="typing-text">${statusText}</span>
+          <span class="thinking-dots text-zinc-500"><span>.</span><span>.</span><span>.</span></span>
+        </div>
+        <div class="text-[10px] text-zinc-700 mt-0.5" id="typing-elapsed"></div>
       </div>
     </div>
   </div>`);
   scrollBottom();
+  if(_typingTimer)clearInterval(_typingTimer);
+  _typingTimer=setInterval(()=>{
+    const el=document.getElementById('typing-elapsed');
+    if(!el){clearInterval(_typingTimer);return;}
+    const secs=Math.floor((Date.now()-_typingStart)/1000);
+    if(secs>=3)el.textContent=secs+'s elapsed';
+  },1000);
 }
 function updateTypingStatus(txt){
-  const el=document.querySelector('#typing .text-zinc-500');
+  const el=document.getElementById('typing-text');
   if(el)el.innerHTML=escHtml(txt)+' <span class="thinking-dots text-zinc-500"><span>.</span><span>.</span><span>.</span></span>';
+  _typingStart=Date.now(); // reset timer on new status
 }
-function hideTyping(){const el=document.getElementById('typing');if(el)el.remove()}
+function hideTyping(){
+  const el=document.getElementById('typing');if(el)el.remove();
+  if(_typingTimer){clearInterval(_typingTimer);_typingTimer=null;}
+}
 
 function addAgentActivity(msg,icon='\u2699',rawHtml=false){
   const area=document.getElementById('chat-area');
@@ -500,25 +516,48 @@ function _addSourceCards(sources){
 
 function _addDocumentCard(ev){
   const area=document.getElementById('chat-area');
-  const url=ev.url||'';
+  const rawUrl=ev.url||'';
   const title=ev.title||'Document';
   const slides=ev.slide_count||ev.slides_count||0;
   const type=(ev.document_type||'pptx').toUpperCase();
+  // Build download URL: try static path, add fallback via /download/ endpoint
+  const filename=rawUrl.split('/').pop()||'';
+  const downloadUrl=filename?API+'/download/'+encodeURIComponent(filename):rawUrl;
+  const staticUrl=rawUrl.startsWith('/')?rawUrl:'/'+rawUrl;
   area.insertAdjacentHTML('beforeend',
     `<div class="px-4 sm:px-6 py-1 fade-up"><div class="max-w-2xl">
       <div class="doc-card">
         <div class="doc-icon">\u{1F4C4}</div>
         <div class="doc-info">
           <div class="doc-title">${escHtml(title)}</div>
-          <div class="doc-meta">${type} \u2022 ${slides} slides</div>
+          <div class="doc-meta">${type} \u2022 ${slides} slides \u2022 Ready for download</div>
         </div>
         <div class="doc-actions">
-          <a href="${escHtml(url)}" download class="doc-btn primary">\u2B07 Download</a>
-          <button onclick="openDocPreview('${escHtml(url)}','${escHtml(title)}','${slides} slides')" class="doc-btn">\u{1F441} Preview</button>
+          <a href="${escHtml(staticUrl)}" download class="doc-btn primary" onclick="event.preventDefault();downloadPpt('${escHtml(staticUrl)}','${escHtml(downloadUrl)}','${escHtml(filename)}')">\u2B07 Download</a>
+          <button onclick="openDocPreview('${escHtml(staticUrl)}','${escHtml(title)}','${slides} slides')" class="doc-btn">\u{1F441} Preview</button>
         </div>
       </div>
     </div></div>`);
   scrollBottom();
+}
+
+async function downloadPpt(staticUrl,apiUrl,filename){
+  // Try static URL first, fall back to authenticated /download/ endpoint
+  try{
+    const res=await fetch(staticUrl,{method:'HEAD'});
+    if(res.ok){window.location.href=staticUrl;return;}
+  }catch(_){}
+  try{
+    const res=await authFetch(apiUrl);
+    if(res.ok){
+      const blob=await res.blob();
+      const a=document.createElement('a');a.href=URL.createObjectURL(blob);
+      a.download=filename||'presentation.pptx';a.click();URL.revokeObjectURL(a.href);
+      return;
+    }
+  }catch(_){}
+  // Last resort: direct link
+  window.location.href=staticUrl;
 }
 
 function openDocPreview(url,title,meta){
