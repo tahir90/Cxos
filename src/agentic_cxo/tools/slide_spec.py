@@ -185,28 +185,46 @@ def generate_slide_spec(
 def _infer_layout(title: str, bullets: list[str], body: str) -> tuple[str, str, str]:
     """Infer the best layout, visual treatment, and icon from content."""
     t = title.lower()
+    body_lower = body.lower()
 
-    # Word-boundary match helper
-    def wb(word: str) -> bool:
-        return bool(re.search(r'\b' + re.escape(word) + r'\b', t))
-
-    # Count numeric/metric bullets (exclude bare years like 2024/2025)
+    # Count numeric/metric bullets (exclude bare years)
     numeric_bullets = [
         b for b in bullets
         if re.search(r'\d+[%$xX]|\$\d|billion|million|trillion|\d{2,}x|\d+\.\d+', b)
         and not re.fullmatch(r'\d{4}', b.strip())
     ]
 
-    # 1. Sources — check first to avoid false data_metrics on year numbers
+    # 1. Sources
     if re.search(r'\b(source|reference|citation|bibliography)\b', t) or "research foundation" in t:
         return "sources", "none", "📚"
 
-    # 2. Strong comparison signals — override data_metrics for explicit comparison titles
+    # 2. Bottom line / closing content
+    if "bottom line" in t or "the bottom line" in t:
+        return "bottom_line", "emphasis", "💡"
+
+    # 3. Research study — title has "study" AND bullets have study design or quote pattern
+    has_study_design = any(b.lower().startswith("study design") for b in bullets)
+    has_quote = any(b.lower().startswith("quote") or ('"' in b and len(b) > 50) for b in bullets)
+    if re.search(r'\b(study|experiment|trial|longitudinal)\b', t) and (has_study_design or has_quote):
+        return "research_study", "emphasis", "🔬"
+
+    # 4. Definition boxes — intro/understanding slide with colon-structured concept bullets
+    colon_bullets = [b for b in bullets if ":" in b and len(b.split(":", 1)[0]) < 28]
+    if (re.search(r'\b(understanding|defining|what is|introduction|overview)\b', t)
+            and len(colon_bullets) >= 3):
+        return "definition_boxes", "emphasis", "📖"
+
+    # 5. Two-column-info — brain regions / key concepts with colon-bullets needing right panel
+    if (len(colon_bullets) >= 4
+            and re.search(r'\b(brain|cortex|neural|reshapes|regions|mechanisms|how)\b', t)):
+        return "two_column_info", "emphasis", "🧠"
+
+    # 6. Strong comparison signals
     if " vs " in t or "vs." in t or "trade-off" in t or "trade off" in t \
             or re.search(r'\bbefore.and.after\b', t):
         return "comparison_table", "colored_boxes", "🔄"
 
-    # 3. Warning/critical content — "critical thinking" is NOT a warning
+    # 7. Warning/critical — "critical thinking" is NOT a warning
     is_warning = (
         re.search(r'\b(warning|alert|danger|caution|urgent|vulnerable)\b', t)
         or ("critical" in t and "thinking" not in t and "analysis" not in t)
@@ -215,39 +233,43 @@ def _infer_layout(title: str, bullets: list[str], body: str) -> tuple[str, str, 
     if is_warning and len(numeric_bullets) < 4:
         return "warning_callout", "warning_box", "⚠"
 
-    # 4. Recommendations — BEFORE data_metrics to avoid "rate" in "strategic" false match
+    # 8. Recommendations (before data_metrics)
     if re.search(r'\b(recommendation|implement|solution|roadmap)\b', t) \
             or re.search(r'\b(strategic|strategy)\b', t) \
             or any(k in t for k in ["next step", "action item"]):
         return "recommendations", "none", "🎯"
 
-    # 5. Data/metric slides — use word boundaries to avoid substring false positives
+    # 9. Data/metrics
     if (len(numeric_bullets) >= 2
             or re.search(r'\b(statistic|metric|growth|market|adoption|finding|evidence|performance|scale)\b', t)
             or re.search(r'\b(decline|impact|number)\b', t)
-            or re.search(r'\b(rate)\b', t)   # word-boundary: "rate" not "strategic"
+            or re.search(r'\b(rate)\b', t)
             or (re.search(r'\b(study|research|data)\b', t) and len(numeric_bullets) >= 1)):
         return "data_metrics", "metric_highlight", "📊"
 
-    # 6. Comparison slides (also catch "efficiency", "transformation" etc.)
+    # 10. Comparison
     if re.search(r'\b(compare|comparison|versus|before|after|efficiency|traditional)\b', t):
         return "comparison_table", "colored_boxes", "🔄"
 
-    # 6. Benefits vs risks
+    # 11. Benefits vs risks
     if re.search(r'\b(benefit|risk|advantage|disadvantage|opportunity|threat|strength|weakness)\b', t):
         return "benefits_risks", "colored_boxes", "⚖"
 
-    # 7. Two-column for many bullets
+    # 12. Two-column for many bullets
     if len(bullets) >= 7:
         return "two_column", "none", "📋"
 
-    # 8. Executive summary / introduction
+    # 13. Executive summary / introduction
     if re.search(r'\b(executive|summary|overview|introduction|background)\b', t):
         return "executive", "emphasis", "💡"
 
-    # 9. Quote
-    if re.search(r'\b(quote|testimonial|bottom line)\b', t) or "key finding" in t:
+    # 14. Quote
+    if re.search(r'\b(quote|testimonial)\b', t) or "key finding" in t:
         return "quote", "none", "💬"
+
+    # 15. Colon bullets → content_bullets with labels
+    if len(colon_bullets) >= 3:
+        return "content_bullets", "labels", "•"
 
     return "content_bullets", "none", "•"
 
@@ -345,55 +367,81 @@ def _push_section(sections: list, current: dict, topic: str) -> None:
 
     layout, treatment, icon = _infer_layout(title, bullets, " ".join(current["body"]))
 
+    # Derive section category label
+    from agentic_cxo.tools.presentation import _derive_section_cat
+    section_category = _derive_section_cat(title, layout)
+
     # Extract structured data based on layout
     metrics = None
     table_data = None
     benefits = None
     risks = None
     warning_text = None
+    quote = None
+    quote_attribution = None
+    study_design = None
+    findings = None
+    col_headers = None
 
     if layout == "data_metrics":
         metrics = _extract_metrics(bullets)
         if not metrics:
-            # If no extractable metrics, fall back to content
             layout = "content_bullets"
             treatment = "none"
+
+    elif layout == "research_study":
+        # Extract structured study data
+        study_design = [b for b in bullets if b.lower().startswith("study design")]
+        q_bullets = [b for b in bullets if b.lower().startswith("quote") or
+                     ('"' in b and len(b) > 50)]
+        if q_bullets:
+            qt = q_bullets[0]
+            qt = re.sub(r'^[Qq]uote from [^:]+:\s*', '', qt).strip().strip('"')
+            quote = qt
+        findings = [b for b in bullets if re.search(r'\d+%', b) and b not in study_design][:3]
+        if not findings:
+            non_sd = [b for b in bullets if b not in study_design and b not in q_bullets]
+            findings = non_sd[:3]
+
     elif layout == "comparison_table":
-        # Try to detect real column headers from body text (e.g. "Benefits of AI:" / "Cognitive Risks:")
         h0, h1 = "Current State", "Future Vision"
         for bl in current["body"]:
-            bl_stripped = _clean_title(bl, "").rstrip(":").strip()[:35]
-            bl_l = bl_stripped.lower()
+            bl_s = _clean_title(bl, "").rstrip(":").strip()[:35]
+            bl_l = bl_s.lower()
             if re.search(r'\b(benefit|advantage|opportunity|pro|positive)\b', bl_l):
-                h0 = bl_stripped
+                h0 = bl_s
             elif re.search(r'\b(risk|cost|concern|challenge|negative|drawback)\b', bl_l):
-                h1 = bl_stripped
+                h1 = bl_s
+        col_headers = [h0, h1]
         mid = len(bullets) // 2
-        left = bullets[:mid] if mid > 0 else bullets[:2]
+        left  = bullets[:mid] if mid > 0 else bullets[:2]
         right = bullets[mid:] if mid < len(bullets) else bullets[2:4]
         if len(left) >= 1 and len(right) >= 1:
-            table_data = {
-                "headers": [h0, h1],
-                "rows": [[l, r] for l, r in zip(left, right)]
-            }
+            table_data = {"headers": [h0, h1], "rows": [[l, r] for l, r in zip(left, right)]}
         else:
             layout = "content_bullets"
+
     elif layout == "benefits_risks":
         benefits, risks = _split_benefits_risks(bullets)
+
     elif layout == "warning_callout":
         warning_text = bullets[0] if bullets else "Critical finding requiring attention."
 
     sections.append({
-        "section_title": title,
-        "layout": layout,
+        "section_title":    title,
+        "layout":           layout,
         "visual_treatment": treatment,
-        "icon": icon,
-        "bullets": bullets,
-        "table_data": table_data,
-        "metrics": metrics,
-        "benefits": benefits,
-        "risks": risks,
-        "warning_text": warning_text,
-        "quote": None,
-        "quote_attribution": None,
+        "icon":             icon,
+        "bullets":          bullets,
+        "table_data":       table_data,
+        "metrics":          metrics,
+        "benefits":         benefits,
+        "risks":            risks,
+        "warning_text":     warning_text,
+        "quote":            quote,
+        "quote_attribution":quote_attribution,
+        "section_category": section_category,
+        "col_headers":      col_headers,
+        "study_design":     study_design,
+        "findings":         findings,
     })

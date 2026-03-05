@@ -1,8 +1,14 @@
 """
-Modern presentation generator — 2026-grade slide design.
+Premium presentation generator — McKinsey/BCG-grade slide design.
 
-Uses gradient backgrounds, geometric accent shapes, strong typography
-hierarchy, branded color system, and varied layouts per slide type.
+Features:
+- Multi-tone title typography (gold highlight on key terms)
+- Section category labels on every slide
+- Rich layout types: data_metrics, research_study, definition_boxes,
+  two_column_info, warning_callout, benefits_risks, comparison_table,
+  recommendations, bottom_line, sources, quote
+- Bar charts via manual rectangles
+- Consistent dark-navy + gold premium brand palette
 """
 
 from __future__ import annotations
@@ -21,21 +27,52 @@ from pptx.util import Inches, Pt, Emu
 
 logger = logging.getLogger(__name__)
 
-# Use a path relative to the package root so it's stable regardless of CWD
-_PKG_ROOT = Path(__file__).resolve().parent.parent.parent.parent  # goes up to project root
+_PKG_ROOT = Path(__file__).resolve().parent.parent.parent.parent
 DATA_DIR = (_PKG_ROOT / ".cxo_data" / "presentations").resolve()
-# Fallback to CWD-relative if package root detection fails
 if not _PKG_ROOT.exists() or not (_PKG_ROOT / "src").exists():
     DATA_DIR = Path(".cxo_data").resolve() / "presentations"
 
+
+# ── Colour helpers ──────────────────────────────────────────────
 
 def _hex(h: str) -> RGBColor:
     h = h.strip().lstrip("#")
     if len(h) == 3:
         h = "".join(c * 2 for c in h)
     if len(h) != 6:
-        h = "6366f1"
+        h = "0F172A"
     return RGBColor(int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16))
+
+
+def _clean(t: str) -> str:
+    t = re.sub(r"\[([^\]]+)\]\([^)]+\)", r"\1", t)
+    t = re.sub(r"\*\*(.+?)\*\*", r"\1", t)
+    t = re.sub(r"\*(.+?)\*", r"\1", t)
+    t = re.sub(r"`(.+?)`", r"\1", t)
+    return t.strip()
+
+
+def _bullets(text: str) -> list[str]:
+    out: list[str] = []
+    parent_bullet: str = ""
+    for line in text.split("\n"):
+        stripped = line.strip()
+        indent = len(line) - len(line.lstrip())
+        m = re.match(r"^[-*•]\s+(.+)", stripped) or re.match(r"^\d+[.)]\s+(.+)", stripped)
+        if m:
+            content = _clean(m.group(1).strip())
+            if indent >= 4 and parent_bullet:
+                out.append(f"{parent_bullet}: {content}")
+            else:
+                parent_bullet = content
+                out.append(content)
+        elif stripped.startswith(">"):
+            quote_text = _clean(stripped.lstrip("> ").strip())
+            if quote_text:
+                out.append(quote_text)
+        elif re.match(r"^[A-Z].*:\s+.+", stripped):
+            out.append(_clean(stripped))
+    return out
 
 
 def _parse_sections(content: str) -> list[dict[str, Any]]:
@@ -58,81 +95,7 @@ def _parse_sections(content: str) -> list[dict[str, Any]]:
     return sections
 
 
-def _bullets(text: str) -> list[str]:
-    out: list[str] = []
-    parent_bullet: str = ""
-    for line in text.split("\n"):
-        stripped = line.strip()
-        # Detect indentation level for nested bullets
-        indent = len(line) - len(line.lstrip())
-        # Match top-level bullets: - item, * item, bullet item, 1. item, 1) item
-        m = re.match(r"^[-*•]\s+(.+)", stripped) or re.match(r"^\d+[.)]\s+(.+)", stripped)
-        if m:
-            content = _clean(m.group(1).strip())
-            if indent >= 4 and parent_bullet:
-                # Nested bullet — merge with parent for richer context
-                out.append(f"{parent_bullet}: {content}")
-            else:
-                parent_bullet = content
-                out.append(content)
-        elif stripped.startswith(">"):
-            # Blockquote lines — include as content
-            quote_text = _clean(stripped.lstrip("> ").strip())
-            if quote_text:
-                out.append(quote_text)
-        elif re.match(r"^[A-Z].*:\s+.+", stripped):
-            # "Label: value" lines (common in research output)
-            out.append(_clean(stripped))
-    return out
-
-
-def _clean(t: str) -> str:
-    t = re.sub(r"\[([^\]]+)\]\([^)]+\)", r"\1", t)
-    t = re.sub(r"\*\*(.+?)\*\*", r"\1", t)
-    t = re.sub(r"\*(.+?)\*", r"\1", t)
-    t = re.sub(r"`(.+?)`", r"\1", t)
-    return t.strip()
-
-
-def _slide_type(title: str, bullets: list[str], body: str, idx: int, total: int) -> str:
-    t = title.lower()
-    combined = (t + " " + " ".join(bullets).lower() + " " + body.lower())
-    if any(k in t for k in ["agenda", "table of contents", "outline"]):
-        return "agenda"
-    if any(k in t for k in ["executive summary", "overview", "introduction"]):
-        return "executive"
-    if any(k in t for k in ["recommendation", "next step", "action"]):
-        return "recommendations"
-    if any(k in t for k in ["source", "reference", "citation"]):
-        return "sources"
-    if any(k in t for k in ["c-suite", "perspective", "cxo"]):
-        return "perspectives"
-    if any(k in t for k in ["quote", "testimonial"]):
-        return "quote"
-    # Detect warning/risk slides
-    if any(k in t for k in ["warning", "critical", "alert", "caution", "urgent"]):
-        return "warning_callout"
-    # Detect comparison slides
-    if any(k in t for k in ["compare", "comparison", "vs", "versus", "before", "after"]):
-        return "comparison_table"
-    # Detect benefit/risk slides
-    if any(k in t for k in ["benefit", "risk", "advantage", "disadvantage", "pro", "con",
-                             "opportunity", "threat", "strength", "weakness"]):
-        return "benefits_risks"
-    # Detect data-heavy slides by checking for numbers in bullets
-    if any(k in t for k in ["statistic", "data", "number", "growth", "decline",
-                             "metric", "performance", "market size", "adoption"]):
-        return "data_metrics"
-    # Check bullet content for numeric data patterns
-    numeric_bullets = sum(1 for b in bullets if re.search(r'\d+[%$xX]|\$\d|billion|million|trillion', b))
-    if numeric_bullets >= 2:
-        return "data_metrics"
-    if len(bullets) > 8:
-        return "two_column"
-    return "content"
-
-
-# ── Shape helpers ──────────────────────────────────────────────
+# ── Shape / text helpers ────────────────────────────────────────
 
 def _rect(slide, left, top, w, h, fill_rgb):
     shape = slide.shapes.add_shape(1, Inches(left), Inches(top), Inches(w), Inches(h))
@@ -151,7 +114,7 @@ def _textbox(slide, left, top, w, h, text, size=14, color=None, bold=False,
     tf = box.text_frame
     tf.word_wrap = True
     p = tf.paragraphs[0]
-    p.text = _clean(text)
+    p.text = _clean(str(text))
     p.font.size = Pt(size)
     p.font.color.rgb = color
     p.font.bold = bold
@@ -164,6 +127,62 @@ def _textbox(slide, left, top, w, h, text, size=14, color=None, bold=False,
     return box
 
 
+def _rich_title(slide, left, top, w, h, title, h_font, highlight_color,
+                base_color=None, base_size=32, hl_size=52, after_size=26):
+    """Multi-run textbox — splits title at key term and highlights it in gold."""
+    base_color = base_color or RGBColor(0xFF, 0xFF, 0xFF)
+    box = slide.shapes.add_textbox(Inches(left), Inches(top), Inches(w), Inches(h))
+    tf = box.text_frame
+    tf.word_wrap = True
+
+    # Find a key phrase to highlight
+    patterns = [
+        r"Agentic AI", r"AI\b", r"Machine Learning", r"ChatGPT", r"Brain",
+        r"Cognitive", r"Intelligence", r"Digital", r"Technology"
+    ]
+    match = None
+    for pat in patterns:
+        m = re.search(pat, title, re.IGNORECASE)
+        if m:
+            match = m
+            break
+
+    if match and len(title) > len(match.group()):
+        before = title[:match.start()].rstrip()
+        hl_text = match.group()
+        after = title[match.end():].lstrip()
+
+        first = True
+        for part_type, part_text in [("before", before), ("hl", hl_text), ("after", after)]:
+            if not part_text:
+                continue
+            p = tf.paragraphs[0] if first else tf.add_paragraph()
+            first = False
+            run = p.add_run()
+            run.text = part_text
+            run.font.name = h_font
+            run.font.bold = True
+            if part_type == "hl":
+                run.font.size = Pt(hl_size)
+                run.font.color.rgb = highlight_color
+            elif part_type == "before":
+                run.font.size = Pt(base_size)
+                run.font.color.rgb = base_color
+            else:
+                run.font.size = Pt(after_size)
+                run.font.color.rgb = RGBColor(0xCC, 0xCC, 0xCC)
+                run.font.bold = False
+    else:
+        p = tf.paragraphs[0]
+        run = p.add_run()
+        run.text = _clean(title)
+        run.font.size = Pt(base_size)
+        run.font.color.rgb = base_color
+        run.font.bold = True
+        run.font.name = h_font
+    return box
+
+
 def _bullet_block(slide, left, top, w, h, items, size=16, color=None,
                   font="Calibri", spacing=12, max_items=7, bullet_char="\u2022"):
     color = color or RGBColor(0x52, 0x52, 0x5B)
@@ -172,17 +191,108 @@ def _bullet_block(slide, left, top, w, h, items, size=16, color=None,
     tf.word_wrap = True
     for j, item in enumerate(items[:max_items]):
         p = tf.paragraphs[0] if j == 0 else tf.add_paragraph()
-        p.text = f"{bullet_char}  {_clean(item)}"
+        p.text = f"{bullet_char}  {_clean(str(item))}"
         p.font.size = Pt(size)
         p.font.color.rgb = color
         p.font.name = font
         p.space_after = Pt(spacing)
-        p.line_spacing = Pt(size + 10)
+        p.line_spacing = Pt(size + 8)
 
 
 def _page_num(slide, num, total, color=None):
     color = color or RGBColor(0x71, 0x71, 0x7A)
     _textbox(slide, 12.2, 7.1, 0.8, 0.3, f"{num}/{total}", 8, color, align=PP_ALIGN.RIGHT)
+
+
+def _info_box(slide, left, top, w, h, header, body_text, header_color, body_color,
+              bg_color, font_h="Calibri", font_b="Calibri"):
+    """Colored header box with body content — McKinsey info box style."""
+    _rect(slide, left, top, w, h, bg_color)
+    _rect(slide, left, top, w, 0.38, header_color)
+    _textbox(slide, left + 0.12, top + 0.05, w - 0.2, 0.3,
+             _clean(str(header))[:45], 12, RGBColor(0xFF, 0xFF, 0xFF), True, font=font_h)
+    _textbox(slide, left + 0.12, top + 0.42, w - 0.2, h - 0.5,
+             _clean(str(body_text))[:220], 12, body_color, False, font=font_b)
+
+
+def _bar_chart_rects(slide, left, top, w, h, data_pairs, bar_color, label_color,
+                     bg_color=None, font="Calibri"):
+    """Draw a minimal bar chart using rectangles. data_pairs = [(label, value), ...]"""
+    if not data_pairs:
+        return
+    max_val = max(max(v for _, v in data_pairs), 1)
+    chart_h = h * 0.72
+    bar_area_w = w
+    n = len(data_pairs)
+    slot_w = bar_area_w / n
+    bar_w = slot_w * 0.55
+    gap_x = slot_w * 0.225
+
+    if bg_color:
+        _rect(slide, left, top, w, h, bg_color)
+
+    for i, (label, val) in enumerate(data_pairs):
+        bar_h = max((val / max_val) * chart_h, 0.04)
+        bx = left + i * slot_w + gap_x
+        by = top + h - 0.28 - bar_h
+        _rect(slide, bx, by, bar_w, bar_h, bar_color)
+        _textbox(slide, bx - gap_x * 0.5, top + h - 0.25, slot_w, 0.22,
+                 str(label), 7, label_color, False, PP_ALIGN.CENTER, font)
+
+
+def _chip_row(slide, left, top, items, chip_colors, font="Calibri"):
+    """Render a row of small colored chip/tag elements."""
+    x = left
+    for i, item in enumerate(items[:6]):
+        chip_w = min(len(str(item)) * 0.09 + 0.35, 1.6)
+        c = chip_colors[i % len(chip_colors)]
+        _rect(slide, x, top, chip_w, 0.32, c)
+        _textbox(slide, x + 0.08, top + 0.04, chip_w - 0.12, 0.24,
+                 _clean(str(item))[:18], 10, RGBColor(0xFF, 0xFF, 0xFF), True, PP_ALIGN.CENTER, font)
+        x += chip_w + 0.12
+
+
+def _section_cat_label(slide, right_x, top_y, category, color, font):
+    """Render the small section category label in top-right area."""
+    _textbox(slide, right_x, top_y, 4.0, 0.28, category.upper(), 8,
+             color, True, PP_ALIGN.RIGHT, font)
+
+
+# ── Section category derivation ─────────────────────────────────
+
+_CAT_KEYWORDS = [
+    (["neuroscience", "brain", "neural", "cortex", "hippocampus"], "NEUROSCIENCE"),
+    (["landmark research", "study", "mit", "stanford", "harvard", "ucl"], "LANDMARK RESEARCH"),
+    (["global", "market", "adoption", "scale", "statistic"], "THE SCALE OF ADOPTION"),
+    (["cognitive debt", "hidden cost", "debt"], "COGNITIVE DEBT"),
+    (["critical thinking", "evidence", "decline", "atrophy"], "CRITICAL THINKING"),
+    (["vulnerable", "developing", "risk group", "youth", "age"], "HIGHEST RISK GROUPS"),
+    (["trade-off", "efficiency", "vs cognition", "benefit"], "RISK / BENEFIT ANALYSIS"),
+    (["recommendation", "strategic", "strategy", "implement"], "RECOMMENDATIONS"),
+    (["source", "reference", "citation"], "SOURCES & REFERENCES"),
+    (["executive", "summary", "overview"], "EXECUTIVE SUMMARY"),
+    (["understanding", "definition", "what is", "introduction"], "UNDERSTANDING THE TECHNOLOGY"),
+    (["responsible", "integration", "balance", "neuroscience of"], "RESPONSIBLE AI"),
+]
+
+def _derive_section_cat(title: str, layout: str) -> str:
+    t = title.lower()
+    for keywords, cat in _CAT_KEYWORDS:
+        if any(k in t for k in keywords):
+            return cat
+    layout_defaults = {
+        "data_metrics": "KEY METRICS",
+        "warning_callout": "CRITICAL FINDINGS",
+        "comparison_table": "COMPARATIVE ANALYSIS",
+        "benefits_risks": "RISK / BENEFIT ANALYSIS",
+        "recommendations": "RECOMMENDATIONS",
+        "research_study": "LANDMARK RESEARCH",
+        "definition_boxes": "UNDERSTANDING THE TECHNOLOGY",
+        "two_column_info": "KEY CONCEPTS",
+        "executive": "EXECUTIVE SUMMARY",
+        "sources": "SOURCES & REFERENCES",
+    }
+    return layout_defaults.get(layout, "RESEARCH & INSIGHTS")
 
 
 # ── Main entry ─────────────────────────────────────────────────
@@ -204,51 +314,18 @@ def generate_pptx(
     brand_domain: str = "",
 ) -> Path:
     DATA_DIR.mkdir(parents=True, exist_ok=True)
-    if slide_spec:
-        sections = [
-            {
-                "title": s.get("section_title", ""),
-                "body": "",
-                "bullets": s.get("bullets", []),
-                "layout": s.get("layout", "content_bullets"),
-                "visual_treatment": s.get("visual_treatment", "none"),
-                "icon": s.get("icon", "•"),
-                "table_data": s.get("table_data"),
-                "metrics": s.get("metrics"),
-                "benefits": s.get("benefits"),
-                "risks": s.get("risks"),
-                "warning_text": s.get("warning_text"),
-                "quote": s.get("quote"),
-                "quote_attribution": s.get("quote_attribution"),
-            }
-            for s in slide_spec
-        ]
-        if not sections:
-            sections = [{"title": title, "body": "", "bullets": ["Key points"], "layout": "content_bullets"}]
-    else:
-        sections = _parse_sections(content)
-        for idx, s in enumerate(sections):
-            s["layout"] = _slide_type(s.get("title", ""), s.get("bullets", []), s.get("body", ""), idx, len(sections))
-            s["visual_treatment"] = "none"
-            s["icon"] = "•"
-            s["table_data"] = None
-            s["metrics"] = None
-            s["benefits"] = None
-            s["risks"] = None
-            s["warning_text"] = None
-            s["quote"] = None
-            s["quote_attribution"] = None
-        if not sections:
-            sections = [{"title": title, "body": "", "bullets": ["Key points to cover"], "layout": "content_bullets"}]
 
+    # ── Brand / colour resolution ───────────────────────────────
     if creative_director:
         pri_hex = creative_director.get_primary_color()
         sec_hex = creative_director.get_secondary_color()
         h_font = creative_director.get_heading_font()
         b_font = creative_director.get_body_font()
     else:
-        pri_hex, sec_hex = "#6366f1", "#8b5cf6"
+        # Premium dark-navy + gold default palette
+        pri_hex, sec_hex = "#0F172A", "#F59E0B"
         h_font, b_font = "Calibri", "Calibri"
+
     if brand:
         if getattr(brand, "primary_color", None):
             pri_hex = brand.primary_color
@@ -259,32 +336,74 @@ def generate_pptx(
         if getattr(brand, "body_font", None):
             b_font = brand.body_font
 
-    PRI = _hex(pri_hex)
-    SEC = _hex(sec_hex)
-    DARK = RGBColor(0x0F, 0x10, 0x17)
-    DARK2 = RGBColor(0x16, 0x18, 0x22)
+    PRI   = _hex(pri_hex)
+    SEC   = _hex(sec_hex)
+    GOLD  = RGBColor(0xF5, 0x9E, 0x0B)   # always-gold accent
+    DARK  = RGBColor(0x0B, 0x0F, 0x1A)   # deepest navy bg
+    DARK2 = RGBColor(0x13, 0x18, 0x28)   # card bg
+    DARK3 = RGBColor(0x1E, 0x24, 0x3A)   # lighter card bg
     WHITE = RGBColor(0xFF, 0xFF, 0xFF)
-    OFFWHITE = RGBColor(0xF8, 0xF8, 0xFA)
-    LGRAY = RGBColor(0xE4, 0xE4, 0xE7)
-    MGRAY = RGBColor(0x71, 0x71, 0x7A)
-    DGRAY = RGBColor(0x3F, 0x3F, 0x46)
-    TEXT_DARK = RGBColor(0x27, 0x27, 0x2A)
-    TEXT_BODY = RGBColor(0x52, 0x52, 0x5B)
-    ACCENT2 = RGBColor(0xEC, 0x48, 0x99)
-    GREEN = RGBColor(0x22, 0xC5, 0x5E)
-    RED = RGBColor(0xEF, 0x44, 0x44)
-    ORANGE = RGBColor(0xF5, 0x9E, 0x0B)
+    OFFWH = RGBColor(0xF8, 0xF9, 0xFA)
+    LGRAY = RGBColor(0xE2, 0xE8, 0xF0)
+    MGRAY = RGBColor(0x94, 0xA3, 0xB8)
+    DGRAY = RGBColor(0x64, 0x74, 0x8B)
+    TDARK = RGBColor(0x0F, 0x17, 0x2A)   # text on white
+    TBODY = RGBColor(0x33, 0x41, 0x55)   # body text on white
+    GREEN = RGBColor(0x10, 0xB9, 0x81)
+    RED   = RGBColor(0xEF, 0x44, 0x44)
+    ORNG  = RGBColor(0xF5, 0x9E, 0x0B)
+    CYAN  = RGBColor(0x06, 0xB6, 0xD4)
+    PURP  = RGBColor(0x8B, 0x5C, 0xF6)
 
+    # Brand label
     brand_label = ""
     if brand:
-        brand_label = (getattr(brand, "company_name", "") or brand_domain or "RESEARCH & INSIGHTS").upper()
-    elif brand_domain:
-        brand_label = brand_domain.replace("www.", "").upper().replace(".", "")
+        brand_label = (getattr(brand, "company_name", "") or brand_domain or "").upper()
+    if not brand_label and brand_domain:
+        brand_label = re.sub(r'^www\.', '', brand_domain).upper().replace(".", "")
     if not brand_label:
         brand_label = "RESEARCH & INSIGHTS"
 
+    # ── Sections setup ──────────────────────────────────────────
+    if slide_spec:
+        sections = [
+            {
+                "title":            s.get("section_title", ""),
+                "body":             "",
+                "bullets":          s.get("bullets", []),
+                "layout":           s.get("layout", "content_bullets"),
+                "visual_treatment": s.get("visual_treatment", "none"),
+                "icon":             s.get("icon", "•"),
+                "table_data":       s.get("table_data"),
+                "metrics":          s.get("metrics"),
+                "benefits":         s.get("benefits"),
+                "risks":            s.get("risks"),
+                "warning_text":     s.get("warning_text"),
+                "quote":            s.get("quote"),
+                "quote_attribution":s.get("quote_attribution"),
+                "section_category": s.get("section_category", ""),
+                "col_headers":      s.get("col_headers"),
+                "study_design":     s.get("study_design"),
+                "findings":         s.get("findings"),
+            }
+            for s in slide_spec
+            if s.get("section_title") or s.get("bullets")
+        ]
+        if not sections:
+            sections = [{"title": title, "body": "", "bullets": ["Key points"],
+                         "layout": "content_bullets", "section_category": ""}]
+    else:
+        sections = _parse_sections(content)
+        for idx, s in enumerate(sections):
+            s.update({"layout": "content_bullets", "visual_treatment": "none",
+                       "icon": "•", "table_data": None, "metrics": None,
+                       "benefits": None, "risks": None, "warning_text": None,
+                       "quote": None, "quote_attribution": None,
+                       "section_category": "", "col_headers": None,
+                       "study_design": None, "findings": None})
+
     prs = Presentation()
-    prs.slide_width = Inches(13.333)
+    prs.slide_width  = Inches(13.333)
     prs.slide_height = Inches(7.5)
     blank = prs.slide_layouts[6]
 
@@ -293,484 +412,641 @@ def generate_pptx(
         slide.background.fill.fore_color.rgb = c
 
     has_agenda = any("agenda" in (s.get("title") or "").lower() for s in sections)
-    auto_agenda = not has_agenda and len(sections) >= 4
-    total = len(sections) + (1 if add_title_slide else 0) + (1 if auto_agenda else 0) + (1 if add_closing_slide else 0)
+    auto_agenda = not has_agenda and len(sections) >= 5
+    total = (len(sections)
+             + (1 if add_title_slide else 0)
+             + (1 if auto_agenda else 0)
+             + (1 if add_closing_slide else 0))
     sn = 0
 
-    # ── TITLE SLIDE ─────────────────────────────────────────
+    # ── TITLE SLIDE ─────────────────────────────────────────────
     if add_title_slide:
         sn += 1
         s = prs.slides.add_slide(blank)
         set_bg(s, DARK)
         # Top accent bar
-        _rect(s, 0, 0, 13.333, 0.08, PRI)
-        # Right-side geometric accent block
-        _rect(s, 10.5, 0.08, 2.833, 7.42, DARK2)
-        _rect(s, 10.5, 0.08, 0.06, 7.42, SEC)
+        _rect(s, 0, 0, 13.333, 0.07, SEC)
+        # Right accent column
+        _rect(s, 10.4, 0.07, 2.933, 7.43, DARK2)
+        _rect(s, 10.4, 0.07, 0.06, 7.43, GOLD)
         # Bottom bar
-        _rect(s, 0, 6.9, 10.5, 0.6, DARK2)
-        # Brand label
-        _textbox(s, 0.8, 0.35, 7, 0.45, brand_label, 11, PRI, True, font=h_font)
-        # Main title — large, white, bold
-        _textbox(s, 0.8, 1.1, 9.5, 2.8, title, 38, WHITE, True, font=h_font, line_spacing=48)
-        # Horizontal separator
-        _rect(s, 0.8, 4.0, 4.0, 0.05, SEC)
+        _rect(s, 0, 6.8, 10.4, 0.7, DARK2)
+        _rect(s, 0, 6.8, 10.4, 0.05, PRI)
+        # Brand badge (gold rectangle with brand label)
+        _rect(s, 0.55, 0.28, 1.1, 0.42, GOLD)
+        _textbox(s, 0.58, 0.33, 1.04, 0.32, brand_label[:6], 14, DARK, True,
+                 PP_ALIGN.CENTER, h_font)
+        _textbox(s, 1.85, 0.33, 3.5, 0.32, "RESEARCH & INSIGHTS", 9, GOLD, True,
+                 PP_ALIGN.LEFT, h_font)
+        # Multi-tone main title
+        _rich_title(s, 0.55, 0.9, 9.6, 4.2, title, h_font, GOLD,
+                    base_color=WHITE, base_size=32, hl_size=54, after_size=26)
+        # Separator line
+        _rect(s, 0.55, 5.2, 3.8, 0.05, SEC)
         # Subtitle
-        sub = subtitle or "A research-informed analysis with strategic recommendations"
-        _textbox(s, 0.8, 4.2, 9.5, 0.7, sub, 16, MGRAY, font=b_font)
-        year = dt.datetime.now().year
-        _textbox(s, 0.8, 5.15, 5, 0.35, dt.datetime.now().strftime("%B %d, %Y"), 12, MGRAY, font=b_font)
-        _textbox(s, 0.8, 5.5, 7, 0.35, f"Prepared by AI Research Platform  |  {year} {brand_label}", 11, DGRAY, font=b_font)
+        sub = subtitle or "A research-informed analysis of cognitive risks and strategic recommendations."
+        _textbox(s, 0.55, 5.35, 9.6, 0.65, sub, 15, MGRAY, font=b_font)
+        # Date + brand
+        yr = dt.datetime.now().year
+        _textbox(s, 0.55, 6.1, 5.5, 0.3,
+                 dt.datetime.now().strftime("%B %d, %Y"), 11, DGRAY, font=b_font)
+        _textbox(s, 0.55, 6.45, 9.5, 0.28,
+                 f"{yr} — {brand_label} Intelligence Series", 11, DGRAY, font=b_font)
+        # Decorative dots on right panel
+        _rect(s, 10.95, 3.4, 0.22, 0.22, GOLD)
+        _rect(s, 11.55, 3.9, 0.18, 0.18, SEC)
+        _rect(s, 11.2, 4.5, 0.14, 0.14, MGRAY)
         _page_num(s, sn, total, DGRAY)
 
-    # ── AGENDA SLIDE ────────────────────────────────────────
+    # ── AGENDA ───────────────────────────────────────────────────
     if auto_agenda:
         sn += 1
         s = prs.slides.add_slide(blank)
-        set_bg(s, OFFWHITE)
-        _rect(s, 0, 0, 0.08, 7.5, PRI)
-        _textbox(s, 0.6, 0.5, 5, 0.8, "Agenda", 32, TEXT_DARK, True, font=h_font)
-        _rect(s, 0.6, 1.35, 2.5, 0.05, PRI)
-
-        y = 1.7
+        set_bg(s, OFFWH)
+        _rect(s, 0, 0, 0.08, 7.5, SEC)
+        _textbox(s, 0.55, 0.45, 5, 0.75, "Agenda", 32, TDARK, True, font=h_font)
+        _rect(s, 0.55, 1.28, 2.2, 0.05, SEC)
+        y = 1.55
         for i, sec in enumerate(sections):
             if y > 6.5:
                 break
-            num = f"{i+1:02d}"
-            _textbox(s, 0.6, y, 0.8, 0.4, num, 24, PRI, True, font=h_font)
-            _textbox(s, 1.6, y + 0.04, 10, 0.4, _clean(sec.get("title", "")), 18, TEXT_BODY, font=b_font)
+            _textbox(s, 0.55, y, 0.75, 0.42, f"{i+1:02d}", 24, SEC, True, font=h_font)
+            _textbox(s, 1.5, y + 0.04, 11, 0.38, _clean(sec.get("title", "")), 17, TBODY, font=b_font)
             y += 0.52
         _page_num(s, sn, total, MGRAY)
 
-    # ── CONTENT SLIDES ──────────────────────────────────────
+    # ── CONTENT SLIDES ───────────────────────────────────────────
     for idx, sec in enumerate(sections):
-        sec_title = sec.get("title") or "Overview"
-        bullets = sec.get("bullets", [])
-        body = sec.get("body", "")
-        stype = sec.get("layout") or _slide_type(sec_title, bullets, body, idx, len(sections))
-        sec_label = f"{brand_label} | {sec_title.upper()[:40]}" if idx > 0 else sec_title
-
+        sec_title  = sec.get("title") or "Overview"
+        bullets    = sec.get("bullets") or []
+        stype      = sec.get("layout") or "content_bullets"
+        sec_cat    = sec.get("section_category") or _derive_section_cat(sec_title, stype)
         sn += 1
         s = prs.slides.add_slide(blank)
 
-        if stype == "benefits_risks":
-            benefits = sec.get("benefits") or []
-            risks = sec.get("risks") or []
-            if not benefits and not risks:
-                mid = len(bullets) // 2
-                benefits = bullets[:max(mid, 1)]
-                risks = bullets[mid:] if mid < len(bullets) else bullets[:1]
-            set_bg(s, WHITE)
-            _rect(s, 0, 0, 13.333, 0.06, PRI)
-            _textbox(s, 0.5, 0.28, 9, 0.6, sec_title, 26, TEXT_DARK, True, font=h_font)
-            _textbox(s, 9.5, 0.28, 3.5, 0.35, brand_label, 9, MGRAY, font=b_font, align=PP_ALIGN.RIGHT)
-            _rect(s, 0.5, 1.0, 2.5, 0.04, PRI)
-            # Column headers with colored background bars
-            _rect(s, 0.4, 1.15, 5.9, 0.48, GREEN)
-            _textbox(s, 0.6, 1.2, 5.6, 0.4, "✓  POTENTIAL BENEFITS", 13, WHITE, True, font=h_font)
-            _rect(s, 6.9, 1.15, 5.9, 0.48, RED)
-            _textbox(s, 7.1, 1.2, 5.6, 0.4, "✗  COGNITIVE RISKS", 13, WHITE, True, font=h_font)
-            # Benefits column
-            y_b = 1.78
-            for b in benefits[:5]:
-                txt = _clean(str(b))[:130]
-                _rect(s, 0.4, y_b, 0.05, 0.42, GREEN)
-                _textbox(s, 0.6, y_b, 5.7, 0.48, txt, 13, TEXT_BODY, font=b_font)
-                y_b += 0.55
-            # Risks column
-            y_r = 1.78
-            for r in risks[:5]:
-                txt = _clean(str(r))[:130]
-                _rect(s, 6.9, y_r, 0.05, 0.42, RED)
-                _textbox(s, 7.1, y_r, 5.7, 0.48, txt, 13, TEXT_BODY, font=b_font)
-                y_r += 0.55
-            # GMG Assessment box at bottom
-            _rect(s, 0.4, 6.3, 12.4, 0.45, RGBColor(0x1E, 0x20, 0x30))
-            assessment = f"{brand_label} Assessment: Agentic AI is a powerful tool but a poor substitute for cognition."
-            _textbox(s, 0.6, 6.35, 12.0, 0.35, assessment, 11, MGRAY, font=b_font)
-            _page_num(s, sn, total, MGRAY)
+        def hdr_dark(category: str):
+            """Standard dark-slide header block."""
+            set_bg(s, DARK)
+            _rect(s, 0, 0, 13.333, 0.06, SEC)
+            _textbox(s, 9.3, 0.14, 3.7, 0.28, brand_label, 8, DGRAY,
+                     False, PP_ALIGN.RIGHT, b_font)
+            _textbox(s, 0.5, 0.14, 5, 0.28, category, 8, MGRAY, True, font=h_font)
+            _textbox(s, 0.5, 0.5, 10.5, 0.72, sec_title, 30, WHITE, True, font=h_font)
+            _rect(s, 0.5, 1.28, 2.0, 0.04, GOLD)
 
-        elif stype == "comparison_table":
-            tbl = sec.get("table_data") or {}
-            headers = tbl.get("headers", ["Before AI", "With Agentic AI"])
-            rows = tbl.get("rows", [])
-            if not rows and len(bullets) >= 2:
-                # Split bullets alternately into two columns
-                mid = len(bullets) // 2
-                left_b = bullets[:mid]
-                right_b = bullets[mid:]
-                rows = [[l, r] for l, r in zip(left_b, right_b)]
+        def hdr_light(category: str):
+            """Standard light-slide header block."""
             set_bg(s, WHITE)
-            _rect(s, 0, 0, 13.333, 0.06, PRI)
-            _textbox(s, 0.5, 0.28, 9, 0.62, sec_title, 26, TEXT_DARK, True, font=h_font)
-            _textbox(s, 9.5, 0.28, 3.5, 0.35, brand_label, 9, MGRAY, font=b_font, align=PP_ALIGN.RIGHT)
-            _rect(s, 0.5, 1.0, 2.5, 0.04, PRI)
-            # Column header bars
-            h0_color = GREEN if "benefit" in str(headers[0]).lower() else PRI
-            h1_color = RED if "risk" in str(headers[1]).lower() or "cost" in str(headers[1]).lower() else SEC
-            _rect(s, 0.4, 1.12, 6.0, 0.48, h0_color)
-            _textbox(s, 0.6, 1.17, 5.7, 0.38, str(headers[0])[:35], 13, WHITE, True, font=h_font)
-            _rect(s, 6.9, 1.12, 6.0, 0.48, h1_color)
-            _textbox(s, 7.1, 1.17, 5.7, 0.38, str(headers[1])[:35], 13, WHITE, True, font=h_font)
-            # Rows with alternating row shading
-            y = 1.68
-            for ri, row in enumerate(rows[:6]):
-                if len(row) >= 2:
-                    row_bg = RGBColor(0xF8, 0xF8, 0xFA) if ri % 2 == 0 else WHITE
-                    _rect(s, 0.4, y, 12.5, 0.52, row_bg)
-                    _rect(s, 6.85, y, 0.03, 0.52, LGRAY)
-                    _textbox(s, 0.6, y + 0.05, 5.9, 0.44, _clean(str(row[0]))[:90], 13, TEXT_BODY, font=b_font)
-                    _textbox(s, 7.1, y + 0.05, 5.9, 0.44, _clean(str(row[1]))[:90], 13, TEXT_BODY, font=b_font)
-                y += 0.54
-            _page_num(s, sn, total, MGRAY)
+            _rect(s, 0, 0, 13.333, 0.06, SEC)
+            _textbox(s, 9.3, 0.14, 3.7, 0.28, brand_label, 8, MGRAY,
+                     False, PP_ALIGN.RIGHT, b_font)
+            _textbox(s, 0.5, 0.14, 5, 0.28, category, 8, SEC, True, font=h_font)
+            _textbox(s, 0.5, 0.5, 10.5, 0.65, sec_title, 28, TDARK, True, font=h_font)
+            _rect(s, 0.5, 1.22, 2.0, 0.04, SEC)
 
-        elif stype == "data_metrics":
+        # ── data_metrics ────────────────────────────────────────
+        if stype == "data_metrics":
             metrics = sec.get("metrics") or []
-            if not metrics and bullets:
+            if not metrics:
+                pat = re.compile(r'(-?[\d.]+%|-?\$[\d.]+[BMKTbmkt]?|-?[\d.]+[xX]|[\d,]+[BMKTbmkt+])')
                 for b in bullets[:8]:
-                    # Exclude year-only bullets
                     if re.fullmatch(r'\s*20\d\d\s*', b):
                         continue
-                    m = re.search(r"(-?[\d.]+%|-?\$[\d.]+[BMKTbmkt]?|-?[\d.]+[xX]|[\d,]+[BMKTbmkt+])", str(b))
-                    if m:
-                        val = m.group(1)
-                        if re.fullmatch(r'20\d\d', val.strip('+-')):
+                    for m in pat.finditer(str(b)):
+                        v = m.group(1)
+                        if re.fullmatch(r'20\d\d', v.strip('+-')):
                             continue
-                        # Skip range dashes (e.g. "60-70%" → don't extract "-70%")
-                        pos = m.start()
-                        if val.startswith('-') and pos > 0 and str(b)[pos - 1].isdigit():
+                        if v.startswith('-') and m.start() > 0 and str(b)[m.start()-1].isdigit():
                             continue
-                        label = _clean(str(b)).replace(val, "").strip(" :-–")[:55]
-                        if label and len(label) > 3:
-                            metrics.append({"value": val, "label": label})
-            set_bg(s, DARK)
-            _rect(s, 0, 0, 13.333, 0.06, PRI)
-            _textbox(s, 0.5, 0.28, 10, 0.65, sec_title, 28, WHITE, True, font=h_font)
-            _textbox(s, 9.5, 0.28, 3.5, 0.35, brand_label, 9, DGRAY, font=b_font, align=PP_ALIGN.RIGHT)
-            _rect(s, 0.5, 1.02, 2.5, 0.04, SEC)
+                        lbl = _clean(str(b)).replace(v, "").strip(" :-–")[:55]
+                        if lbl and len(lbl) > 3:
+                            metrics.append({"value": v, "label": lbl})
+                        break
+            hdr_dark(sec_cat)
             if metrics:
                 count = min(len(metrics), 8)
                 if count <= 4:
                     slot_w = 13.333 / count
                     for i, m in enumerate(metrics[:count]):
-                        xp = i * slot_w + slot_w * 0.08
-                        _rect(s, xp, 1.25, slot_w * 0.84, 2.15, RGBColor(0x1E, 0x20, 0x30))
-                        # Top accent line on card
+                        xp = i * slot_w + slot_w * 0.07
+                        cw = slot_w * 0.86
                         val_s = str(m.get("value", ""))
-                        card_accent = RED if val_s.startswith("-") else SEC
-                        _rect(s, xp, 1.25, slot_w * 0.84, 0.06, card_accent)
-                        val_color = card_accent
-                        _textbox(s, xp, 1.35, slot_w * 0.84, 1.05, val_s[:12], 46, val_color, True, PP_ALIGN.CENTER, h_font)
-                        _textbox(s, xp, 2.45, slot_w * 0.84, 0.8, _clean(str(m.get("label", "")))[:55], 12, MGRAY, False, PP_ALIGN.CENTER, b_font)
-                    y_ctx = 3.6
+                        ac = RED if val_s.startswith("-") else GOLD
+                        _rect(s, xp, 1.42, cw, 2.55, DARK3)
+                        _rect(s, xp, 1.42, cw, 0.06, ac)
+                        _textbox(s, xp, 1.55, cw, 1.15, val_s[:12], 52, ac,
+                                 True, PP_ALIGN.CENTER, h_font)
+                        _textbox(s, xp, 2.75, cw, 0.9, _clean(str(m.get("label", "")))[:60],
+                                 12, MGRAY, False, PP_ALIGN.CENTER, b_font)
+                    # Bar chart for adoption/scale slides
+                    if any(k in sec_title.lower() for k in ["scale", "global", "market", "adoption", "growth"]):
+                        years = [(str(y), min(int((y-2019)*18), 100)) for y in range(2020, 2026)]
+                        _bar_chart_rects(s, 0.5, 4.15, 12.3, 2.35, years, GOLD, DGRAY, None, b_font)
+                        _textbox(s, 0.5, 6.6, 12.3, 0.28,
+                                 "Agentic AI User Growth (Millions) — Source: Industry Reports 2025",
+                                 9, DGRAY, False, PP_ALIGN.CENTER, b_font)
+                    else:
+                        ctx = [b for b in bullets if not re.search(r'[\d%$]', b)][:2]
+                        if ctx:
+                            _textbox(s, 0.5, 4.2, 12.3, 0.45,
+                                     "  •  ".join(_clean(c) for c in ctx),
+                                     11, DGRAY, False, PP_ALIGN.CENTER, b_font)
                 else:
-                    # Two rows of 4
-                    row1 = metrics[:4]
-                    row2 = metrics[4:8]
+                    # 2-row layout
                     slot_w = 13.333 / 4
-                    for row_i, row in enumerate([row1, row2]):
-                        y_base = 1.2 + row_i * 2.55
+                    for row_i, row in enumerate([metrics[:4], metrics[4:8]]):
+                        yb = 1.35 + row_i * 2.65
                         for i, m in enumerate(row):
                             xp = i * slot_w + slot_w * 0.05
+                            cw = slot_w * 0.9
                             val_s = str(m.get("value", ""))
-                            card_accent = RED if val_s.startswith("-") else SEC
-                            _rect(s, xp, y_base, slot_w * 0.9, 2.2, RGBColor(0x1E, 0x20, 0x30))
-                            _rect(s, xp, y_base, slot_w * 0.9, 0.05, card_accent)
-                            _textbox(s, xp, y_base + 0.1, slot_w * 0.9, 1.0, val_s[:12], 34, card_accent, True, PP_ALIGN.CENTER, h_font)
-                            _textbox(s, xp, y_base + 1.15, slot_w * 0.9, 0.85, _clean(str(m.get("label", "")))[:55], 11, MGRAY, False, PP_ALIGN.CENTER, b_font)
-                    y_ctx = 6.1
-                # Context bullets
-                if bullets:
-                    context = [b for b in bullets if not re.search(r'[\d%$]', b)][:2]
-                    if context:
-                        _textbox(s, 0.5, y_ctx, 12.3, 0.5, "  •  ".join(_clean(c) for c in context), 11, DGRAY, font=b_font, align=PP_ALIGN.CENTER)
+                            ac = RED if val_s.startswith("-") else GOLD
+                            _rect(s, xp, yb, cw, 2.4, DARK3)
+                            _rect(s, xp, yb, cw, 0.05, ac)
+                            _textbox(s, xp, yb + 0.12, cw, 1.0, val_s[:12],
+                                     36, ac, True, PP_ALIGN.CENTER, h_font)
+                            _textbox(s, xp, yb + 1.18, cw, 0.95,
+                                     _clean(str(m.get("label", "")))[:60],
+                                     11, MGRAY, False, PP_ALIGN.CENTER, b_font)
             else:
-                _bullet_block(s, 0.5, 1.25, 12.0, 5, bullets[:6], 17, MGRAY, b_font, 14, 6)
+                _bullet_block(s, 0.5, 1.45, 12, 5.0, bullets[:7], 17, MGRAY, b_font, 14, 7, "\u25B8")
             _page_num(s, sn, total, DGRAY)
 
+        # ── research_study ──────────────────────────────────────
+        elif stype == "research_study":
+            hdr_dark(sec_cat)
+            study_design = sec.get("study_design") or []
+            findings     = sec.get("findings") or []
+            quote_text   = sec.get("quote") or ""
+
+            # If no structured data, extract from bullets
+            if not study_design:
+                study_design = [b for b in bullets if b.lower().startswith("study design")]
+                if not study_design:
+                    study_design = bullets[:3]
+            if not findings:
+                findings = [b for b in bullets if re.search(r'\d+%', b)][:3]
+                if not findings:
+                    findings = bullets[len(study_design):len(study_design)+3]
+            if not quote_text:
+                qb = [b for b in bullets if b.lower().startswith("quote") or
+                      ('"' in b and len(b) > 60)]
+                quote_text = qb[0].replace("Quote from lead researcher:", "").strip().strip('"') if qb else ""
+
+            # Study citation banner
+            _rect(s, 0.4, 1.45, 12.5, 0.55, DARK3)
+            _rect(s, 0.4, 1.45, 0.07, 0.55, GOLD)
+            study_banner = (study_design[0].replace("Study Design:", "").strip()[:120]
+                            if study_design else sec_title)
+            _textbox(s, 0.65, 1.52, 12.0, 0.38, study_banner, 12, MGRAY, False, font=b_font)
+
+            # Left: study design panel
+            _rect(s, 0.4, 2.1, 4.6, 4.1, DARK3)
+            _textbox(s, 0.55, 2.18, 4.2, 0.35, "STUDY DESIGN", 10, GOLD, True, font=h_font)
+            sd_bullets = (study_design[0].replace("Study Design:", "").strip().split(",")
+                          if study_design else bullets[:4])
+            ysd = 2.6
+            for sd_b in sd_bullets[:5]:
+                _textbox(s, 0.55, ysd, 4.2, 0.48, f"\u25B8  {_clean(sd_b.strip())[:60]}",
+                         12, MGRAY, False, font=b_font)
+                ysd += 0.52
+
+            # Right: 3 finding columns
+            col_titles = ["Critical Thinking", "Task Independence", "Skill Retention"]
+            col_colors = [RED, ORNG, CYAN]
+            cx_positions = [5.2, 8.05, 10.9]
+            for ci in range(min(3, len(findings))):
+                cx = cx_positions[ci]
+                ftext = _clean(str(findings[ci]))
+                val_m = re.search(r'(-?\d+\.?\d*%|-?\d+\.?\d*[xX])', ftext)
+                val_disp = val_m.group(1) if val_m else ""
+                col_lbl = col_titles[ci] if ci < len(col_titles) else f"Finding {ci+1}"
+                cc = col_colors[ci]
+                _rect(s, cx, 2.1, 2.9, 0.4, DARK3)
+                _textbox(s, cx + 0.1, 2.15, 2.7, 0.3, col_lbl, 10, cc, True, font=h_font)
+                if val_disp:
+                    _textbox(s, cx, 2.58, 2.9, 0.95, val_disp, 48, cc,
+                              True, PP_ALIGN.CENTER, h_font)
+                _textbox(s, cx + 0.1, 3.6, 2.7, 2.55, ftext[:150], 12, MGRAY, False, font=b_font)
+
+            # Bottom: quote bar
+            if quote_text:
+                _rect(s, 0.4, 6.3, 12.5, 0.88, RGBColor(0x14, 0x18, 0x2E))
+                _textbox(s, 0.55, 6.35, 0.5, 0.55, "\u201C", 28, GOLD, True, font=h_font)
+                _textbox(s, 1.15, 6.42, 11.0, 0.68,
+                         _clean(str(quote_text))[:220], 12, WHITE, False, font=b_font)
+            _page_num(s, sn, total, DGRAY)
+
+        # ── definition_boxes ────────────────────────────────────
+        elif stype == "definition_boxes":
+            hdr_dark(sec_cat)
+            colon_bullets = [b for b in bullets if ":" in b]
+            # Optional definition box (first colon bullet treated as key term def)
+            if colon_bullets:
+                parts0 = colon_bullets[0].split(":", 1)
+                _rect(s, 0.4, 1.45, 12.5, 0.88, RGBColor(0x18, 0x1A, 0x2A))
+                _rect(s, 0.4, 1.45, 0.07, 0.88, GOLD)
+                _textbox(s, 0.65, 1.5, 2.5, 0.35,
+                         _clean(parts0[0])[:30], 13, GOLD, True, font=h_font)
+                _textbox(s, 3.25, 1.5, 9.5, 0.7,
+                         _clean(parts0[1])[:200], 13, MGRAY, False, font=b_font)
+
+            # 3 concept boxes
+            boxes = colon_bullets[1:4] if len(colon_bullets) >= 4 else colon_bullets[:3]
+            if not boxes:
+                boxes = bullets[:3]
+            box_colors = [SEC, CYAN, GOLD]
+            bw = 12.4 / max(len(boxes), 1)
+            for bi, cb in enumerate(boxes[:3]):
+                parts = cb.split(":", 1) if ":" in cb else [cb, ""]
+                bx = 0.45 + bi * (bw + 0.04)
+                bc = box_colors[bi % 3]
+                _rect(s, bx, 2.45, bw, 3.0, DARK3)
+                _rect(s, bx, 2.45, bw, 0.07, bc)
+                _textbox(s, bx + 0.18, 2.58, bw - 0.3, 0.48,
+                         _clean(parts[0])[:30], 18, bc, True, font=h_font)
+                _textbox(s, bx + 0.18, 3.1, bw - 0.3, 1.75,
+                         _clean(parts[1].strip())[:200], 13, MGRAY, False, font=b_font)
+
+            # Examples row at bottom
+            non_colon = [b for b in bullets if ":" not in b or len(b.split(":", 1)[0]) > 30]
+            if non_colon:
+                _textbox(s, 0.5, 5.65, 12.3, 0.35,
+                         "Examples: " + "  ·  ".join(_clean(b)[:30] for b in non_colon[:5]),
+                         11, DGRAY, False, font=b_font)
+            _page_num(s, sn, total, DGRAY)
+
+        # ── two_column_info ─────────────────────────────────────
+        elif stype == "two_column_info":
+            hdr_light(sec_cat)
+            colon_bullets = [b for b in bullets if ":" in b and len(b.split(":", 1)[0]) < 35]
+            accent_colors = [PRI, SEC, ORNG, GREEN, PURP, CYAN]
+
+            # Left column: labeled list
+            y = 1.4
+            for bi, cb in enumerate(colon_bullets[:5]):
+                parts = cb.split(":", 1)
+                ac = accent_colors[bi % len(accent_colors)]
+                lbl = _clean(parts[0])[:28]
+                desc = _clean(parts[1].strip())[:130] if len(parts) > 1 else ""
+                num_m = re.search(r'(\d+[%$xX+]|-\d+%)', cb)
+                nv = num_m.group(1) if num_m else ""
+                _rect(s, 0.4, y, 0.06, 0.78, ac)
+                _textbox(s, 0.6, y, 3.4, 0.36, lbl, 14, TDARK, True, font=h_font)
+                if desc:
+                    _textbox(s, 0.6, y + 0.35, 5.5, 0.42, desc[:110], 11, TBODY, False, font=b_font)
+                if nv:
+                    nc = RED if nv.startswith('-') else SEC
+                    _textbox(s, 5.4, y, 1.5, 0.78, nv, 28, nc, True, PP_ALIGN.CENTER, h_font)
+                y += 0.9
+
+            # Right column: 2 info boxes
+            info_bullets = [b for b in bullets if b not in colon_bullets]
+            if not info_bullets:
+                info_bullets = colon_bullets[5:]
+            if len(info_bullets) >= 1:
+                _info_box(s, 7.15, 1.4, 5.8, 2.35,
+                          info_bullets[0].split(":")[0] if ":" in info_bullets[0] else "Key Finding",
+                          info_bullets[0], ORNG, TBODY, OFFWH, h_font, b_font)
+            if len(info_bullets) >= 2:
+                _info_box(s, 7.15, 3.88, 5.8, 2.35,
+                          info_bullets[1].split(":")[0] if ":" in info_bullets[1] else "Neural Impact",
+                          info_bullets[1], RED, TBODY, OFFWH, h_font, b_font)
+            _page_num(s, sn, total, MGRAY)
+
+        # ── warning_callout ─────────────────────────────────────
         elif stype == "warning_callout":
             warn = sec.get("warning_text") or (bullets[0] if bullets else "Important notice.")
             support = [b for b in bullets if b != warn]
-            # Detect age-group data (bullets starting with "Ages X-Y" or "X-Y:")
             age_bullets = [b for b in bullets if re.match(r'^(Ages?\s+\d|\d{1,2}[-–]\d{1,2})', b)]
-            has_age_rows = len(age_bullets) >= 3
 
-            if has_age_rows:
-                # Warning with age-group rows (like Claude's "Most Vulnerable" slide)
+            if len(age_bullets) >= 3:
+                # Age-group rows variant (Most Vulnerable)
                 set_bg(s, DARK)
                 _rect(s, 0, 0, 13.333, 0.07, RED)
-                _textbox(s, 0.5, 0.28, 9, 0.65, sec_title, 28, WHITE, True, font=h_font)
-                _textbox(s, 9.5, 0.28, 3.5, 0.35, brand_label, 9, DGRAY, font=b_font, align=PP_ALIGN.RIGHT)
+                _textbox(s, 9.3, 0.14, 3.7, 0.28, brand_label, 8, DGRAY, False, PP_ALIGN.RIGHT, b_font)
+                _textbox(s, 0.5, 0.14, 5, 0.28, sec_cat, 8, RED, True, font=h_font)
+                _textbox(s, 0.5, 0.5, 10.5, 0.7, sec_title, 28, WHITE, True, font=h_font)
+                _rect(s, 0.5, 1.28, 2.0, 0.04, RED)
                 # Warning banner
-                _rect(s, 0.4, 1.1, 12.5, 0.55, RGBColor(0x7F, 0x1D, 0x1D))
-                _textbox(s, 0.6, 1.15, 0.5, 0.4, "⚠", 18, ORANGE, True, font=h_font)
-                _textbox(s, 1.15, 1.2, 11.2, 0.38, _clean(str(warn))[:150], 13, RGBColor(0xFE, 0xCA, 0xCA), font=b_font)
-                # Age-group rows
-                row_colors = [
-                    RGBColor(0x1E, 0x20, 0x30), RGBColor(0x23, 0x1A, 0x1A),
-                    RGBColor(0x1E, 0x20, 0x30), RGBColor(0x18, 0x1F, 0x2A)
-                ]
-                y = 1.82
+                _rect(s, 0.4, 1.45, 12.5, 0.55, RGBColor(0x7F, 0x1D, 0x1D))
+                _textbox(s, 0.55, 1.5, 0.5, 0.4, "⚠", 18, ORNG, True, font=h_font)
+                _textbox(s, 1.1, 1.55, 11.6, 0.38,
+                         _clean(str(warn))[:170], 13, RGBColor(0xFE, 0xCA, 0xCA), False, font=b_font)
+                # Age rows
+                row_bgs = [DARK3, RGBColor(0x1F, 0x14, 0x14), DARK3, RGBColor(0x14, 0x18, 0x2A)]
+                lbl_bgs = [RGBColor(0x2D, 0x1B, 0x69), RGBColor(0x44, 0x12, 0x1A),
+                           RGBColor(0x1A, 0x32, 0x5C), RGBColor(0x27, 0x2A, 0x1A)]
+                y = 2.12
                 for ri, ab in enumerate(age_bullets[:4]):
                     parts = ab.split(":", 1)
-                    age_label = _clean(parts[0])[:20]
-                    age_desc = _clean(parts[1].strip())[:180] if len(parts) > 1 else _clean(ab[len(age_label):])[:180]
-                    _rect(s, 0.4, y, 12.5, 1.15, row_colors[ri % len(row_colors)])
-                    _rect(s, 0.4, y, 2.2, 1.15, RGBColor(0x2D, 0x1B, 0x69) if ri % 2 == 0 else RGBColor(0x27, 0x1A, 0x2D))
-                    _textbox(s, 0.55, y + 0.1, 1.95, 0.9, age_label, 22, WHITE, True, PP_ALIGN.CENTER, h_font)
-                    _textbox(s, 2.75, y + 0.15, 9.9, 0.85, age_desc, 13, MGRAY, font=b_font)
-                    y += 1.22
-                # Bottom note
+                    age_lbl = _clean(parts[0])[:18]
+                    age_desc = _clean(parts[1].strip())[:190] if len(parts) > 1 else _clean(ab)[:190]
+                    _rect(s, 0.4, y, 12.5, 1.2, row_bgs[ri % 4])
+                    _rect(s, 0.4, y, 2.1, 1.2, lbl_bgs[ri % 4])
+                    _textbox(s, 0.45, y + 0.12, 2.0, 0.95, age_lbl,
+                              22, WHITE, True, PP_ALIGN.CENTER, h_font)
+                    _textbox(s, 2.7, y + 0.18, 9.9, 0.85, age_desc,
+                              13, MGRAY, False, font=b_font)
+                    y += 1.26
                 non_age = [b for b in bullets if b not in age_bullets and b != warn]
                 if non_age:
-                    _textbox(s, 0.5, y + 0.05, 12.3, 0.45, _clean(non_age[0])[:200], 11, DGRAY, font=b_font)
+                    _textbox(s, 0.5, y + 0.08, 12.3, 0.42, _clean(non_age[0])[:200],
+                             11, DGRAY, False, font=b_font)
             else:
-                # Standard warning callout
-                set_bg(s, WHITE)
-                _rect(s, 0, 0, 13.333, 0.06, PRI)
-                _textbox(s, 0.5, 0.28, 9, 0.65, sec_title, 26, TEXT_DARK, True, font=h_font)
-                _textbox(s, 9.5, 0.28, 3.5, 0.35, brand_label, 9, MGRAY, font=b_font, align=PP_ALIGN.RIGHT)
-                _rect(s, 0.5, 1.05, 3.0, 0.05, PRI)
-                # Warning box
-                _rect(s, 0.4, 1.25, 12.4, 1.85, RGBColor(0xFF, 0xF0, 0xE0))
-                _rect(s, 0.4, 1.25, 0.07, 1.85, ORANGE)
-                _textbox(s, 0.65, 1.35, 1.0, 0.45, "⚠", 26, ORANGE, True, font=h_font)
-                _textbox(s, 1.65, 1.35, 10.8, 0.4, "KEY FINDING", 11, ORANGE, True, font=h_font)
-                _textbox(s, 1.65, 1.75, 10.8, 1.2, _clean(str(warn))[:300], 15, TEXT_DARK, font=b_font)
-                # Supporting points
+                # Standard warning
+                hdr_light(sec_cat)
+                _rect(s, 0.4, 1.38, 12.5, 1.8, RGBColor(0xFF, 0xF3, 0xE0))
+                _rect(s, 0.4, 1.38, 0.08, 1.8, ORNG)
+                _textbox(s, 0.65, 1.48, 0.95, 0.5, "⚠", 28, ORNG, True, font=h_font)
+                _textbox(s, 1.62, 1.48, 11.0, 0.38, "KEY FINDING", 11, ORNG, True, font=h_font)
+                _textbox(s, 1.62, 1.88, 11.0, 1.15,
+                         _clean(str(warn))[:350], 14, TDARK, False, font=b_font)
+                # Support boxes
                 if support:
-                    nsup = min(len(support[:4]), 4)
-                    bw = 12.2 / nsup
+                    n = min(len(support[:4]), 4)
+                    bw = 12.2 / n
+                    box_cs = [PRI, SEC, ORNG, GREEN]
                     for bi, b in enumerate(support[:4]):
                         bx = 0.4 + bi * bw
-                        box_c = [PRI, SEC, ORANGE, GREEN][bi % 4]
-                        _rect(s, bx, 3.25, bw - 0.1, 1.65, box_c)
-                        _textbox(s, bx + 0.15, 3.35, bw - 0.3, 1.45, _clean(str(b))[:120], 13, WHITE, font=b_font)
+                        _rect(s, bx, 3.32, bw - 0.1, 2.0, box_cs[bi % 4])
+                        _textbox(s, bx + 0.14, 3.42, bw - 0.25, 1.8,
+                                 _clean(str(b))[:140], 13, WHITE, False, font=b_font)
             _page_num(s, sn, total, MGRAY)
 
-        elif stype == "executive":
-            set_bg(s, DARK)
-            _rect(s, 0, 0, 13.333, 0.05, PRI)
-            _rect(s, 0, 0, 0.08, 7.5, SEC)
-            _textbox(s, 0.6, 0.35, 11, 0.65, sec_title, 30, WHITE, True, font=h_font)
-            _rect(s, 0.6, 1.05, 2.5, 0.04, SEC)
-            # If bullets have ":" separators, render as colored 3-column concept boxes
-            colon_bullets = [b for b in bullets if ":" in b]
-            if len(colon_bullets) >= 3:
-                boxes = colon_bullets[:3]
-                box_colors = [PRI, SEC, RGBColor(0xF5, 0x9E, 0x0B)]
-                bw = 12.0 / 3
-                for bi, cb in enumerate(boxes):
-                    parts = cb.split(":", 1)
-                    bx = 0.6 + bi * (bw + 0.1)
-                    _rect(s, bx, 1.3, bw - 0.1, 2.0, RGBColor(0x1E, 0x20, 0x30))
-                    _rect(s, bx, 1.3, bw - 0.1, 0.08, box_colors[bi % 3])
-                    _textbox(s, bx + 0.15, 1.45, bw - 0.4, 0.5, _clean(parts[0]), 16, box_colors[bi % 3], True, font=h_font)
-                    _textbox(s, bx + 0.15, 1.95, bw - 0.4, 1.2, _clean(parts[1].strip()), 13, MGRAY, font=b_font)
-                # Remaining bullets as body text
-                rest = [b for b in bullets if b not in colon_bullets] + colon_bullets[3:]
-                if rest:
-                    _textbox(s, 0.6, 3.6, 12.1, 0.35, "  •  ".join(_clean(r) for r in rest[:3]), 12, DGRAY, font=b_font)
+        # ── benefits_risks ──────────────────────────────────────
+        elif stype == "benefits_risks":
+            benefits = sec.get("benefits") or []
+            risks    = sec.get("risks") or []
+            if not benefits and not risks:
+                mid = max(len(bullets) // 2, 1)
+                benefits = bullets[:mid]
+                risks    = bullets[mid:] if mid < len(bullets) else bullets[:1]
+            hdr_light(sec_cat)
+            # Column header bars
+            _rect(s, 0.4, 1.38, 6.0, 0.5, GREEN)
+            _textbox(s, 0.6, 1.42, 5.7, 0.38, "✓  POTENTIAL BENEFITS", 13, WHITE, True, font=h_font)
+            _rect(s, 6.9, 1.38, 6.0, 0.5, RED)
+            _textbox(s, 7.1, 1.42, 5.7, 0.38, "✗  COGNITIVE RISKS", 13, WHITE, True, font=h_font)
+            # Benefits
+            yb = 1.98
+            for b in benefits[:5]:
+                _rect(s, 0.4, yb, 0.06, 0.48, GREEN)
+                _textbox(s, 0.62, yb, 5.8, 0.52, _clean(str(b))[:140], 13, TBODY, False, font=b_font)
+                yb += 0.58
+            # Risks
+            yr = 1.98
+            for r in risks[:5]:
+                _rect(s, 6.9, yr, 0.06, 0.48, RED)
+                _textbox(s, 7.12, yr, 5.8, 0.52, _clean(str(r))[:140], 13, TBODY, False, font=b_font)
+                yr += 0.58
+            # Assessment footer
+            _rect(s, 0.4, 6.4, 12.5, 0.42, DARK3)
+            _textbox(s, 0.6, 6.46, 12.1, 0.32,
+                     f"{brand_label} Assessment: AI is a powerful tool but a poor substitute for deep cognition.",
+                     11, MGRAY, False, font=b_font)
+            _page_num(s, sn, total, MGRAY)
+
+        # ── comparison_table ────────────────────────────────────
+        elif stype == "comparison_table":
+            tbl = sec.get("table_data") or {}
+            headers = tbl.get("headers") or sec.get("col_headers") or ["Before AI", "With Agentic AI"]
+            rows    = tbl.get("rows", [])
+            if not rows and len(bullets) >= 2:
+                mid   = len(bullets) // 2
+                left  = bullets[:mid]
+                right = bullets[mid:]
+                rows  = [[l, r] for l, r in zip(left, right)]
+            hdr_light(sec_cat)
+            # Column headers
+            h0c = GREEN if any(k in str(headers[0]).lower() for k in ["benefit", "positive", "pro"]) else PRI
+            h1c = RED   if any(k in str(headers[1]).lower() for k in ["risk", "cost", "con", "negative"]) else SEC
+            _rect(s, 0.4, 1.38, 6.1, 0.5, h0c)
+            _textbox(s, 0.6, 1.43, 5.8, 0.38, str(headers[0])[:40], 13, WHITE, True, font=h_font)
+            _rect(s, 6.9, 1.38, 6.1, 0.5, h1c)
+            _textbox(s, 7.1, 1.43, 5.8, 0.38, str(headers[1])[:40], 13, WHITE, True, font=h_font)
+            # Rows
+            y = 1.95
+            for ri, row in enumerate(rows[:6]):
+                if len(row) >= 2:
+                    rbg = RGBColor(0xF8, 0xF9, 0xFA) if ri % 2 == 0 else WHITE
+                    _rect(s, 0.4, y, 12.6, 0.55, rbg)
+                    _rect(s, 6.87, y, 0.03, 0.55, LGRAY)
+                    _textbox(s, 0.6, y + 0.06, 6.0, 0.45,
+                             _clean(str(row[0]))[:100], 13, TBODY, False, font=b_font)
+                    _textbox(s, 7.1, y + 0.06, 6.0, 0.45,
+                             _clean(str(row[1]))[:100], 13, TBODY, False, font=b_font)
+                y += 0.57
+            _page_num(s, sn, total, MGRAY)
+
+        # ── recommendations ─────────────────────────────────────
+        elif stype == "recommendations":
+            hdr_light(sec_cat)
+            _rect(s, 0, 6.9, 13.333, 0.6, DARK)
+            items = bullets[:4]
+            nc_list = [PRI, SEC, GREEN, ORNG]
+            cat_labels = ["INDIVIDUALLY", "ORGANIZATIONS", "POLICY", "MEASUREMENT"]
+            if len(items) >= 3:
+                # 2×2 grid
+                grid = [(0.4, 1.38), (6.9, 1.38), (0.4, 4.15), (6.9, 4.15)]
+                for gi, (gx, gy) in enumerate(grid[:len(items)]):
+                    nc = nc_list[gi % len(nc_list)]
+                    btext = _clean(items[gi])
+                    parts = btext.split(":", 1)
+                    heading = parts[0].strip()[:55]
+                    detail  = parts[1].strip()[:240] if len(parts) > 1 else btext[:240]
+                    _textbox(s, gx, gy, 6.0, 0.28,
+                             cat_labels[gi] if gi < len(cat_labels) else f"0{gi+1}",
+                             8, MGRAY, True, font=h_font)
+                    _rect(s, gx, gy + 0.3, 0.52, 0.52, nc)
+                    _textbox(s, gx + 0.04, gy + 0.34, 0.44, 0.44,
+                             str(gi + 1), 21, WHITE, True, PP_ALIGN.CENTER, h_font)
+                    _textbox(s, gx + 0.68, gy + 0.33, 5.7, 0.5,
+                             heading, 15, TDARK, True, font=h_font)
+                    if detail:
+                        _textbox(s, gx + 0.68, gy + 0.86, 5.7, 1.85,
+                                 detail, 12, TBODY, False, font=b_font)
+                    _rect(s, gx, gy + 2.65, 6.1, 0.03, LGRAY)
             else:
-                _bullet_block(s, 0.6, 1.3, 11.5, 5.5, bullets, 17, MGRAY, b_font, 14, 6, "\u25B8")
-            # Small section label
-            _textbox(s, 8.5, 0.35, 4.5, 0.35, brand_label, 9, DGRAY, font=b_font, align=PP_ALIGN.RIGHT)
+                y = 1.42
+                for i, b in enumerate(bullets[:5]):
+                    nc = nc_list[i % len(nc_list)]
+                    parts = _clean(b).split(":", 1)
+                    _rect(s, 0.4, y, 0.52, 0.52, nc)
+                    _textbox(s, 0.44, y + 0.06, 0.44, 0.4,
+                             str(i + 1), 21, WHITE, True, PP_ALIGN.CENTER, h_font)
+                    _textbox(s, 1.1, y + 0.06, 11.8, 0.42,
+                             parts[0].strip(), 16, TDARK, True, font=h_font)
+                    if len(parts) > 1:
+                        _textbox(s, 1.1, y + 0.52, 11.8, 0.4,
+                                 parts[1].strip()[:140], 13, TBODY, False, font=b_font)
+                    y += 1.06
+            _page_num(s, sn, total, MGRAY)
+
+        # ── executive ───────────────────────────────────────────
+        elif stype == "executive":
+            hdr_dark(sec_cat)
+            colon_b = [b for b in bullets if ":" in b]
+            if len(colon_b) >= 3:
+                bw = 12.4 / 3
+                box_cs = [SEC, CYAN, GOLD]
+                for bi, cb in enumerate(colon_b[:3]):
+                    parts = cb.split(":", 1)
+                    bx = 0.45 + bi * (bw + 0.04)
+                    bc = box_cs[bi % 3]
+                    _rect(s, bx, 1.45, bw, 2.8, DARK3)
+                    _rect(s, bx, 1.45, bw, 0.06, bc)
+                    _textbox(s, bx + 0.16, 1.58, bw - 0.28, 0.48,
+                             _clean(parts[0])[:32], 16, bc, True, font=h_font)
+                    _textbox(s, bx + 0.16, 2.1, bw - 0.28, 1.9,
+                             _clean(parts[1].strip())[:240], 13, MGRAY, False, font=b_font)
+                rest = [b for b in bullets if b not in colon_b]
+                if rest:
+                    _textbox(s, 0.5, 4.45, 12.3, 0.38,
+                             "  •  ".join(_clean(r)[:35] for r in rest[:4]),
+                             12, DGRAY, False, PP_ALIGN.CENTER, b_font)
+            else:
+                _bullet_block(s, 0.5, 1.45, 12.0, 5.4, bullets, 17, MGRAY, b_font, 14, 7, "\u25B8")
             _page_num(s, sn, total, DGRAY)
 
+        # ── agenda ──────────────────────────────────────────────
         elif stype == "agenda":
-            set_bg(s, OFFWHITE)
-            _rect(s, 0, 0, 0.08, 7.5, PRI)
-            _textbox(s, 0.6, 0.5, 5, 0.8, sec_title, 30, TEXT_DARK, True, font=h_font)
-            _rect(s, 0.6, 1.35, 2.5, 0.05, PRI)
+            set_bg(s, OFFWH)
+            _rect(s, 0, 0, 0.08, 7.5, SEC)
+            _textbox(s, 0.55, 0.45, 5, 0.75, sec_title, 30, TDARK, True, font=h_font)
+            _rect(s, 0.55, 1.28, 2.2, 0.05, SEC)
             if bullets:
-                y = 1.7
+                y = 1.55
                 for i, b in enumerate(bullets[:12]):
-                    _textbox(s, 0.6, y, 0.8, 0.4, f"{i+1:02d}", 22, PRI, True, font=h_font)
-                    _textbox(s, 1.6, y + 0.04, 10, 0.4, _clean(b), 17, TEXT_BODY, font=b_font)
+                    _textbox(s, 0.55, y, 0.75, 0.42, f"{i+1:02d}", 22, SEC, True, font=h_font)
+                    _textbox(s, 1.5, y + 0.04, 11, 0.38, _clean(b), 17, TBODY, font=b_font)
                     y += 0.48
             _page_num(s, sn, total, MGRAY)
 
-        elif stype == "two_column":
-            set_bg(s, WHITE)
-            _rect(s, 0, 0, 13.333, 0.05, PRI)
-            _textbox(s, 0.6, 0.45, 12, 0.7, sec_title, 28, TEXT_DARK, True, font=h_font)
-            _rect(s, 0.6, 1.2, 2.5, 0.04, PRI)
-            mid = len(bullets) // 2
-            _bullet_block(s, 0.6, 1.5, 5.8, 5.5, bullets[:mid], 15, TEXT_BODY, b_font, 10, 8)
-            _rect(s, 6.55, 1.5, 0.03, 5.0, LGRAY)
-            _bullet_block(s, 6.8, 1.5, 5.8, 5.5, bullets[mid:], 15, TEXT_BODY, b_font, 10, 8)
-            _page_num(s, sn, total, MGRAY)
-
-        elif stype == "perspectives":
-            set_bg(s, DARK)
-            _rect(s, 0, 0, 13.333, 0.05, PRI)
-            _textbox(s, 0.6, 0.4, 11, 0.7, sec_title, 28, WHITE, True, font=h_font)
-            _rect(s, 0.6, 1.15, 2.5, 0.04, SEC)
-            y = 1.5
-            for b in bullets[:6]:
-                parts = b.split(":", 1)
-                if len(parts) == 2:
-                    role_name = _clean(parts[0])
-                    insight = _clean(parts[1])
-                    _rect(s, 0.6, y, 0.06, 0.8, SEC)
-                    _textbox(s, 0.85, y, 2.5, 0.4, role_name, 15, PRI, True, font=h_font)
-                    _textbox(s, 0.85, y + 0.35, 11.5, 0.5, insight[:180], 14, MGRAY, font=b_font)
-                else:
-                    _textbox(s, 0.6, y, 12, 0.4, _clean(b), 15, MGRAY, font=b_font)
-                y += 0.95
-            _page_num(s, sn, total, DGRAY)
-
-        elif stype == "recommendations":
-            set_bg(s, WHITE)
-            _rect(s, 0, 0, 13.333, 0.06, PRI)
-            _rect(s, 0, 6.85, 13.333, 0.65, DARK)
-            _textbox(s, 0.5, 0.25, 9, 0.65, sec_title, 28, TEXT_DARK, True, font=h_font)
-            _textbox(s, 9.5, 0.28, 3.5, 0.35, brand_label, 9, MGRAY, font=b_font, align=PP_ALIGN.RIGHT)
-            _rect(s, 0.5, 1.0, 3.0, 0.05, PRI)
-            items = bullets[:4]  # 2x2 grid — 4 items max for rich look
-            num_colors = [PRI, SEC, RGBColor(0x10, 0xB9, 0x81), RGBColor(0xF5, 0x9E, 0x0B)]
-            if len(items) >= 3:
-                # 2x2 grid layout
-                grid = [(0.35, 1.15), (6.85, 1.15), (0.35, 3.9), (6.85, 3.9)]
-                cat_labels = ["INDIVIDUALLY", "ORGANIZATIONS", "POLICY", "MEASUREMENT"]
-                for gi, (gx, gy) in enumerate(grid[:len(items)]):
-                    if gi >= len(items):
-                        break
-                    nc = num_colors[gi % len(num_colors)]
-                    btext = _clean(items[gi])
-                    # Split: first part (before ":") is the sub-heading
-                    parts = btext.split(":", 1)
-                    heading = parts[0].strip()[:50]
-                    detail = parts[1].strip()[:200] if len(parts) > 1 else ""
-                    # Category label above
-                    cat = cat_labels[gi] if gi < len(cat_labels) else f"0{gi+1}"
-                    _textbox(s, gx, gy, 6.0, 0.3, cat, 9, MGRAY, True, font=h_font)
-                    # Number badge
-                    _rect(s, gx, gy + 0.32, 0.5, 0.5, nc)
-                    _textbox(s, gx + 0.02, gy + 0.36, 0.46, 0.42, str(gi + 1), 20, WHITE, True, PP_ALIGN.CENTER, h_font)
-                    # Heading
-                    _textbox(s, gx + 0.65, gy + 0.35, 5.5, 0.5, heading, 15, TEXT_DARK, True, font=h_font)
-                    # Detail
-                    if detail:
-                        _textbox(s, gx + 0.65, gy + 0.88, 5.5, 1.6, detail[:200], 12, TEXT_BODY, font=b_font)
-                    # Bottom rule
-                    _rect(s, gx, gy + 2.55, 6.0, 0.03, LGRAY)
-            else:
-                y = 1.2
-                for i, b in enumerate(bullets[:5]):
-                    nc = num_colors[i % len(num_colors)]
-                    parts = _clean(b).split(":", 1)
-                    heading = parts[0].strip()
-                    detail = parts[1].strip() if len(parts) > 1 else ""
-                    _rect(s, 0.35, y, 0.5, 0.5, nc)
-                    _textbox(s, 0.4, y + 0.06, 0.42, 0.38, str(i + 1), 19, WHITE, True, PP_ALIGN.CENTER, h_font)
-                    _textbox(s, 1.05, y + 0.05, 11.5, 0.42, heading, 16, TEXT_DARK, True, font=h_font)
-                    if detail:
-                        _textbox(s, 1.05, y + 0.5, 11.5, 0.42, detail[:130], 13, TEXT_BODY, font=b_font)
-                    y += 1.05
-            _page_num(s, sn, total, MGRAY)
-
+        # ── sources ─────────────────────────────────────────────
         elif stype == "sources":
-            set_bg(s, OFFWHITE)
-            _rect(s, 0, 0, 13.333, 0.05, PRI)
-            _textbox(s, 0.6, 0.45, 12, 0.7, sec_title, 28, TEXT_DARK, True, font=h_font)
-            _rect(s, 0.6, 1.2, 2.5, 0.04, PRI)
-            y = 1.5
+            set_bg(s, OFFWH)
+            _rect(s, 0, 0, 13.333, 0.06, SEC)
+            _textbox(s, 9.3, 0.14, 3.7, 0.28, brand_label, 8, MGRAY, False, PP_ALIGN.RIGHT, b_font)
+            _textbox(s, 0.5, 0.14, 5, 0.28, sec_cat, 8, SEC, True, font=h_font)
+            _textbox(s, 0.5, 0.5, 10.5, 0.65, sec_title, 28, TDARK, True, font=h_font)
+            _rect(s, 0.5, 1.22, 2.0, 0.04, SEC)
+            y = 1.45
             for i, b in enumerate(bullets[:10]):
-                _rect(s, 0.6, y, 0.08, 0.35, PRI if i % 2 == 0 else SEC)
-                _textbox(s, 0.9, y, 11.5, 0.4, _clean(b), 14, TEXT_BODY, font=b_font)
-                y += 0.45
+                _rect(s, 0.4, y, 0.06, 0.38, SEC if i % 2 == 0 else GOLD)
+                _textbox(s, 0.65, y, 12.0, 0.42, _clean(b), 13, TBODY, False, font=b_font)
+                y += 0.48
             _page_num(s, sn, total, MGRAY)
 
+        # ── quote ───────────────────────────────────────────────
         elif stype == "quote":
-            set_bg(s, DARK)
-            _rect(s, 0, 0, 13.333, 0.05, PRI)
-            _textbox(s, 0.8, 1.5, 1.5, 1.5, "\u201C", 96, SEC, True, font=h_font)
-            quote = bullets[0] if bullets else body[:300]
-            _textbox(s, 2.2, 2.2, 9.5, 2.5, _clean(quote), 24, WHITE, font=b_font, line_spacing=36)
+            hdr_dark(sec_cat)
+            _textbox(s, 0.8, 1.5, 1.5, 1.5, "\u201C", 96, GOLD, True, font=h_font)
+            quote = bullets[0] if bullets else ""
+            _textbox(s, 2.2, 2.2, 9.5, 2.5, _clean(quote), 24, WHITE, False, font=b_font,
+                     line_spacing=36)
             if len(bullets) > 1:
-                _textbox(s, 2.2, 5.0, 9.5, 0.5, f"\u2014 {_clean(bullets[1])}", 14, MGRAY, True, font=b_font)
+                _textbox(s, 2.2, 5.0, 9.5, 0.5,
+                         f"\u2014 {_clean(bullets[1])}", 14, MGRAY, True, font=b_font)
             _page_num(s, sn, total, DGRAY)
 
+        # ── bottom_line ─────────────────────────────────────────
+        elif stype == "bottom_line":
+            set_bg(s, DARK)
+            _rect(s, 0, 0, 13.333, 0.06, SEC)
+            _textbox(s, 9.3, 0.14, 3.7, 0.28, brand_label, 8, DGRAY, False, PP_ALIGN.RIGHT, b_font)
+            # Large decorative circle
+            circle = s.shapes.add_shape(9, Inches(8.2), Inches(0.8), Inches(5.5), Inches(5.5))
+            circle.fill.solid()
+            circle.fill.fore_color.rgb = DARK2
+            circle.line.fill.background()
+            # Gold title
+            _textbox(s, 0.6, 0.5, 7.5, 0.75, "The Bottom Line", 42, GOLD, True, font=h_font)
+            if bullets:
+                _textbox(s, 0.6, 1.45, 7.5, 0.55, _clean(bullets[0])[:90], 22, WHITE, False, font=b_font)
+                if len(bullets) > 1:
+                    _textbox(s, 0.6, 2.05, 7.5, 0.48,
+                             _clean(bullets[1])[:90], 18, MGRAY, False, font=b_font)
+            # 3 action rows
+            action_bullets = bullets[2:5] if len(bullets) > 2 else bullets[:3]
+            row_labels = ["THINK", "PROTECT", "INVEST"]
+            row_colors = [PRI, GREEN, ORNG]
+            for ri, (ab, rl, rc) in enumerate(zip(action_bullets, row_labels, row_colors)):
+                ry = 3.0 + ri * 1.05
+                _rect(s, 0.5, ry, 1.15, 0.78, rc)
+                _textbox(s, 0.52, ry + 0.14, 1.11, 0.5,
+                         rl, 14, WHITE, True, PP_ALIGN.CENTER, h_font)
+                _rect(s, 1.7, ry, 10.5, 0.78, DARK3)
+                _textbox(s, 1.88, ry + 0.1, 10.2, 0.6,
+                         _clean(str(ab))[:130], 14, MGRAY, False, font=b_font)
+            _page_num(s, sn, total, DGRAY)
+
+        # ── two_column (fallback for 7+ bullets) ────────────────
+        elif stype == "two_column":
+            hdr_light(sec_cat)
+            mid = len(bullets) // 2
+            _bullet_block(s, 0.5, 1.42, 5.9, 5.4, bullets[:mid], 15, TBODY, b_font, 10, 8)
+            _rect(s, 6.65, 1.42, 0.03, 5.0, LGRAY)
+            _bullet_block(s, 6.9, 1.42, 5.9, 5.4, bullets[mid:], 15, TBODY, b_font, 10, 8)
+            _page_num(s, sn, total, MGRAY)
+
+        # ── content_bullets (default) ───────────────────────────
         else:
-            # content_bullets: check for rich colon-separated bullets (e.g. brain regions)
-            colon_bullets = [b for b in bullets if ":" in b and len(b.split(":", 1)[0]) < 35]
-            use_dark = idx % 3 == 0  # every third content slide uses dark theme for variety
+            colon_b = [b for b in bullets if ":" in b and len(b.split(":", 1)[0]) < 35]
 
-            if len(colon_bullets) >= 3:
-                # Two-column visual: left = colored label chip, right = description
-                set_bg(s, WHITE)
-                _rect(s, 0, 0, 13.333, 0.06, PRI)
-                _rect(s, 0, 0.06, 0.06, 7.44, SEC)
-                _textbox(s, 0.7, 0.25, 9, 0.65, sec_title, 28, TEXT_DARK, True, font=h_font)
-                _textbox(s, 9.5, 0.3, 3.5, 0.4, brand_label, 9, MGRAY, font=b_font, align=PP_ALIGN.RIGHT)
-                _rect(s, 0.7, 1.0, 3.0, 0.04, PRI)
-                # Section label
-                sec_category = sec.get("icon", "•") + " " + (sec_title.split(":")[0].upper() if ":" in sec_title else sec_title.upper()[:20])
-                _textbox(s, 0.7, 1.1, 6, 0.3, sec_category, 9, PRI, True, font=h_font)
-
-                # Left column: label chips, Right column: descriptions
-                accent_colors = [PRI, SEC, RGBColor(0xF5, 0x9E, 0x0B), RGBColor(0x22, 0xC5, 0x5E), ACCENT2, RGBColor(0x06, 0xB6, 0xD4)]
-                y = 1.5
-                for bi, cb in enumerate(colon_bullets[:6]):
+            if len(colon_b) >= 3:
+                # Labeled rows with colored accent chips
+                hdr_light(sec_cat)
+                ac_colors = [PRI, SEC, ORNG, GREEN, PURP, CYAN]
+                y = 1.42
+                for bi, cb in enumerate(colon_b[:6]):
                     parts = cb.split(":", 1)
-                    label_text = _clean(parts[0])
-                    desc_text = _clean(parts[1].strip()) if len(parts) > 1 else ""
-                    ac = accent_colors[bi % len(accent_colors)]
-                    # Label chip (colored left side)
-                    _rect(s, 0.5, y, 0.05, 0.65, ac)
-                    _textbox(s, 0.7, y, 3.5, 0.35, label_text, 14, TEXT_DARK, True, font=h_font)
-                    if desc_text:
-                        # Truncate long description
-                        _textbox(s, 0.7, y + 0.33, 5.8, 0.38, desc_text[:120], 12, TEXT_BODY, font=b_font)
-                    # Right side: any numeric highlight from this bullet
-                    num_m = re.search(r'(\d+[%$xX+]|-\d+[%]|\d+\.\d+[xX%])', cb)
-                    if num_m:
-                        nv = num_m.group(1)
-                        ncolor = RED if nv.startswith('-') else SEC
-                        _textbox(s, 10.8, y, 2.2, 0.65, nv, 26, ncolor, True, PP_ALIGN.CENTER, h_font)
-                    y += 0.88
+                    lbl  = _clean(parts[0])[:30]
+                    desc = _clean(parts[1].strip())[:140] if len(parts) > 1 else ""
+                    ac   = ac_colors[bi % len(ac_colors)]
+                    num_m = re.search(r'(\d+[%$xX+]|-\d+%)', cb)
+                    nv = num_m.group(1) if num_m else ""
+                    _rect(s, 0.4, y, 0.06, 0.82, ac)
+                    _textbox(s, 0.6, y, 3.5, 0.38, lbl, 14, TDARK, True, font=h_font)
+                    if desc:
+                        _textbox(s, 0.6, y + 0.36, 5.8, 0.42, desc[:130], 12, TBODY, False, font=b_font)
+                    if nv:
+                        nc = RED if nv.startswith('-') else SEC
+                        _textbox(s, 10.8, y, 2.2, 0.82, nv, 28, nc, True, PP_ALIGN.CENTER, h_font)
+                    y += 0.92
                 _page_num(s, sn, total, MGRAY)
 
-            elif use_dark:
-                # Dark themed content slide for variety
-                set_bg(s, DARK)
-                _rect(s, 0, 0, 13.333, 0.06, PRI)
-                _rect(s, 0, 0, 0.06, 7.5, SEC)
-                _textbox(s, 0.7, 0.3, 11, 0.65, sec_title, 28, WHITE, True, font=h_font)
-                _textbox(s, 9.5, 0.3, 3.5, 0.4, brand_label, 9, DGRAY, font=b_font, align=PP_ALIGN.RIGHT)
-                _rect(s, 0.7, 1.05, 3.0, 0.04, SEC)
-                if bullets:
-                    _bullet_block(s, 0.7, 1.3, 11.8, 5.7, bullets, 17, MGRAY, b_font, 14, 8, "\u25B8")
+            elif idx % 3 == 0:
+                # Dark variant for visual rhythm
+                hdr_dark(sec_cat)
+                _bullet_block(s, 0.5, 1.42, 12.0, 5.4, bullets, 17, MGRAY, b_font, 14, 8, "\u25B8")
                 _page_num(s, sn, total, DGRAY)
 
             else:
-                # Standard white content slide with left accent
-                set_bg(s, OFFWHITE if idx % 2 == 0 else WHITE)
-                _rect(s, 0, 0, 13.333, 0.06, PRI)
-                _rect(s, 0, 0.06, 0.06, 7.44, SEC if idx % 2 == 1 else PRI)
-                _textbox(s, 0.7, 0.3, 11, 0.65, sec_title, 28, TEXT_DARK, True, font=h_font)
-                _textbox(s, 9.5, 0.3, 3.5, 0.4, brand_label, 9, MGRAY, font=b_font, align=PP_ALIGN.RIGHT)
-                _rect(s, 0.7, 1.05, 3.0, 0.04, PRI)
-                if bullets:
-                    _bullet_block(s, 0.7, 1.3, 11.8, 5.7, bullets, 17, TEXT_BODY, b_font, 14, 8, "\u25B8")
-                elif body:
-                    lines = _clean(body).split("\n")[:15]
-                    _textbox(s, 0.7, 1.3, 11.8, 5.7, "\n".join(lines), 16, TEXT_BODY, font=b_font, line_spacing=26)
+                hdr_light(sec_cat)
+                _rect(s, 0, 0.06, 0.06, 7.44, GOLD if idx % 2 == 0 else SEC)
+                _bullet_block(s, 0.7, 1.42, 12.0, 5.4, bullets, 17, TBODY, b_font, 14, 8, "\u25B8")
                 _page_num(s, sn, total, MGRAY)
 
-    # ── CLOSING SLIDE ───────────────────────────────────────
+    # ── CLOSING SLIDE ────────────────────────────────────────────
     if add_closing_slide:
         sn += 1
         s = prs.slides.add_slide(blank)
         set_bg(s, DARK)
-        _rect(s, 0, 0, 13.333, 0.06, PRI)
+        _rect(s, 0, 0, 13.333, 0.06, SEC)
         _rect(s, 0, 7.0, 13.333, 0.5, DARK2)
-        _rect(s, 5.5, 3.5, 2.333, 0.06, SEC)
-        _textbox(s, 0.8, 2.0, 11.5, 1.2, "Thank You", 44, WHITE, True, PP_ALIGN.CENTER, h_font)
-        _textbox(s, 0.8, 3.8, 11.5, 0.6, f"©{dt.datetime.now().year} {brand_label} | All rights reserved", 14, MGRAY, align=PP_ALIGN.CENTER, font=b_font)
+        # Decorative circle
+        circ = s.shapes.add_shape(9, Inches(8.5), Inches(0.5), Inches(5.0), Inches(5.0))
+        circ.fill.solid()
+        circ.fill.fore_color.rgb = DARK2
+        circ.line.fill.background()
+        _rect(s, 5.4, 3.5, 2.5, 0.06, GOLD)
+        _textbox(s, 0.8, 1.8, 7.5, 1.2, "Thank You", 48, WHITE, True, PP_ALIGN.LEFT, h_font)
+        _textbox(s, 0.8, 3.8, 7.5, 0.55,
+                 f"\u00A9{dt.datetime.now().year} {brand_label} | All rights reserved",
+                 14, MGRAY, False, PP_ALIGN.LEFT, b_font)
         if brand_domain:
-            _textbox(s, 0.8, 4.4, 11.5, 0.4, brand_domain, 12, DGRAY, align=PP_ALIGN.CENTER, font=b_font)
+            _textbox(s, 0.8, 4.4, 7.5, 0.42, brand_domain, 13, DGRAY, False, font=b_font)
         _page_num(s, sn, total, DGRAY)
 
     name = f"{'report' if document_type in ('report', 'pitch_deck') else 'presentation'}_{uuid.uuid4().hex[:8]}.pptx"
