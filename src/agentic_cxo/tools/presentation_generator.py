@@ -142,16 +142,8 @@ class PresentationGeneratorTool(BaseTool):
             if outline:
                 if progress_callback:
                     progress_callback("Designing slides with LLM + Creative Director...")
-                try:
-                    from agentic_cxo.tools.slide_spec import generate_slide_spec
-
-                    slide_spec = generate_slide_spec(outline, title, cd, methodology_brief)
-                except Exception:
-                    logger.warning("LLM slide spec failed, using intelligent fallback", exc_info=True)
-                # Always ensure we have a spec — use smart fallback if LLM failed
-                if not slide_spec:
-                    from agentic_cxo.tools.slide_spec import _fallback_spec, _clean_title
-                    slide_spec = _fallback_spec(outline, _clean_title(title, title))
+                from agentic_cxo.tools.slide_spec import generate_slide_spec
+                slide_spec = generate_slide_spec(outline, title, cd, methodology_brief)
 
             if progress_callback:
                 progress_callback("Generating professional slides with CD design tokens...")
