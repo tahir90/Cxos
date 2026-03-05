@@ -128,7 +128,7 @@ def generate_slide_spec(
         brand_context = f"\nBRAND: primary color {c}, visual mood: {v}. Match layouts and treatments to brand."
 
     brief_context = ""
-    if methodology_brief:
+    if methodology_brief and isinstance(methodology_brief, dict):
         must_cover = methodology_brief.get("must_cover", [])
         summary = methodology_brief.get("brief_summary", "")
         if must_cover or summary:

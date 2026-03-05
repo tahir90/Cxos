@@ -397,7 +397,7 @@ def generate_pptx(
                 x_pos = [1.5, 4.5, 7.5, 10.5][: len(metrics)]
                 for i, m in enumerate(metrics[:4]):
                     _textbox(s, x_pos[i], 2.2, 2.5, 0.8, str(m.get("value", ""))[:15], 44, SEC, True, PP_ALIGN.CENTER, h_font)
-                    _textbox(s, x_pos[i], 3.0, 2.5, 0.8, _clean(str(m.get("label", "")))[:40], 12, MGRAY, PP_ALIGN.CENTER, b_font)
+                    _textbox(s, x_pos[i], 3.0, 2.5, 0.8, _clean(str(m.get("label", "")))[:40], 12, MGRAY, False, PP_ALIGN.CENTER, b_font)
             else:
                 _bullet_block(s, 0.6, 1.6, 11.5, 5, bullets[:6], 17, MGRAY, b_font, 14, 6)
             _page_num(s, sn, total, DGRAY)

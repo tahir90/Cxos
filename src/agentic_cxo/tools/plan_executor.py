@@ -182,7 +182,17 @@ class PlanExecutor:
                 if sr.summary:
                     all_summaries.append(sr.summary)
 
-        success = all(r.success for r in results.values()) if results else False
+        # Plan is successful if the core deliverable (generate step) succeeded.
+        # Optional steps like validate/consult_agent failures should not fail the plan.
+        core_actions = {"generate", "research", "synthesize"}
+        core_results = [
+            r for sid, r in results.items()
+            if any(s.id == sid and s.action in core_actions for s in plan.steps)
+        ]
+        if core_results:
+            success = all(r.success for r in core_results)
+        else:
+            success = all(r.success for r in results.values()) if results else False
         completed = sum(1 for r in results.values() if r.success)
 
         self._record_plan_history(plan, results, success)
@@ -752,7 +762,7 @@ class PlanExecutor:
                 logger.debug("Methodology Designer skipped", exc_info=True)
 
         brief_instruction = ""
-        if methodology_brief:
+        if methodology_brief and isinstance(methodology_brief, dict):
             must_cover = methodology_brief.get("must_cover", [])
             assumptions = methodology_brief.get("assumptions_to_state", [])
             summary = methodology_brief.get("brief_summary", "")
@@ -981,7 +991,7 @@ class PlanExecutor:
         min_slides = template.get("min_slides", 8) if template else 8
 
         brief_instruction = ""
-        if methodology_brief:
+        if methodology_brief and isinstance(methodology_brief, dict):
             must_cover = methodology_brief.get("must_cover", [])
             summary = methodology_brief.get("brief_summary", "")
             if must_cover or summary:
