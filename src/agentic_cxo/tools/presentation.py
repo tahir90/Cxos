@@ -538,13 +538,46 @@ def generate_pptx(
                                  True, PP_ALIGN.CENTER, h_font)
                         _textbox(s, xp, 2.75, cw, 0.9, _clean(str(m.get("label", "")))[:60],
                                  12, MGRAY, False, PP_ALIGN.CENTER, b_font)
-                    # Bar chart for adoption/scale slides
+                    # Bar chart for adoption/scale slides — extract year/value pairs from bullets
                     if any(k in sec_title.lower() for k in ["scale", "global", "market", "adoption", "growth"]):
-                        years = [(str(y), min(int((y-2019)*18), 100)) for y in range(2020, 2026)]
-                        _bar_chart_rects(s, 0.5, 4.15, 12.3, 2.35, years, GOLD, DGRAY, None, b_font)
-                        _textbox(s, 0.5, 6.6, 12.3, 0.28,
-                                 "Agentic AI User Growth (Millions) — Source: Industry Reports 2025",
-                                 9, DGRAY, False, PP_ALIGN.CENTER, b_font)
+                        yr_pat = re.compile(r'\b(20\d\d)\b.*?(\d[\d,.]*)\s*([BMKTbmkt%]|billion|million|trillion)?')
+                        chart_pairs: list[tuple[str, float]] = []
+                        for bl in bullets:
+                            ym = yr_pat.search(bl)
+                            if ym:
+                                try:
+                                    raw_v = ym.group(2).replace(",", "")
+                                    mult = {"b": 1e9, "m": 1e6, "k": 1e3, "t": 1e12,
+                                            "billion": 1e9, "million": 1e6, "trillion": 1e12}
+                                    sfx = (ym.group(3) or "").lower()
+                                    v = float(raw_v) * mult.get(sfx, 1)
+                                    chart_pairs.append((ym.group(1), v))
+                                except (ValueError, AttributeError):
+                                    pass
+                        # Fallback: use metric values as bar heights if no year pairs found
+                        if not chart_pairs and metrics:
+                            for mi, m in enumerate(metrics[:6]):
+                                try:
+                                    v_raw = re.sub(r'[^0-9.]', '', str(m.get("value", "0")))
+                                    chart_pairs.append((str(m.get("value", f"#{mi+1}")), float(v_raw) if v_raw else mi + 1))
+                                except ValueError:
+                                    chart_pairs.append((str(m.get("value", "")), mi + 1.0))
+                        # Need ≥2 year pairs for a meaningful timeline chart
+                        if len(chart_pairs) < 2 and metrics:
+                            chart_pairs = []
+                            for mi, m in enumerate(metrics[:6]):
+                                try:
+                                    v_raw = re.sub(r'[^0-9.]', '', str(m.get("value", "0")))
+                                    chart_pairs.append((str(m.get("value", f"#{mi+1}")),
+                                                        float(v_raw) if v_raw else float(mi + 1)))
+                                except ValueError:
+                                    chart_pairs.append((str(m.get("value", "")), float(mi + 1)))
+                        if chart_pairs:
+                            _bar_chart_rects(s, 0.5, 4.15, 12.3, 2.35, chart_pairs[:8], GOLD, DGRAY, None, b_font)
+                            # Dynamic chart label derived from slide title
+                            chart_lbl = f"{sec_title} — Source: Industry Reports {dt.datetime.now().year}"
+                            _textbox(s, 0.5, 6.6, 12.3, 0.28, chart_lbl, 9, DGRAY,
+                                     False, PP_ALIGN.CENTER, b_font)
                     else:
                         ctx = [b for b in bullets if not re.search(r'[\d%$]', b)][:2]
                         if ctx:
@@ -611,8 +644,21 @@ def generate_pptx(
                          12, MGRAY, False, font=b_font)
                 ysd += 0.52
 
-            # Right: 3 finding columns
-            col_titles = ["Critical Thinking", "Task Independence", "Skill Retention"]
+            # Right: 3 finding columns — derive column titles from findings content
+            def _short_col_title(finding_text: str) -> str:
+                """Extract a 2-4 word column title from a finding bullet."""
+                t = _clean(str(finding_text))
+                # Try colon-prefixed label first (e.g. "Critical thinking assessment scores: ...")
+                if ":" in t:
+                    lbl = t.split(":")[0].strip()
+                    words = lbl.split()
+                    if 1 <= len(words) <= 5:
+                        return " ".join(words[:4]).title()
+                # Otherwise take first 3 meaningful words
+                words = [w for w in t.split() if len(w) > 2 and not w[0].isdigit()]
+                return " ".join(words[:3]).title() if words else "Key Finding"
+            col_titles = [_short_col_title(findings[ci]) if ci < len(findings) else f"Finding {ci+1}"
+                          for ci in range(3)]
             col_colors = [RED, ORNG, CYAN]
             cx_positions = [5.2, 8.05, 10.9]
             for ci in range(min(3, len(findings))):
@@ -967,9 +1013,25 @@ def generate_pptx(
                 if len(bullets) > 1:
                     _textbox(s, 0.6, 2.05, 7.5, 0.48,
                              _clean(bullets[1])[:90], 18, MGRAY, False, font=b_font)
-            # 3 action rows
+            # 3 action rows — derive short verb labels from bullet content
             action_bullets = bullets[2:5] if len(bullets) > 2 else bullets[:3]
-            row_labels = ["THINK", "PROTECT", "INVEST"]
+            _action_verbs = ["ACT", "CONSIDER", "PRIORITIZE", "FOCUS", "IMPLEMENT",
+                             "EVALUATE", "MEASURE", "PROTECT", "INVEST", "BUILD"]
+            _default_labels = ["THINK", "PROTECT", "INVEST"]
+            def _row_label(bullet_text: str, fallback: str) -> str:
+                t = _clean(str(bullet_text)).upper()
+                for verb in _action_verbs:
+                    if verb in t:
+                        return verb
+                # Use first colon-prefixed keyword if present
+                if ":" in bullet_text:
+                    lbl = bullet_text.split(":")[0].strip().split()
+                    if lbl and len(lbl[0]) <= 10:
+                        return lbl[0].upper()
+                return fallback
+            row_labels = [_row_label(action_bullets[ri], _default_labels[ri])
+                          if ri < len(action_bullets) else _default_labels[ri]
+                          for ri in range(3)]
             row_colors = [PRI, GREEN, ORNG]
             for ri, (ab, rl, rc) in enumerate(zip(action_bullets, row_labels, row_colors)):
                 ry = 3.0 + ri * 1.05
