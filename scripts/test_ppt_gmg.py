@@ -51,7 +51,7 @@ def main():
             heading_font="Calibri",
             body_font="Calibri",
         )
-        store.save(gmg_brand)
+        store.store(gmg_brand)
         print("      GMG brand profile saved.")
     except Exception as e:
         print(f"      Brand setup warning: {e}")
