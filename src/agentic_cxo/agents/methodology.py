@@ -191,7 +191,10 @@ def design_document_methodology(
     raw = (resp.choices[0].message.content or "{}").strip()
     raw = raw.removeprefix("```json").removeprefix("```").removesuffix("```").strip()
     try:
-        return json.loads(raw)
+        parsed = json.loads(raw)
+        if not isinstance(parsed, dict):
+            return {"must_cover": ["title", "sections", "closing", "sources"], "brief_summary": ""}
+        return parsed
     except json.JSONDecodeError:
         return {"must_cover": ["title", "sections", "closing", "sources"], "brief_summary": ""}
 
@@ -230,7 +233,14 @@ def design_methodology(
     raw = (resp.choices[0].message.content or "{}").strip()
     raw = raw.removeprefix("```json").removeprefix("```").removesuffix("```").strip()
     try:
-        return json.loads(raw)
+        parsed = json.loads(raw)
+        if not isinstance(parsed, dict):
+            return {
+                "must_cover": [],
+                "assumptions_to_state": [],
+                "brief_summary": "Provide thorough, well-reasoned analysis. State assumptions. Note confidence.",
+            }
+        return parsed
     except json.JSONDecodeError:
         return {
             "must_cover": [],

@@ -200,7 +200,7 @@ class ResearcherTool(BaseTool):
             )
 
         topic = topic.strip()
-        must_cover = (methodology_brief or {}).get("must_cover", [])
+        must_cover = (methodology_brief if isinstance(methodology_brief, dict) else {}).get("must_cover", [])
         queries = self._build_queries(topic, focus)
         if must_cover:
             for mc in must_cover[:4]:
