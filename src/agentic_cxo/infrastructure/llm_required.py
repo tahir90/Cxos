@@ -2,21 +2,22 @@
 LLM Required — explicit failure when LLM is unavailable.
 
 No offline fallbacks. Enterprise-grade AI CXO requires LLM.
-When OPENAI_API_KEY is missing or LLM call fails, we raise clearly.
+Prefers Anthropic Claude (ANTHROPIC_API_KEY) — api.anthropic.com is reachable
+in the deployment environment. Falls back to OpenAI if only OPENAI_API_KEY is set.
 """
 
 from __future__ import annotations
 
 
 class LLMRequiredError(Exception):
-    """Raised when an operation requires LLM but it is not available."""
+    """Raised when an operation requires LLM but no API key is configured."""
 
     def __init__(self, operation: str, detail: str = "") -> None:
         self.operation = operation
         self.detail = detail
         msg = (
             f"LLM required for {operation}. "
-            "Configure OPENAI_API_KEY for full AI CXO capabilities. "
+            "Configure ANTHROPIC_API_KEY (preferred) or OPENAI_API_KEY in .env. "
         )
         if detail:
             msg += detail
@@ -24,11 +25,14 @@ class LLMRequiredError(Exception):
 
 
 def require_llm(operation: str) -> None:
-    """Ensure LLM (OpenAI API) is configured. Raises LLMRequiredError if not."""
+    """Ensure at least one LLM provider is configured. Raises LLMRequiredError if not."""
     from agentic_cxo.config import settings
 
-    if not settings.llm.api_key or not settings.llm.api_key.strip():
+    has_anthropic = bool(settings.llm.anthropic_api_key and settings.llm.anthropic_api_key.strip())
+    has_openai = bool(settings.llm.api_key and settings.llm.api_key.strip())
+
+    if not has_anthropic and not has_openai:
         raise LLMRequiredError(
             operation,
-            "OPENAI_API_KEY is not set.",
+            "Set ANTHROPIC_API_KEY in .env (recommended) or OPENAI_API_KEY.",
         )

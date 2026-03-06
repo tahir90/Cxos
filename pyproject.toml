@@ -20,6 +20,7 @@ classifiers = [
 
 dependencies = [
     "openai>=1.14",
+    "anthropic>=0.40",
     "tiktoken>=0.7",
     "numpy>=1.26",
     "chromadb>=0.5",

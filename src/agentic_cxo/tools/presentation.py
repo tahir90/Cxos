@@ -129,57 +129,64 @@ def _textbox(slide, left, top, w, h, text, size=14, color=None, bold=False,
 
 def _rich_title(slide, left, top, w, h, title, h_font, highlight_color,
                 base_color=None, base_size=32, hl_size=52, after_size=26):
-    """Multi-run textbox — splits title at key term and highlights it in gold."""
+    """Multi-run textbox: intro text (base) + key noun phrase (gold/large) + tail (gray).
+
+    Works for ANY topic by splitting at a natural break point — prepositions/conjunctions
+    ('of', 'on', 'in', 'and', 'the') mark the boundary between intro words and the
+    key concept phrase. Falls back to splitting after the first 2 words.
+    """
     base_color = base_color or RGBColor(0xFF, 0xFF, 0xFF)
     box = slide.shapes.add_textbox(Inches(left), Inches(top), Inches(w), Inches(h))
     tf = box.text_frame
     tf.word_wrap = True
 
-    # Find a key phrase to highlight
-    patterns = [
-        r"Agentic AI", r"AI\b", r"Machine Learning", r"ChatGPT", r"Brain",
-        r"Cognitive", r"Intelligence", r"Digital", r"Technology"
-    ]
-    match = None
-    for pat in patterns:
-        m = re.search(pat, title, re.IGNORECASE)
-        if m:
-            match = m
-            break
+    words = title.split()
 
-    if match and len(title) > len(match.group()):
-        before = title[:match.start()].rstrip()
-        hl_text = match.group()
-        after = title[match.end():].lstrip()
+    def _find_split(words: list[str]) -> tuple[str, str, str]:
+        """Return (before, highlight, after). Highlight = the dominant noun phrase."""
+        # Strategy 1: split at a preposition/article that follows 1-3 intro words
+        split_words = {"of", "on", "in", "at", "for", "and", "the", "to", "by", "with", "about"}
+        for i in range(1, min(4, len(words))):
+            if words[i].lower() in split_words:
+                # before: words 0..i-1, highlight: words i+1..end (skip the preposition)
+                before  = " ".join(words[:i])
+                hl_part = " ".join(words[i:])      # keep preposition in highlight
+                return before, hl_part, ""
 
-        first = True
-        for part_type, part_text in [("before", before), ("hl", hl_text), ("after", after)]:
-            if not part_text:
-                continue
-            p = tf.paragraphs[0] if first else tf.add_paragraph()
-            first = False
-            run = p.add_run()
-            run.text = part_text
-            run.font.name = h_font
-            run.font.bold = True
-            if part_type == "hl":
-                run.font.size = Pt(hl_size)
-                run.font.color.rgb = highlight_color
-            elif part_type == "before":
-                run.font.size = Pt(base_size)
-                run.font.color.rgb = base_color
-            else:
-                run.font.size = Pt(after_size)
-                run.font.color.rgb = RGBColor(0xCC, 0xCC, 0xCC)
-                run.font.bold = False
-    else:
-        p = tf.paragraphs[0]
+        # Strategy 2: colon split — "Title: Subtitle"
+        if ":" in title:
+            parts = title.split(":", 1)
+            return parts[0].strip(), parts[1].strip(), ""
+
+        # Strategy 3: split after first 2 words
+        if len(words) > 3:
+            return " ".join(words[:2]), " ".join(words[2:]), ""
+
+        # Strategy 4: whole title as highlight
+        return "", title, ""
+
+    before, hl_text, after = _find_split(words)
+
+    first = True
+    for part_type, part_text in [("before", before), ("hl", hl_text), ("after", after)]:
+        if not part_text.strip():
+            continue
+        p = tf.paragraphs[0] if first else tf.add_paragraph()
+        first = False
         run = p.add_run()
-        run.text = _clean(title)
-        run.font.size = Pt(base_size)
-        run.font.color.rgb = base_color
-        run.font.bold = True
+        run.text = part_text
         run.font.name = h_font
+        run.font.bold = True
+        if part_type == "hl":
+            run.font.size = Pt(hl_size)
+            run.font.color.rgb = highlight_color
+        elif part_type == "before":
+            run.font.size = Pt(base_size)
+            run.font.color.rgb = base_color
+        else:
+            run.font.size = Pt(after_size)
+            run.font.color.rgb = RGBColor(0xCC, 0xCC, 0xCC)
+            run.font.bold = False
     return box
 
 
@@ -287,6 +294,9 @@ def _derive_section_cat(title: str, layout: str) -> str:
         "benefits_risks": "RISK / BENEFIT ANALYSIS",
         "recommendations": "RECOMMENDATIONS",
         "research_study": "LANDMARK RESEARCH",
+        "research_citations": "EVIDENCE & RESEARCH",
+        "concept_cards": "UNDERSTANDING THE TECHNOLOGY",
+        "anatomy_diagram": "SYSTEM BREAKDOWN",
         "definition_boxes": "UNDERSTANDING THE TECHNOLOGY",
         "two_column_info": "KEY CONCEPTS",
         "executive": "EXECUTIVE SUMMARY",
@@ -385,6 +395,15 @@ def generate_pptx(
                 "col_headers":      s.get("col_headers"),
                 "study_design":     s.get("study_design"),
                 "findings":         s.get("findings"),
+                # Rich premium layout fields
+                "definition":       s.get("definition"),
+                "concepts":         s.get("concepts"),
+                "footer":           s.get("footer"),
+                "components":       s.get("components"),
+                "right_panels":     s.get("right_panels"),
+                "studies":          s.get("studies"),
+                "domains":          s.get("domains"),
+                "footer_quote":     s.get("footer_quote"),
             }
             for s in slide_spec
             if s.get("section_title") or s.get("bullets")
@@ -683,6 +702,182 @@ def generate_pptx(
                          _clean(str(quote_text))[:220], 12, WHITE, False, font=b_font)
             _page_num(s, sn, total, DGRAY)
 
+        # ── concept_cards ────────────────────────────────────────
+        # 3-card layout: definition box + concept cards + examples footer
+        elif stype == "concept_cards":
+            hdr_dark(sec_cat)
+            definition = _clean(str(sec.get("definition") or ""))
+            concepts   = sec.get("concepts") or []
+            footer     = _clean(str(sec.get("footer") or ""))
+
+            # Definition banner (dark green bg, green left border, DEFINITION label)
+            def_bg = RGBColor(0x0D, 0x1F, 0x1A)
+            _rect(s, 0.4, 1.42, 12.5, 0.88, def_bg)
+            _rect(s, 0.4, 1.42, 0.07, 0.88, GREEN)
+            _textbox(s, 0.62, 1.47, 1.7, 0.28, "DEFINITION", 9, GREEN, True, font=h_font)
+            if definition:
+                _textbox(s, 0.62, 1.72, 12.1, 0.52, definition[:300], 13, MGRAY, False, font=b_font)
+            else:
+                # Synthesize from concepts list
+                names = [_clean(str(c.get("name", ""))) for c in concepts[:3]]
+                if names:
+                    synth = f"Three defining traits: {' · '.join(names)}"
+                    _textbox(s, 0.62, 1.72, 12.1, 0.52, synth, 13, MGRAY, False, font=b_font)
+
+            # 3 concept cards — improved with number badges
+            card_colors = [SEC, CYAN, GOLD]
+            card_w, gap = 4.05, 0.13
+            for ci, concept in enumerate(concepts[:3]):
+                cx = 0.4 + ci * (card_w + gap)
+                cc = card_colors[ci % 3]
+                name = _clean(str(concept.get("name", f"Concept {ci+1}")))[:30]
+                desc = _clean(str(concept.get("description", "")))[:280]
+                exs  = _clean(str(concept.get("examples", "")))[:100]
+                # Card background
+                _rect(s, cx, 2.42, card_w, 3.58, DARK3)
+                # Top accent bar
+                _rect(s, cx, 2.42, card_w, 0.06, cc)
+                # Number badge (01, 02, 03) in card color
+                badge_bg = RGBColor(
+                    min(cc[0] + 20, 255) if hasattr(cc, '__getitem__') else 0x20,
+                    0x20, 0x30)
+                _rect(s, cx + 0.18, 2.52, 0.52, 0.38, DARK)
+                _textbox(s, cx + 0.18, 2.54, 0.52, 0.34,
+                         f"0{ci + 1}", 16, cc, True, PP_ALIGN.CENTER, h_font)
+                # Concept name
+                _textbox(s, cx + 0.82, 2.52, card_w - 0.96, 0.42, name, 20, cc, True, font=h_font)
+                # Description
+                if desc:
+                    _textbox(s, cx + 0.18, 3.02, card_w - 0.3, 2.15, desc, 12, MGRAY, False, font=b_font)
+                # Examples chip row at bottom of card
+                if exs:
+                    _rect(s, cx, 5.76, card_w, 0.24, RGBColor(0x0B, 0x10, 0x20))
+                    _textbox(s, cx + 0.1, 5.79, card_w - 0.15, 0.2,
+                             f"eg. {exs}", 8, DGRAY, False, font=b_font)
+
+            # Footer examples row
+            if footer:
+                _rect(s, 0.4, 6.1, 12.5, 0.36, RGBColor(0x0B, 0x10, 0x20))
+                _textbox(s, 0.55, 6.15, 12.2, 0.28, footer, 10, DGRAY, False, font=b_font)
+            _page_num(s, sn, total, DGRAY)
+
+        # ── anatomy_diagram ──────────────────────────────────────
+        # Component breakdown: left = labeled list w/color bars, right = 2 effect panels
+        elif stype == "anatomy_diagram":
+            hdr_light(sec_cat)
+            components   = sec.get("components") or []
+            right_panels = sec.get("right_panels") or []
+
+            comp_colors = [PRI, GREEN, PURP, ORNG, CYAN]
+            n_comps = min(len(components), 5)
+
+            # Left panel background
+            _rect(s, 0.35, 1.35, 5.75, 5.85, OFFWH)
+
+            # Left: numbered component list with color bars + sub-functions
+            if n_comps > 0:
+                slot_h = 5.6 / n_comps
+                for ci, comp in enumerate(components[:n_comps]):
+                    cc = comp_colors[ci % len(comp_colors)]
+                    name  = _clean(str(comp.get("name", "")))[:42]
+                    funcs = comp.get("functions") or []
+                    cy = 1.4 + ci * slot_h
+
+                    # Color bar on left edge
+                    _rect(s, 0.35, cy, 0.18, slot_h - 0.1, cc)
+                    # Number badge
+                    _rect(s, 0.58, cy + 0.04, 0.44, 0.38, cc)
+                    _textbox(s, 0.58, cy + 0.06, 0.44, 0.34,
+                             str(ci + 1), 16, WHITE, True, PP_ALIGN.CENTER, h_font)
+                    # Component name
+                    _textbox(s, 1.1, cy + 0.04, 4.72, 0.38, name, 13, TDARK, True, font=h_font)
+                    # Function sub-items
+                    for fi, func in enumerate(funcs[:2]):
+                        fy = cy + 0.44 + fi * (slot_h * 0.35)
+                        if fy + 0.24 < cy + slot_h - 0.1:
+                            _textbox(s, 1.1, fy, 4.72, 0.28,
+                                     f"\u25B8  {_clean(str(func))[:65]}", 10, TBODY, False, font=b_font)
+
+            # Vertical divider
+            _rect(s, 6.2, 1.35, 0.04, 5.85, LGRAY)
+
+            # Right: 2 info panels
+            panel_colors = [ORNG, RGBColor(0x33, 0x70, 0xC0)]
+            py = 1.38
+            for pi, panel in enumerate(right_panels[:2]):
+                ph = 2.8
+                pc = panel_colors[pi % len(panel_colors)]
+                hdr_txt  = _clean(str(panel.get("header", f"Key Finding {pi+1}")))[:50]
+                body_txt = _clean(str(panel.get("body", "")))[:320]
+                _info_box(s, 6.4, py, 6.65, ph, hdr_txt, body_txt, pc, TBODY, OFFWH, h_font, b_font)
+                py += ph + 0.22
+            _page_num(s, sn, total, MGRAY)
+
+        # ── research_citations ───────────────────────────────────
+        # Evidence slide: study list + negative metrics + domain chips
+        elif stype == "research_citations":
+            hdr_light(sec_cat)
+            studies      = sec.get("studies") or []
+            metrics_list = sec.get("metrics") or []
+            domains      = sec.get("domains") or []
+            footer_quote = _clean(str(sec.get("footer_quote") or ""))
+
+            # Left: evidence base panel (0.4 to 4.1)
+            _rect(s, 0.4, 1.38, 3.55, 5.35, RGBColor(0xF8, 0xF9, 0xFA))
+            _rect(s, 0.4, 1.38, 3.55, 0.38, PRI)
+            _textbox(s, 0.55, 1.44, 3.2, 0.28, "EVIDENCE BASE", 10, WHITE, True, font=h_font)
+            sy = 1.85
+            for si, study in enumerate(studies[:3]):
+                name   = _clean(str(study.get("name", "")))[:55]
+                detail = _clean(str(study.get("detail", "")))[:160]
+                _rect(s, 0.4, sy, 0.05, 1.05, SEC)
+                _textbox(s, 0.6, sy + 0.04, 3.2, 0.34, name, 13, TDARK, True, font=h_font)
+                if detail:
+                    _textbox(s, 0.6, sy + 0.38, 3.2, 0.6, detail, 10, TBODY, False, font=b_font)
+                sy += 1.2
+
+            # Center: stacked metric boxes (4.25 to 7.0)
+            mx = 4.25
+            mw = 2.55
+            my = 1.38
+            nm = min(len(metrics_list), 3)
+            mh = 5.35 / max(nm, 1) - 0.12
+            for mi, m in enumerate(metrics_list[:3]):
+                val   = str(m.get("value", ""))
+                label = _clean(str(m.get("label", "")))[:50]
+                mc    = RED if val.startswith("-") else SEC
+                _rect(s, mx, my, mw, mh, DARK3)
+                _rect(s, mx, my, mw, 0.06, mc)
+                _textbox(s, mx, my + 0.12, mw, mh * 0.55, val[:10],
+                         int(min(52, 4.5 * mw)), mc, True, PP_ALIGN.CENTER, h_font)
+                _textbox(s, mx + 0.1, my + mh * 0.6, mw - 0.2, mh * 0.38,
+                         label, 10, MGRAY, False, PP_ALIGN.CENTER, b_font)
+                my += mh + 0.12
+
+            # Right: key finding text (7.1 to 12.93)
+            right_bullets = [b for b in bullets if not re.search(r'\(\d{4}\)', b)][:4]
+            _rect(s, 7.1, 1.38, 5.7, 5.35, OFFWH)
+            _rect(s, 7.1, 1.38, 5.7, 0.38, SEC)
+            _textbox(s, 7.25, 1.43, 5.3, 0.28, "KEY FINDINGS", 10, WHITE, True, font=h_font)
+            rb_y = 1.9
+            for rb in right_bullets:
+                _rect(s, 7.1, rb_y, 0.05, 0.52, GOLD)
+                _textbox(s, 7.28, rb_y + 0.04, 5.35, 0.52,
+                         _clean(str(rb))[:140], 12, TBODY, False, font=b_font)
+                rb_y += 0.65
+
+            # Domain chip row
+            if domains:
+                _chip_row(s, 0.4, 6.88, domains[:6],
+                          [PRI, SEC, GREEN, ORNG, PURP, CYAN], b_font)
+
+            # Footer quote
+            if footer_quote:
+                _rect(s, 0.4, 6.5, 12.5, 0.32, DARK3)
+                _textbox(s, 0.55, 6.55, 12.1, 0.24,
+                         f"\u201C {footer_quote[:180]} \u201D", 9, DGRAY, False, font=b_font)
+            _page_num(s, sn, total, MGRAY)
+
         # ── definition_boxes ────────────────────────────────────
         elif stype == "definition_boxes":
             hdr_dark(sec_cat)
@@ -846,11 +1041,21 @@ def generate_pptx(
                 _rect(s, 6.9, yr, 0.06, 0.48, RED)
                 _textbox(s, 7.12, yr, 5.8, 0.52, _clean(str(r))[:140], 13, TBODY, False, font=b_font)
                 yr += 0.58
-            # Assessment footer
+            # Assessment footer — derive from content, not hardcoded
+            assessment_note = ""
+            if benefits and risks:
+                b_count = len(benefits)
+                r_count = len(risks)
+                if r_count > b_count:
+                    assessment_note = f"{brand_label} Assessment: Risks outweigh benefits — proceed with a structured mitigation strategy."
+                elif b_count > r_count:
+                    assessment_note = f"{brand_label} Assessment: Benefits predominate — prioritize deployment with appropriate safeguards."
+                else:
+                    assessment_note = f"{brand_label} Assessment: Balanced trade-off — context-specific evaluation required before adoption."
+            else:
+                assessment_note = f"{brand_label} Assessment: Weigh these trade-offs carefully against your organization's specific context."
             _rect(s, 0.4, 6.4, 12.5, 0.42, DARK3)
-            _textbox(s, 0.6, 6.46, 12.1, 0.32,
-                     f"{brand_label} Assessment: AI is a powerful tool but a poor substitute for deep cognition.",
-                     11, MGRAY, False, font=b_font)
+            _textbox(s, 0.6, 6.46, 12.1, 0.32, assessment_note, 11, MGRAY, False, font=b_font)
             _page_num(s, sn, total, MGRAY)
 
         # ── comparison_table ────────────────────────────────────

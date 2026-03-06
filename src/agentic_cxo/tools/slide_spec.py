@@ -16,58 +16,93 @@ from agentic_cxo.config import settings
 
 logger = logging.getLogger(__name__)
 
-SLIDE_SPEC_PROMPT = """You are a world-class McKinsey/BCG presentation designer with expertise in data visualization and research synthesis. Analyze this research outline and produce a rich, visually varied, insight-dense slide specification.
 
-YOUR GOAL: Transform research into a compelling visual narrative with Claude-quality depth. Do NOT copy bullet points verbatim — enrich them, add specificity, extract every data point, and restructure into the most impactful visual format.
+def _clean_text(t: str) -> str:
+    """Strip markdown formatting from text."""
+    t = re.sub(r"\[([^\]]+)\]\([^)]+\)", r"\1", t)
+    t = re.sub(r"\*\*(.+?)\*\*", r"\1", t)
+    t = re.sub(r"\*(.+?)\*", r"\1", t)
+    t = re.sub(r"`(.+?)`", r"\1", t)
+    return t.strip()
 
-LAYOUT SELECTION RULES (follow strictly — content_bullets is a LAST RESORT):
-1. data_metrics — USE whenever content contains ANY statistics, percentages, dollar amounts, growth figures, market sizes, study findings, or quantitative data. Extract ALL numbers into metrics. This is your highest-priority layout.
-2. comparison_table — USE for before/after, old vs new, pros/cons, with AI/without AI, traditional/modern, option comparisons. Create structured rows.
-3. benefits_risks — USE for advantages vs disadvantages, opportunities vs threats, strengths vs weaknesses, benefits vs cognitive costs.
-4. warning_callout — USE for critical risks, concerning findings, urgent issues, hidden costs, negative impacts, compliance concerns.
-5. recommendations — USE for action items, strategic priorities, next steps, implementation roadmaps, tactical guidelines.
-6. quote — USE for expert opinions, key research insights, impactful statements, study conclusions.
-7. executive — USE for introductions, overviews, or executive summaries (dark background, authoritative).
-8. two_column — USE when 6+ bullets split naturally into two parallel themes or categories.
-9. content_bullets — LAST RESORT only. Max 30% of all slides. Prefer any other layout.
+SLIDE_SPEC_PROMPT = """You are a world-class McKinsey/BCG senior presentation designer. Your job: transform research into a premium, visually varied, executive-grade slide deck — the kind delivered to CEOs of Google, Apple, McKinsey.
 
-CONTENT ENRICHMENT (mandatory):
-- Replace vague bullets with specific, data-backed statements
-- Add real-world context: "productivity increased" → "Productivity rose 34% but analytical reasoning declined 28% (MIT, 2025)"
-- Every bullet must convey a SPECIFIC fact, finding, or actionable insight
-- For research topics: include study citations, dates, specific findings
-- For market data: include dollar values, growth percentages, timeframes
-- For cognitive/health topics: include specific brain regions, mechanisms, percentages
+YOUR GOAL: Every slide must have a specific visual job in the story. Plan the NARRATIVE ARC first (what is slide 1 proving? slide 2? how do they connect?), then assign the richest possible visual layout to each slide's content.
 
-DATA EXTRACTION (critical — extract EVERY number):
-- data_metrics format: [{{"value":"77%","label":"Workers actively using AI daily"}},{{"value":"$500B","label":"Projected AI market by 2027"}}]
-- comparison_table: {{"headers":["Before AI","With Agentic AI"],"rows":[["Manual 3-day analysis","Automated 2-hour synthesis"],["60% accuracy","94%+ accuracy"]]}}
-- benefits_risks: {{"benefits":["specific benefit 1"],"risks":["specific risk with data 1"]}}
-- warning_callout: {{"warning_text":"Critical finding text","bullets":["supporting detail 1","supporting detail 2"]}}
+═══ LAYOUT SELECTION RULES ═══ (follow precisely — content_bullets is a LAST RESORT)
 
-TITLE RULES:
+1. data_metrics — ANY statistics, percentages, dollar amounts, market sizes, study findings. Extract ALL numbers as metrics. Hero layout: large gold numbers dominate the slide.
+
+2. concept_cards — USE when introducing a technology/framework with 2-4 distinct properties, modes, or types. Requires a master definition + 3 named concept cards. Example: "Autonomous / Persistent / Delegated" or "Prevention / Detection / Response".
+   Required fields: "definition" (1 sentence), "concepts": [{{"name":"Term","description":"full explanation","examples":"Tool1, Tool2"}}], "footer": "Real examples: X, Y, Z"
+
+3. anatomy_diagram — USE when analyzing the components/regions/mechanisms of a system (brain regions, org structure, market segments, technology stack). Left panel = labeled components, right panel = 2 effects/findings.
+   Required fields: "components": [{{"name":"Component","functions":["effect 1","effect 2"]}}] (3-5 items), "right_panels": [{{"header":"Effect Title","body":"2-3 sentence explanation"}}] (2 panels)
+
+4. research_citations — USE when presenting empirical evidence from 2-3 named studies/reports with specific negative or positive metrics. Left = study names, center = key metrics, right = domain applicability.
+   Required fields: "studies": [{{"name":"Author (Year)","detail":"methodology or key finding"}}], "metrics": [{{"value":"-34%","label":"What declined"}}], "domains": ["Field1","Field2","Field3"], "footer_quote": "key insight from research"
+
+5. comparison_table — before/after, old vs new, with/without, option A vs B. Create sharp row-by-row contrast.
+   Required fields: "table_data": {{"headers":["Option A","Option B"],"rows":[["left cell","right cell"]]}}
+
+6. benefits_risks — explicit two-sided trade-off: advantages vs disadvantages, opportunities vs threats.
+   Required fields: "benefits": ["specific benefit"], "risks": ["specific risk with data"]
+
+7. warning_callout — critical risks, concerning findings, urgent issues. If content has age groups (13-17, 18-21 etc.), use age-group variant with "bullets" formatted as "Age range: description".
+   Required fields: "warning_text": "critical finding", "bullets": ["age or support point"]
+
+8. recommendations — action items, strategic priorities, implementation steps. Use 2×2 grid with distinct category labels.
+   Required fields: bullets formatted as "CATEGORY: Title: Detail"
+
+9. quote — impactful expert statement or key research conclusion that deserves a full slide.
+
+10. executive — intro/overview slides (dark background, authoritative 3-box layout).
+
+11. two_column — 6+ bullets that split naturally into two parallel themes.
+
+12. content_bullets — LAST RESORT. Max 25% of slides.
+
+═══ CONTENT ENRICHMENT (mandatory) ═══
+- Every bullet = specific fact with source/date/number. Never vague.
+- "productivity improved" → "Productivity rose 34% but analytical reasoning declined 28% (MIT Media Lab, 2025)"
+- Extract EVERY number into a metric. If 6 numbers exist, create 6 metric cards.
+- Add study citations: "Gerlich (2025) — 1,400 university students, Statistically significant..."
+
+═══ TITLE RULES ═══
 - Never use "create", "presentation", "slide", "deck", "powerpoint" in section_title
-- Use compelling, specific titles: "Cognitive Debt: The Hidden Brain Cost" not "Key Issues"
-- Titles should be 4-8 words, action-oriented or data-driven
+- Titles: compelling, specific, 4-8 words. "The Hidden Cost: Cognitive Debt" not "Key Issues"
 
-LAYOUT TYPES: title | agenda | content_bullets | two_column | comparison_table | data_metrics | quote | benefits_risks | warning_callout | recommendations | executive | sources | closing
+═══ LAYOUT TYPES ═══
+title | agenda | content_bullets | two_column | comparison_table | data_metrics | quote | benefits_risks | warning_callout | recommendations | executive | sources | closing | concept_cards | anatomy_diagram | research_citations
 
-VISUAL TREATMENTS:
-- "metric_highlight" → data_metrics (always)
+═══ VISUAL TREATMENTS ═══
+- "metric_highlight" → data_metrics
+- "concept_layout" → concept_cards
+- "diagram_layout" → anatomy_diagram
+- "citations_layout" → research_citations
 - "colored_boxes" → comparison_table, benefits_risks, warning_callout
-- "emphasis" → executive, quote, key insights
+- "emphasis" → executive, quote
 - "none" → content_bullets, recommendations, agenda
 
-ICONS: ⚠ warnings/risks, 📊 data/metrics, 🎯 strategy/goals, 💡 insights/ideas, 🔄 change/transformation, 📈 growth/trends, 🧠 cognitive/brain topics, 💰 financial, 🔬 research/science, 🛡 safety/guardrails, ✓ benefits, ✗ risks
+═══ ICONS ═══
+⚠ warnings, 📊 metrics/data, 🎯 strategy, 💡 insights, 🔄 change, 📈 growth, 🧠 cognitive/brain, 💰 financial, 🔬 research/science, 🛡 safety, 📋 structure/framework
 
-EXAMPLE — EXCELLENT data_metrics:
-{{"section_title":"Agentic AI Global Adoption", "layout":"data_metrics","visual_treatment":"metric_highlight","icon":"📊","metrics":[{{"value":"700M+","label":"ChatGPT monthly active users (2025)"}},{{"value":"77%","label":"Knowledge workers using AI tools weekly"}},{{"value":"4x","label":"Productivity gains in AI-assisted tasks"}},{{"value":"30%","label":"Gen Z workforce AI adoption by age 25"}}],"bullets":["Enterprise AI adoption growing faster than any prior technology wave"]}}
+═══ EXAMPLES ═══
 
-EXAMPLE — EXCELLENT warning_callout:
-{{"section_title":"Cognitive Debt: The Hidden Brain Cost","layout":"warning_callout","visual_treatment":"colored_boxes","icon":"⚠","warning_text":"Continuous AI delegation creates measurable cognitive atrophy — the brain's neuroplasticity responds to reduced demands by pruning underutilized pathways","bullets":["BUILD: Accepting AI recommendations without critical analysis weakens decision circuits","AVOID: Delegating research erodes pattern recognition and information synthesis skills","REPLACE: Using AI for complex tasks prevents development of deep expertise"]}}
+EXCELLENT concept_cards:
+{{"section_title":"Understanding the Technology: Three Core Traits","layout":"concept_cards","visual_treatment":"concept_layout","icon":"🧠","definition":"Agentic AI refers to systems that autonomously plan, reason, and execute multi-step tasks — going beyond chatbots to independently browse, code, schedule, decide, and act with minimal human input.","concepts":[{{"name":"Autonomous","description":"Makes decisions and executes tasks without step-by-step human instruction. Operates on high-level goals, determines its own sub-steps.","examples":"AutoGPT, Devin, OpenAI Operator"}},{{"name":"Persistent","description":"Manages long-horizon goals over days or weeks. Runs continuously in the background, maintaining context across sessions.","examples":"Claude Projects, Gemini Advanced, AgentGPT"}},{{"name":"Delegated","description":"Acts as a proxy for human judgment — writing, researching, coding, communicating on behalf of users with increasing autonomy.","examples":"GitHub Copilot Workspace, Microsoft Copilot"}}],"footer":"Examples: AutoGPT · Claude Agents · Copilot · Devin · Gemini Advanced · OpenAI Operator","bullets":[]}}
 
-EXAMPLE — EXCELLENT comparison_table:
-{{"section_title":"Efficiency vs Cognition Trade-Off","layout":"comparison_table","visual_treatment":"colored_boxes","icon":"🔄","table_data":{{"headers":["Agentic AI Benefits","Cognitive Costs"],"rows":[["Productivity up 40%","Critical thinking down 34%"],["Decision speed 3x faster","Independent judgment -25%"],["Information access instant","Deep focus capacity -48%"],["Task delegation automated","Analytical reasoning atrophy"]]}},"bullets":[]}}
+EXCELLENT anatomy_diagram:
+{{"section_title":"How Agentic AI Reshapes the Brain","layout":"anatomy_diagram","visual_treatment":"diagram_layout","icon":"🧠","components":[{{"name":"Prefrontal Cortex","functions":["Critical thinking & planning","Weakens with AI delegation"]}},{{"name":"Hippocampus","functions":["Memory encoding & recall","GPS studies show atrophy without use"]}},{{"name":"Default Mode Network","functions":["Creative & self-directed thought","Suppressed during passive AI consumption"]}},{{"name":"Anterior Cingulate","functions":["Error detection & attention","Reduced when AI handles verification"]}}],"right_panels":[{{"header":"Cognitive Offloading Effect","body":"When AI handles reasoning, the brain reduces activation in problem-solving regions. Similar to how GPS use weakens spatial navigation — neurons that aren't exercised lose efficiency."}},{{"header":"Neural Plasticity Risk","body":"The brain rewires based on what we practice. Repetitive AI delegation may weaken executive function pathways — critical for developing brains under age 25."}}],"bullets":[]}}
+
+EXCELLENT research_citations:
+{{"section_title":"The Evidence: Critical Thinking in Decline","layout":"research_citations","visual_treatment":"citations_layout","icon":"🔬","studies":[{{"name":"Gerlich (2025)","detail":"1,400 university students — statistically significant negative correlation between AI use frequency and critical thinking scores"}},{{"name":"Microsoft Research (2024)","detail":"Knowledge workers across 18 countries — higher AI reliance correlated with reduced independent judgment"}}],"metrics":[{{"value":"-34%","label":"Analytical Reasoning"}},{{"value":"-41%","label":"Independent Decision Making"}},{{"value":"-28%","label":"Deep Focus & Concentration"}}],"domains":["Healthcare","Finance","Law","Education"],"footer_quote":"The 'Google Effect' already showed search altered how people remember information — Agentic AI compounds this exponentially.","bullets":[]}}
+
+EXCELLENT data_metrics:
+{{"section_title":"Agentic AI: A Global Brain Shift","layout":"data_metrics","visual_treatment":"metric_highlight","icon":"📊","metrics":[{{"value":"700M+","label":"ChatGPT weekly active users (2025)"}},{{"value":"77%","label":"Knowledge workers using AI tools weekly"}},{{"value":"4x","label":"Surge in enterprise agentic AI deployments"}},{{"value":"30%","label":"Gen-Z workforce relying on AI for daily decisions"}}],"bullets":["Enterprise AI adoption outpacing every prior technology wave — faster than mobile, cloud, or internet"]}}
+
+EXCELLENT comparison_table:
+{{"section_title":"How AI Changes Cognitive Mode","layout":"comparison_table","visual_treatment":"colored_boxes","icon":"🔄","table_data":{{"headers":["Before AI","With Agentic AI"],"rows":[["Active retrieval from memory","Passive verification of AI output"],["Independent analysis & synthesis","Reviewing AI-generated solutions"],["Weighing options, applying judgment","Accepting AI recommendations"],["Crafting own ideas & voice","Editing AI-generated content"],["Problem-solving builds neural pathways","Delegation atrophies them"]]}},"bullets":[]}}
 
 OUTLINE:
 {outline}
@@ -76,23 +111,36 @@ TOPIC/CONTEXT:
 {topic}
 {brand_context}
 
-Return ONLY valid JSON array (no markdown, no code blocks). Each element MUST have all these fields:
+Return ONLY valid JSON array (no markdown fences, no comments). Each element MUST have all fields below. Use null for unused fields.
 {{
-  "section_title": "specific descriptive title (4-8 words)",
-  "layout": "layout type",
-  "visual_treatment": "treatment type",
-  "icon": "relevant unicode",
-  "bullets": ["specific substantive fact or insight (not vague)", "another specific point"],
+  "section_title": "compelling specific title (4-8 words)",
+  "layout": "layout type from the list above",
+  "visual_treatment": "treatment matching layout",
+  "icon": "relevant unicode emoji",
+  "bullets": ["specific fact with data/source", "another specific point"],
   "table_data": {{"headers":["A","B"],"rows":[["x","y"]]}} or null,
   "metrics": [{{"value":"X%","label":"Specific metric description"}}] or null,
   "benefits": ["specific benefit with context"] or null,
   "risks": ["specific risk with evidence"] or null,
-  "warning_text": "specific critical finding text" or null,
-  "quote": "exact quote or paraphrase" or null,
-  "quote_attribution": "Source, Year" or null
+  "warning_text": "specific critical finding" or null,
+  "quote": "exact impactful quote" or null,
+  "quote_attribution": "Source, Year" or null,
+  "definition": "one-sentence master definition" or null,
+  "concepts": [{{"name":"Term","description":"explanation","examples":"ex1, ex2"}}] or null,
+  "footer": "examples footer text" or null,
+  "components": [{{"name":"Component","functions":["effect 1","effect 2"]}}] or null,
+  "right_panels": [{{"header":"Title","body":"explanation text"}}] or null,
+  "studies": [{{"name":"Author (Year)","detail":"methodology or finding"}}] or null,
+  "domains": ["Domain1","Domain2"] or null,
+  "footer_quote": "key research insight" or null
 }}
 
-CRITICAL: At least 65% of slides MUST use rich layouts (data_metrics, comparison_table, benefits_risks, warning_callout, recommendations). Every slide must contain substantive, research-backed content. NO generic placeholder text."""
+CRITICAL REQUIREMENTS:
+- At least 70% of slides MUST use rich layouts (data_metrics, concept_cards, anatomy_diagram, research_citations, comparison_table, benefits_risks, warning_callout, recommendations)
+- Every concept_cards slide MUST have exactly 3 concepts
+- Every anatomy_diagram MUST have 3-5 components and exactly 2 right_panels
+- Every research_citations MUST have studies + metrics + domains
+- NO generic placeholder text anywhere — every word must be specific and research-backed"""
 
 
 def _clean_title(raw: str, topic: str = "") -> str:
@@ -112,13 +160,13 @@ def _clean_title(raw: str, topic: str = "") -> str:
 def generate_slide_spec(
     outline: str, topic: str, creative_director: Any = None, methodology_brief: dict | None = None
 ) -> list[dict[str, Any]]:
-    """Use LLM + CD to produce per-slide design specification."""
-    from agentic_cxo.infrastructure.llm_required import require_llm
-    from openai import OpenAI
-    from agentic_cxo.infrastructure.llm_retry import with_retry
+    """Use LLM + CD to produce per-slide design specification.
 
-    require_llm("slide specification")
-    client = OpenAI(api_key=settings.llm.api_key, base_url=settings.llm.base_url)
+    Prefers Anthropic Claude (api.anthropic.com is reachable in this environment).
+    Falls back to OpenAI if ANTHROPIC_API_KEY is not set.
+    Falls back to heuristic spec on any network/auth error.
+    """
+    from agentic_cxo.infrastructure.llm_retry import with_retry
 
     topic_clean = _clean_title(topic, topic)
     brand_context = ""
@@ -138,28 +186,76 @@ def generate_slide_spec(
                 + (f"{summary}\n" if summary else "")
             )
 
-    prompt = SLIDE_SPEC_PROMPT.format(outline=outline[:8000], topic=topic_clean, brand_context=brand_context + brief_context)
-
-    resp = with_retry(
-        lambda: client.chat.completions.create(
-            model=settings.llm.model,
-            temperature=0.3,
-            max_tokens=6000,
-            messages=[
-                {
-                    "role": "system",
-                    "content": (
-                        "You are an expert presentation designer. Output ONLY valid JSON array. "
-                        "No markdown fences, no explanations, no comments. "
-                        "Every slide must have rich, specific, research-backed content. "
-                        "Enrich all content beyond what is provided — add specificity, data, context."
-                    ),
-                },
-                {"role": "user", "content": prompt},
-            ],
-        )
+    prompt = SLIDE_SPEC_PROMPT.format(
+        outline=outline[:8000], topic=topic_clean,
+        brand_context=brand_context + brief_context,
     )
-    raw = (resp.choices[0].message.content or "[]").strip()
+
+    system_msg = (
+        "You are an expert McKinsey-level presentation designer. Output ONLY a valid JSON array — "
+        "no markdown fences, no comments, no explanations. "
+        "Every slide must be dense with specific, research-backed content. "
+        "Enrich every bullet beyond what is provided: add specificity, precise numbers, sources, context. "
+        "Use the richest possible layout for each slide — never default to content_bullets when a "
+        "premium layout (data_metrics, concept_cards, anatomy_diagram, research_citations, "
+        "comparison_table, benefits_risks, warning_callout, recommendations) fits the content."
+    )
+
+    raw: str = ""
+
+    # ── Try Anthropic Claude first (api.anthropic.com is reachable) ────────────
+    anthropic_key = settings.llm.anthropic_api_key
+    if anthropic_key:
+        try:
+            import anthropic as _anthropic
+            _client = _anthropic.Anthropic(api_key=anthropic_key)
+            model = settings.llm.anthropic_model or "claude-sonnet-4-5-20251022"
+            logger.info("Generating slide spec via Anthropic Claude (%s)…", model)
+            resp = with_retry(
+                lambda: _client.messages.create(
+                    model=model,
+                    max_tokens=8000,
+                    temperature=0.3,
+                    system=system_msg,
+                    messages=[{"role": "user", "content": prompt}],
+                )
+            )
+            raw = (resp.content[0].text or "[]").strip()
+        except Exception as ant_err:
+            err_str = str(ant_err).lower()
+            if any(k in err_str for k in ["401", "403", "invalid_api_key", "authentication"]):
+                logger.error("Anthropic auth failed — check ANTHROPIC_API_KEY in .env: %s", ant_err)
+            else:
+                logger.warning("Anthropic call failed (%s) — trying OpenAI fallback", ant_err)
+
+    # ── Fall back to OpenAI if Anthropic not configured or failed ──────────────
+    if not raw and settings.llm.api_key:
+        try:
+            from agentic_cxo.infrastructure.llm_required import require_llm
+            from openai import OpenAI
+            require_llm("slide specification")
+            oa_client = OpenAI(api_key=settings.llm.api_key, base_url=settings.llm.base_url)
+            logger.info("Generating slide spec via OpenAI (%s)…", settings.llm.model)
+            oa_resp = with_retry(
+                lambda: oa_client.chat.completions.create(
+                    model=settings.llm.model,
+                    temperature=0.3,
+                    max_tokens=6000,
+                    messages=[
+                        {"role": "system", "content": system_msg},
+                        {"role": "user", "content": prompt},
+                    ],
+                )
+            )
+            raw = (oa_resp.choices[0].message.content or "[]").strip()
+        except Exception as oa_err:
+            logger.warning("OpenAI call failed (%s) — using heuristic spec", oa_err)
+
+    # ── Heuristic fallback if both LLMs unavailable ────────────────────────────
+    if not raw:
+        logger.warning("No LLM available — using heuristic slide spec")
+        return _fallback_spec(outline, topic_clean)
+
     raw = raw.removeprefix("```json").removeprefix("```").removesuffix("```").strip()
 
     try:
@@ -169,6 +265,16 @@ def generate_slide_spec(
                 "three_column": "two_column",
                 "data_highlight": "data_metrics",
                 "metric": "data_metrics",
+                "metrics": "data_metrics",
+                "concept_card": "concept_cards",
+                "three_concepts": "concept_cards",
+                "definition_boxes": "concept_cards",
+                "anatomy": "anatomy_diagram",
+                "component_diagram": "anatomy_diagram",
+                "brain_diagram": "anatomy_diagram",
+                "citations": "research_citations",
+                "evidence": "research_citations",
+                "study_evidence": "research_citations",
             }
             for s in spec:
                 if s.get("section_title") and ("create" in s["section_title"].lower() or "powerpoint" in s["section_title"].lower()):
@@ -177,15 +283,19 @@ def generate_slide_spec(
                 s["layout"] = layout_map.get(lyt, lyt)
             return spec
     except json.JSONDecodeError:
-        logger.warning("Slide spec JSON parse failed, using fallback")
+        logger.warning("Slide spec JSON parse failed, using heuristic spec")
 
     return _fallback_spec(outline, topic_clean)
 
 
 def _infer_layout(title: str, bullets: list[str], body: str) -> tuple[str, str, str]:
-    """Infer the best layout, visual treatment, and icon from content."""
+    """Infer the best layout, visual treatment, and icon from content.
+
+    Priority order matches the premium layout hierarchy — new rich layouts
+    (concept_cards, anatomy_diagram, research_citations) take precedence over
+    older generic equivalents (definition_boxes, two_column_info).
+    """
     t = title.lower()
-    body_lower = body.lower()
 
     # Count numeric/metric bullets (exclude bare years)
     numeric_bullets = [
@@ -193,6 +303,7 @@ def _infer_layout(title: str, bullets: list[str], body: str) -> tuple[str, str, 
         if re.search(r'\d+[%$xX]|\$\d|billion|million|trillion|\d{2,}x|\d+\.\d+', b)
         and not re.fullmatch(r'\d{4}', b.strip())
     ]
+    colon_bullets = [b for b in bullets if ":" in b and len(b.split(":", 1)[0]) < 35]
 
     # 1. Sources
     if re.search(r'\b(source|reference|citation|bibliography)\b', t) or "research foundation" in t:
@@ -202,29 +313,46 @@ def _infer_layout(title: str, bullets: list[str], body: str) -> tuple[str, str, 
     if "bottom line" in t or "the bottom line" in t:
         return "bottom_line", "emphasis", "💡"
 
-    # 3. Research study — title has "study" AND bullets have study design or quote pattern
+    # 3. Research study — named study with study design or quote
     has_study_design = any(b.lower().startswith("study design") for b in bullets)
     has_quote = any(b.lower().startswith("quote") or ('"' in b and len(b) > 50) for b in bullets)
     if re.search(r'\b(study|experiment|trial|longitudinal)\b', t) and (has_study_design or has_quote):
         return "research_study", "emphasis", "🔬"
 
-    # 4. Definition boxes — intro/understanding slide with colon-structured concept bullets
-    colon_bullets = [b for b in bullets if ":" in b and len(b.split(":", 1)[0]) < 28]
-    if (re.search(r'\b(understanding|defining|what is|introduction|overview)\b', t)
-            and len(colon_bullets) >= 3):
-        return "definition_boxes", "emphasis", "📖"
+    # 4. CONCEPT CARDS — intro slides defining 2-4 key properties/modes of a technology or framework.
+    #    Signals: title has "understanding/what is/three/core/traits/defining/how it works"
+    #    AND content has 3+ colon-bullets with short labels (concept: description format)
+    is_concept_intro = re.search(
+        r'\b(understanding|what is|what are|three|core|traits|defining|how it works|introduction to|overview of|types of|modes|pillars|principles)\b', t
+    )
+    concept_colon = [b for b in bullets if ":" in b and len(b.split(":", 1)[0]) < 22]
+    if is_concept_intro and len(concept_colon) >= 2:
+        return "concept_cards", "concept_layout", "📋"
 
-    # 5. Two-column-info — brain regions / key concepts with colon-bullets needing right panel
-    if (len(colon_bullets) >= 4
-            and re.search(r'\b(brain|cortex|neural|reshapes|regions|mechanisms|how)\b', t)):
-        return "two_column_info", "emphasis", "🧠"
+    # 5. ANATOMY DIAGRAM — component/region breakdown of a system.
+    #    Signals: title has component/anatomy/region/mechanism/reshapes/structure keywords
+    #    AND content has 3+ colon-bullets describing parts of a system
+    is_anatomy = re.search(
+        r'\b(reshapes|anatomy|regions|components|mechanisms|structure|how .+ works|brain|cortex|neural|architecture|breakdown|segments|layers)\b', t
+    )
+    if is_anatomy and len(colon_bullets) >= 3 and len(numeric_bullets) < 5:
+        return "anatomy_diagram", "diagram_layout", "🧠"
 
-    # 6. Strong comparison signals
+    # 6. RESEARCH CITATIONS — empirical evidence from named studies with metrics.
+    #    Requires ≥2 bullets explicitly formatted as "Author (Year): detail" AND numeric data.
+    #    Excludes executive/overview/summary slides that coincidentally mention researchers.
+    citation_bullets = [b for b in bullets if re.search(r'\b[A-Z][a-z]+\s+\(\d{4}\)', b)]
+    is_evidence = re.search(r'\b(evidence|proof|the case|data shows|decline|in decline|research shows|findings)\b', t)
+    is_summary_title = re.search(r'\b(executive|overview|introduction|summary)\b', t)
+    if not is_summary_title and len(citation_bullets) >= 2 and len(numeric_bullets) >= 2:
+        return "research_citations", "citations_layout", "🔬"
+
+    # 7. Strong comparison signals
     if " vs " in t or "vs." in t or "trade-off" in t or "trade off" in t \
             or re.search(r'\bbefore.and.after\b', t):
         return "comparison_table", "colored_boxes", "🔄"
 
-    # 7. Warning/critical — "critical thinking" is NOT a warning
+    # 8. Warning/critical — "critical thinking" is NOT a warning
     is_warning = (
         re.search(r'\b(warning|alert|danger|caution|urgent|vulnerable)\b', t)
         or ("critical" in t and "thinking" not in t and "analysis" not in t)
@@ -233,41 +361,44 @@ def _infer_layout(title: str, bullets: list[str], body: str) -> tuple[str, str, 
     if is_warning and len(numeric_bullets) < 4:
         return "warning_callout", "warning_box", "⚠"
 
-    # 8. Recommendations (before data_metrics)
+    # 9. Recommendations
     if re.search(r'\b(recommendation|implement|solution|roadmap)\b', t) \
             or re.search(r'\b(strategic|strategy)\b', t) \
             or any(k in t for k in ["next step", "action item"]):
         return "recommendations", "none", "🎯"
 
-    # 9. Data/metrics
+    # 10. Data/metrics — high numeric content
     if (len(numeric_bullets) >= 2
             or re.search(r'\b(statistic|metric|growth|market|adoption|finding|evidence|performance|scale)\b', t)
-            or re.search(r'\b(decline|impact|number)\b', t)
-            or re.search(r'\b(rate)\b', t)
+            or re.search(r'\b(decline|impact|number|rate)\b', t)
             or (re.search(r'\b(study|research|data)\b', t) and len(numeric_bullets) >= 1)):
         return "data_metrics", "metric_highlight", "📊"
 
-    # 10. Comparison
+    # 11. Comparison
     if re.search(r'\b(compare|comparison|versus|before|after|efficiency|traditional)\b', t):
         return "comparison_table", "colored_boxes", "🔄"
 
-    # 11. Benefits vs risks
+    # 12. Benefits vs risks
     if re.search(r'\b(benefit|risk|advantage|disadvantage|opportunity|threat|strength|weakness)\b', t):
         return "benefits_risks", "colored_boxes", "⚖"
 
-    # 12. Two-column for many bullets
+    # 13. Two-column-info — colon bullets needing right panel (kept as fallback for non-anatomy)
+    if len(colon_bullets) >= 4:
+        return "two_column_info", "emphasis", "🧠"
+
+    # 14. Two-column for many bullets
     if len(bullets) >= 7:
         return "two_column", "none", "📋"
 
-    # 13. Executive summary / introduction
+    # 15. Executive summary / introduction
     if re.search(r'\b(executive|summary|overview|introduction|background)\b', t):
         return "executive", "emphasis", "💡"
 
-    # 14. Quote
+    # 16. Quote
     if re.search(r'\b(quote|testimonial)\b', t) or "key finding" in t:
         return "quote", "none", "💬"
 
-    # 15. Colon bullets → content_bullets with labels
+    # 17. Colon bullets → content_bullets with labels
     if len(colon_bullets) >= 3:
         return "content_bullets", "labels", "•"
 
@@ -371,7 +502,7 @@ def _push_section(sections: list, current: dict, topic: str) -> None:
     from agentic_cxo.tools.presentation import _derive_section_cat
     section_category = _derive_section_cat(title, layout)
 
-    # Extract structured data based on layout
+    # Initialize ALL structured data fields
     metrics = None
     table_data = None
     benefits = None
@@ -382,6 +513,14 @@ def _push_section(sections: list, current: dict, topic: str) -> None:
     study_design = None
     findings = None
     col_headers = None
+    definition = None
+    concepts = None
+    footer = None
+    components = None
+    right_panels = None
+    studies = None
+    domains = None
+    footer_quote = None
 
     if layout == "data_metrics":
         metrics = _extract_metrics(bullets)
@@ -427,6 +566,155 @@ def _push_section(sections: list, current: dict, topic: str) -> None:
     elif layout == "warning_callout":
         warning_text = bullets[0] if bullets else "Critical finding requiring attention."
 
+    elif layout == "concept_cards":
+        # Extract definition from body text; synthesize if absent
+        body_text = " ".join(current["body"]).strip()
+        if body_text and len(body_text) > 30:
+            definition = _clean_text(body_text[:280])
+        else:
+            definition = ""
+
+        # Separate "Examples: ..." bullets from real concept bullets
+        example_labels = {"examples", "example", "e.g.", "eg", "tools", "platforms"}
+        example_bullets = [b for b in bullets
+                           if ":" in b and b.split(":", 1)[0].strip().lower() in example_labels]
+        concept_colon = [b for b in bullets
+                         if ":" in b
+                         and len(b.split(":", 1)[0]) < 25
+                         and b not in example_bullets]
+
+        concepts_list = []
+        for cb in concept_colon[:3]:
+            parts = cb.split(":", 1)
+            name = _clean_text(parts[0].strip())
+            rest = _clean_text(parts[1].strip()) if len(parts) > 1 else ""
+            examples_str = ""
+            if " — " in rest:
+                rest_parts = rest.split(" — ", 1)
+                rest = rest_parts[0].strip()
+                examples_str = rest_parts[1].strip()
+            concepts_list.append({
+                "name": name,
+                "description": rest[:240],
+                "examples": examples_str[:80],
+            })
+
+        # Footer: prefer "Examples: ..." bullet, then any non-colon bullet
+        if example_bullets:
+            ex_parts = example_bullets[0].split(":", 1)
+            footer = _clean_text(ex_parts[1].strip())[:200] if len(ex_parts) > 1 else ""
+        else:
+            non_colon = [b for b in bullets if ":" not in b or len(b.split(":", 1)[0]) > 25]
+            footer = _clean_text(non_colon[0])[:200] if non_colon else ""
+
+        concepts = concepts_list if concepts_list else None
+
+    elif layout == "anatomy_diagram":
+        # Parse colon-bullets into components: "Region: effect1; effect2"
+        colon_b = [b for b in bullets if ":" in b and len(b.split(":", 1)[0]) < 40]
+        comp_list = []
+        for cb in colon_b[:5]:
+            parts = cb.split(":", 1)
+            name = _clean_text(parts[0].strip())
+            rest = _clean_text(parts[1].strip()) if len(parts) > 1 else ""
+            # Split functions by semicolons, em-dashes, or "—"
+            funcs = [f.strip() for f in re.split(r'[;—–]', rest) if len(f.strip()) > 5][:2]
+            if not funcs and rest:
+                funcs = [rest[:90]]
+            comp_list.append({"name": name, "functions": funcs})
+
+        # Right panels — use non-colon bullets or synthesize
+        non_colon = [_clean_text(b) for b in bullets
+                     if ":" not in b or len(b.split(":", 1)[0]) > 40]
+        p1_body = (" ".join(non_colon[:2]))[:280] if non_colon else (
+            "When AI handles cognitive tasks, activation in executive function regions "
+            "decreases measurably — reducing neural engagement critical for skill maintenance."
+        )
+        p2_body = (" ".join(non_colon[2:4]))[:280] if len(non_colon) > 2 else (
+            "Sustained under-stimulation across multiple regions creates compound cognitive "
+            "risk — impact amplifies beyond any single region's contribution."
+        )
+        components = comp_list if comp_list else None
+        right_panels = [
+            {"header": "Cognitive Offloading Effect", "body": p1_body},
+            {"header": "Neural Plasticity Risk", "body": p2_body},
+        ]
+
+    elif layout == "research_citations":
+        # Parse "Author (Year): detail" citation bullets
+        cit_pat = re.compile(r'^([A-Z][a-zA-Z\s\-]+\s*\(\d{4}\))\s*[:\-]?\s*(.+)$')
+        studies_list: list[dict] = []
+        metrics_r: list[dict] = []
+        domains_list: list[str] = []
+
+        for b in bullets:
+            # Citation format
+            m_cit = cit_pat.match(b.strip())
+            if m_cit and re.search(r'\(\d{4}\)', m_cit.group(1)):
+                studies_list.append({
+                    "name": m_cit.group(1).strip()[:55],
+                    "detail": m_cit.group(2).strip()[:160],
+                })
+                continue
+
+            # Metric bullets: "-N%: label" format
+            vm = re.match(r'^(-\d+\.?\d*[%$])\s*[:\-]?\s*(.+)?$', b.strip())
+            if vm:
+                label = _clean_text((vm.group(2) or "").strip())
+                if label:
+                    metrics_r.append({"value": vm.group(1), "label": label[:50]})
+                continue
+
+            # Domain list: "Domains most affected: X, Y, Z"
+            dom_match = re.match(
+                r'^[Dd]omains?\s+(?:most\s+affected|impacted|affected)\s*:\s*(.+)', b
+            )
+            if dom_match:
+                for d in dom_match.group(1).split(","):
+                    d = d.strip().rstrip(".")
+                    if d and len(d) < 30:
+                        domains_list.append(d)
+                continue
+
+        # Scan all bullets for domain keywords if none found yet
+        if not domains_list:
+            domain_pat = re.compile(
+                r'\b(Healthcare|Finance|Law|Legal|Education|Engineering|'
+                r'Technology|Business|Medicine|Academic)\b'
+            )
+            seen: set[str] = set()
+            for b in bullets:
+                for m in domain_pat.finditer(b):
+                    d = m.group(1)
+                    if d not in seen:
+                        domains_list.append(d)
+                        seen.add(d)
+
+        # Fallback metrics extraction if no -N% bullets found
+        if not metrics_r:
+            metrics_r = _extract_metrics(bullets)[:3]
+
+        # Footer quote from body text (quoted strings) or last relevant bullet
+        fq = ""
+        body_text = " ".join(current["body"])
+        q_m = re.search(r'"([^"]{30,200})"', body_text)
+        if q_m:
+            fq = q_m.group(1)
+        if not fq:
+            non_special = [
+                b for b in bullets
+                if not cit_pat.match(b.strip())
+                and not re.match(r'^-\d+', b.strip())
+                and not re.match(r'^[Dd]omains', b)
+            ]
+            if non_special:
+                fq = _clean_text(non_special[-1])[:180]
+
+        studies = studies_list[:3] if studies_list else None
+        metrics = metrics_r[:3] if metrics_r else None
+        domains = domains_list[:6] if domains_list else None
+        footer_quote = fq
+
     sections.append({
         "section_title":    title,
         "layout":           layout,
@@ -444,4 +732,13 @@ def _push_section(sections: list, current: dict, topic: str) -> None:
         "col_headers":      col_headers,
         "study_design":     study_design,
         "findings":         findings,
+        # Rich premium layout fields
+        "definition":       definition,
+        "concepts":         concepts,
+        "footer":           footer,
+        "components":       components,
+        "right_panels":     right_panels,
+        "studies":          studies,
+        "domains":          domains,
+        "footer_quote":     footer_quote,
     })
