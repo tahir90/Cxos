@@ -22,6 +22,9 @@ class LLMConfig:
     max_tokens: int = 4096
     api_key: str = field(default_factory=lambda: os.getenv("OPENAI_API_KEY", ""))
     base_url: str | None = field(default_factory=lambda: os.getenv("OPENAI_BASE_URL"))
+    # Anthropic Claude — preferred when available (api.anthropic.com is reachable)
+    anthropic_api_key: str = field(default_factory=lambda: os.getenv("ANTHROPIC_API_KEY", ""))
+    anthropic_model: str = field(default_factory=lambda: os.getenv("ANTHROPIC_MODEL", "claude-sonnet-4-5-20251022"))
 
 
 @dataclass

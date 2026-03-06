@@ -160,13 +160,13 @@ def _clean_title(raw: str, topic: str = "") -> str:
 def generate_slide_spec(
     outline: str, topic: str, creative_director: Any = None, methodology_brief: dict | None = None
 ) -> list[dict[str, Any]]:
-    """Use LLM + CD to produce per-slide design specification."""
-    from agentic_cxo.infrastructure.llm_required import require_llm
-    from openai import OpenAI
-    from agentic_cxo.infrastructure.llm_retry import with_retry
+    """Use LLM + CD to produce per-slide design specification.
 
-    require_llm("slide specification")
-    client = OpenAI(api_key=settings.llm.api_key, base_url=settings.llm.base_url)
+    Prefers Anthropic Claude (api.anthropic.com is reachable in this environment).
+    Falls back to OpenAI if ANTHROPIC_API_KEY is not set.
+    Falls back to heuristic spec on any network/auth error.
+    """
+    from agentic_cxo.infrastructure.llm_retry import with_retry
 
     topic_clean = _clean_title(topic, topic)
     brand_context = ""
@@ -186,39 +186,76 @@ def generate_slide_spec(
                 + (f"{summary}\n" if summary else "")
             )
 
-    prompt = SLIDE_SPEC_PROMPT.format(outline=outline[:8000], topic=topic_clean, brand_context=brand_context + brief_context)
+    prompt = SLIDE_SPEC_PROMPT.format(
+        outline=outline[:8000], topic=topic_clean,
+        brand_context=brand_context + brief_context,
+    )
 
-    try:
-        resp = with_retry(
-            lambda: client.chat.completions.create(
-                model=settings.llm.model,
-                temperature=0.3,
-                max_tokens=6000,
-                messages=[
-                    {
-                        "role": "system",
-                        "content": (
-                            "You are an expert presentation designer. Output ONLY valid JSON array. "
-                            "No markdown fences, no explanations, no comments. "
-                            "Every slide must have rich, specific, research-backed content. "
-                            "Enrich all content beyond what is provided — add specificity, data, context."
-                        ),
-                    },
-                    {"role": "user", "content": prompt},
-                ],
+    system_msg = (
+        "You are an expert McKinsey-level presentation designer. Output ONLY a valid JSON array — "
+        "no markdown fences, no comments, no explanations. "
+        "Every slide must be dense with specific, research-backed content. "
+        "Enrich every bullet beyond what is provided: add specificity, precise numbers, sources, context. "
+        "Use the richest possible layout for each slide — never default to content_bullets when a "
+        "premium layout (data_metrics, concept_cards, anatomy_diagram, research_citations, "
+        "comparison_table, benefits_risks, warning_callout, recommendations) fits the content."
+    )
+
+    raw: str = ""
+
+    # ── Try Anthropic Claude first (api.anthropic.com is reachable) ────────────
+    anthropic_key = settings.llm.anthropic_api_key
+    if anthropic_key:
+        try:
+            import anthropic as _anthropic
+            _client = _anthropic.Anthropic(api_key=anthropic_key)
+            model = settings.llm.anthropic_model or "claude-sonnet-4-5-20251022"
+            logger.info("Generating slide spec via Anthropic Claude (%s)…", model)
+            resp = with_retry(
+                lambda: _client.messages.create(
+                    model=model,
+                    max_tokens=8000,
+                    temperature=1,  # Anthropic uses 1 for deterministic JSON
+                    system=system_msg,
+                    messages=[{"role": "user", "content": prompt}],
+                )
             )
-        )
-    except Exception as llm_err:
-        err_str = str(llm_err).lower()
-        # Handle proxy/auth/network blocks — fall through to heuristic path
-        if any(k in err_str for k in ["403", "401", "proxy", "forbidden", "egress",
-                                       "not allowed", "ssl", "connection", "network",
-                                       "timeout", "refused"]):
-            logger.warning("LLM unreachable (%s) — using heuristic slide spec", llm_err)
-            return _fallback_spec(outline, topic_clean)
-        raise
+            raw = (resp.content[0].text or "[]").strip()
+        except Exception as ant_err:
+            err_str = str(ant_err).lower()
+            if any(k in err_str for k in ["401", "403", "invalid_api_key", "authentication"]):
+                logger.error("Anthropic auth failed — check ANTHROPIC_API_KEY in .env: %s", ant_err)
+            else:
+                logger.warning("Anthropic call failed (%s) — trying OpenAI fallback", ant_err)
 
-    raw = (resp.choices[0].message.content or "[]").strip()
+    # ── Fall back to OpenAI if Anthropic not configured or failed ──────────────
+    if not raw and settings.llm.api_key:
+        try:
+            from agentic_cxo.infrastructure.llm_required import require_llm
+            from openai import OpenAI
+            require_llm("slide specification")
+            oa_client = OpenAI(api_key=settings.llm.api_key, base_url=settings.llm.base_url)
+            logger.info("Generating slide spec via OpenAI (%s)…", settings.llm.model)
+            oa_resp = with_retry(
+                lambda: oa_client.chat.completions.create(
+                    model=settings.llm.model,
+                    temperature=0.3,
+                    max_tokens=6000,
+                    messages=[
+                        {"role": "system", "content": system_msg},
+                        {"role": "user", "content": prompt},
+                    ],
+                )
+            )
+            raw = (oa_resp.choices[0].message.content or "[]").strip()
+        except Exception as oa_err:
+            logger.warning("OpenAI call failed (%s) — using heuristic spec", oa_err)
+
+    # ── Heuristic fallback if both LLMs unavailable ────────────────────────────
+    if not raw:
+        logger.warning("No LLM available — using heuristic slide spec")
+        return _fallback_spec(outline, topic_clean)
+
     raw = raw.removeprefix("```json").removeprefix("```").removesuffix("```").strip()
 
     try:
