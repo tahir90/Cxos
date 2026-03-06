@@ -16,6 +16,15 @@ from agentic_cxo.config import settings
 
 logger = logging.getLogger(__name__)
 
+
+def _clean_text(t: str) -> str:
+    """Strip markdown formatting from text."""
+    t = re.sub(r"\[([^\]]+)\]\([^)]+\)", r"\1", t)
+    t = re.sub(r"\*\*(.+?)\*\*", r"\1", t)
+    t = re.sub(r"\*(.+?)\*", r"\1", t)
+    t = re.sub(r"`(.+?)`", r"\1", t)
+    return t.strip()
+
 SLIDE_SPEC_PROMPT = """You are a world-class McKinsey/BCG senior presentation designer. Your job: transform research into a premium, visually varied, executive-grade slide deck — the kind delivered to CEOs of Google, Apple, McKinsey.
 
 YOUR GOAL: Every slide must have a specific visual job in the story. Plan the NARRATIVE ARC first (what is slide 1 proving? slide 2? how do they connect?), then assign the richest possible visual layout to each slide's content.
@@ -179,25 +188,36 @@ def generate_slide_spec(
 
     prompt = SLIDE_SPEC_PROMPT.format(outline=outline[:8000], topic=topic_clean, brand_context=brand_context + brief_context)
 
-    resp = with_retry(
-        lambda: client.chat.completions.create(
-            model=settings.llm.model,
-            temperature=0.3,
-            max_tokens=6000,
-            messages=[
-                {
-                    "role": "system",
-                    "content": (
-                        "You are an expert presentation designer. Output ONLY valid JSON array. "
-                        "No markdown fences, no explanations, no comments. "
-                        "Every slide must have rich, specific, research-backed content. "
-                        "Enrich all content beyond what is provided — add specificity, data, context."
-                    ),
-                },
-                {"role": "user", "content": prompt},
-            ],
+    try:
+        resp = with_retry(
+            lambda: client.chat.completions.create(
+                model=settings.llm.model,
+                temperature=0.3,
+                max_tokens=6000,
+                messages=[
+                    {
+                        "role": "system",
+                        "content": (
+                            "You are an expert presentation designer. Output ONLY valid JSON array. "
+                            "No markdown fences, no explanations, no comments. "
+                            "Every slide must have rich, specific, research-backed content. "
+                            "Enrich all content beyond what is provided — add specificity, data, context."
+                        ),
+                    },
+                    {"role": "user", "content": prompt},
+                ],
+            )
         )
-    )
+    except Exception as llm_err:
+        err_str = str(llm_err).lower()
+        # Handle proxy/auth/network blocks — fall through to heuristic path
+        if any(k in err_str for k in ["403", "401", "proxy", "forbidden", "egress",
+                                       "not allowed", "ssl", "connection", "network",
+                                       "timeout", "refused"]):
+            logger.warning("LLM unreachable (%s) — using heuristic slide spec", llm_err)
+            return _fallback_spec(outline, topic_clean)
+        raise
+
     raw = (resp.choices[0].message.content or "[]").strip()
     raw = raw.removeprefix("```json").removeprefix("```").removesuffix("```").strip()
 
@@ -226,7 +246,7 @@ def generate_slide_spec(
                 s["layout"] = layout_map.get(lyt, lyt)
             return spec
     except json.JSONDecodeError:
-        logger.warning("Slide spec JSON parse failed, using fallback")
+        logger.warning("Slide spec JSON parse failed, using heuristic spec")
 
     return _fallback_spec(outline, topic_clean)
 
@@ -282,11 +302,12 @@ def _infer_layout(title: str, bullets: list[str], body: str) -> tuple[str, str, 
         return "anatomy_diagram", "diagram_layout", "🧠"
 
     # 6. RESEARCH CITATIONS — empirical evidence from named studies with metrics.
-    #    Signals: title has "evidence/proof/data/decline/the case for" AND bullets have
-    #    named study citations (Author, Year) pattern
-    has_citations = any(re.search(r'\b[A-Z][a-z]+\s+\(\d{4}\)', b) for b in bullets)
+    #    Requires ≥2 bullets explicitly formatted as "Author (Year): detail" AND numeric data.
+    #    Excludes executive/overview/summary slides that coincidentally mention researchers.
+    citation_bullets = [b for b in bullets if re.search(r'\b[A-Z][a-z]+\s+\(\d{4}\)', b)]
     is_evidence = re.search(r'\b(evidence|proof|the case|data shows|decline|in decline|research shows|findings)\b', t)
-    if (is_evidence or has_citations) and len(numeric_bullets) >= 2 and has_citations:
+    is_summary_title = re.search(r'\b(executive|overview|introduction|summary)\b', t)
+    if not is_summary_title and len(citation_bullets) >= 2 and len(numeric_bullets) >= 2:
         return "research_citations", "citations_layout", "🔬"
 
     # 7. Strong comparison signals
@@ -444,7 +465,7 @@ def _push_section(sections: list, current: dict, topic: str) -> None:
     from agentic_cxo.tools.presentation import _derive_section_cat
     section_category = _derive_section_cat(title, layout)
 
-    # Extract structured data based on layout
+    # Initialize ALL structured data fields
     metrics = None
     table_data = None
     benefits = None
@@ -455,6 +476,14 @@ def _push_section(sections: list, current: dict, topic: str) -> None:
     study_design = None
     findings = None
     col_headers = None
+    definition = None
+    concepts = None
+    footer = None
+    components = None
+    right_panels = None
+    studies = None
+    domains = None
+    footer_quote = None
 
     if layout == "data_metrics":
         metrics = _extract_metrics(bullets)
@@ -500,6 +529,155 @@ def _push_section(sections: list, current: dict, topic: str) -> None:
     elif layout == "warning_callout":
         warning_text = bullets[0] if bullets else "Critical finding requiring attention."
 
+    elif layout == "concept_cards":
+        # Extract definition from body text; synthesize if absent
+        body_text = " ".join(current["body"]).strip()
+        if body_text and len(body_text) > 30:
+            definition = _clean_text(body_text[:280])
+        else:
+            definition = ""
+
+        # Separate "Examples: ..." bullets from real concept bullets
+        example_labels = {"examples", "example", "e.g.", "eg", "tools", "platforms"}
+        example_bullets = [b for b in bullets
+                           if ":" in b and b.split(":", 1)[0].strip().lower() in example_labels]
+        concept_colon = [b for b in bullets
+                         if ":" in b
+                         and len(b.split(":", 1)[0]) < 25
+                         and b not in example_bullets]
+
+        concepts_list = []
+        for cb in concept_colon[:3]:
+            parts = cb.split(":", 1)
+            name = _clean_text(parts[0].strip())
+            rest = _clean_text(parts[1].strip()) if len(parts) > 1 else ""
+            examples_str = ""
+            if " — " in rest:
+                rest_parts = rest.split(" — ", 1)
+                rest = rest_parts[0].strip()
+                examples_str = rest_parts[1].strip()
+            concepts_list.append({
+                "name": name,
+                "description": rest[:240],
+                "examples": examples_str[:80],
+            })
+
+        # Footer: prefer "Examples: ..." bullet, then any non-colon bullet
+        if example_bullets:
+            ex_parts = example_bullets[0].split(":", 1)
+            footer = _clean_text(ex_parts[1].strip())[:200] if len(ex_parts) > 1 else ""
+        else:
+            non_colon = [b for b in bullets if ":" not in b or len(b.split(":", 1)[0]) > 25]
+            footer = _clean_text(non_colon[0])[:200] if non_colon else ""
+
+        concepts = concepts_list if concepts_list else None
+
+    elif layout == "anatomy_diagram":
+        # Parse colon-bullets into components: "Region: effect1; effect2"
+        colon_b = [b for b in bullets if ":" in b and len(b.split(":", 1)[0]) < 40]
+        comp_list = []
+        for cb in colon_b[:5]:
+            parts = cb.split(":", 1)
+            name = _clean_text(parts[0].strip())
+            rest = _clean_text(parts[1].strip()) if len(parts) > 1 else ""
+            # Split functions by semicolons, em-dashes, or "—"
+            funcs = [f.strip() for f in re.split(r'[;—–]', rest) if len(f.strip()) > 5][:2]
+            if not funcs and rest:
+                funcs = [rest[:90]]
+            comp_list.append({"name": name, "functions": funcs})
+
+        # Right panels — use non-colon bullets or synthesize
+        non_colon = [_clean_text(b) for b in bullets
+                     if ":" not in b or len(b.split(":", 1)[0]) > 40]
+        p1_body = (" ".join(non_colon[:2]))[:280] if non_colon else (
+            "When AI handles cognitive tasks, activation in executive function regions "
+            "decreases measurably — reducing neural engagement critical for skill maintenance."
+        )
+        p2_body = (" ".join(non_colon[2:4]))[:280] if len(non_colon) > 2 else (
+            "Sustained under-stimulation across multiple regions creates compound cognitive "
+            "risk — impact amplifies beyond any single region's contribution."
+        )
+        components = comp_list if comp_list else None
+        right_panels = [
+            {"header": "Cognitive Offloading Effect", "body": p1_body},
+            {"header": "Neural Plasticity Risk", "body": p2_body},
+        ]
+
+    elif layout == "research_citations":
+        # Parse "Author (Year): detail" citation bullets
+        cit_pat = re.compile(r'^([A-Z][a-zA-Z\s\-]+\s*\(\d{4}\))\s*[:\-]?\s*(.+)$')
+        studies_list: list[dict] = []
+        metrics_r: list[dict] = []
+        domains_list: list[str] = []
+
+        for b in bullets:
+            # Citation format
+            m_cit = cit_pat.match(b.strip())
+            if m_cit and re.search(r'\(\d{4}\)', m_cit.group(1)):
+                studies_list.append({
+                    "name": m_cit.group(1).strip()[:55],
+                    "detail": m_cit.group(2).strip()[:160],
+                })
+                continue
+
+            # Metric bullets: "-N%: label" format
+            vm = re.match(r'^(-\d+\.?\d*[%$])\s*[:\-]?\s*(.+)?$', b.strip())
+            if vm:
+                label = _clean_text((vm.group(2) or "").strip())
+                if label:
+                    metrics_r.append({"value": vm.group(1), "label": label[:50]})
+                continue
+
+            # Domain list: "Domains most affected: X, Y, Z"
+            dom_match = re.match(
+                r'^[Dd]omains?\s+(?:most\s+affected|impacted|affected)\s*:\s*(.+)', b
+            )
+            if dom_match:
+                for d in dom_match.group(1).split(","):
+                    d = d.strip().rstrip(".")
+                    if d and len(d) < 30:
+                        domains_list.append(d)
+                continue
+
+        # Scan all bullets for domain keywords if none found yet
+        if not domains_list:
+            domain_pat = re.compile(
+                r'\b(Healthcare|Finance|Law|Legal|Education|Engineering|'
+                r'Technology|Business|Medicine|Academic)\b'
+            )
+            seen: set[str] = set()
+            for b in bullets:
+                for m in domain_pat.finditer(b):
+                    d = m.group(1)
+                    if d not in seen:
+                        domains_list.append(d)
+                        seen.add(d)
+
+        # Fallback metrics extraction if no -N% bullets found
+        if not metrics_r:
+            metrics_r = _extract_metrics(bullets)[:3]
+
+        # Footer quote from body text (quoted strings) or last relevant bullet
+        fq = ""
+        body_text = " ".join(current["body"])
+        q_m = re.search(r'"([^"]{30,200})"', body_text)
+        if q_m:
+            fq = q_m.group(1)
+        if not fq:
+            non_special = [
+                b for b in bullets
+                if not cit_pat.match(b.strip())
+                and not re.match(r'^-\d+', b.strip())
+                and not re.match(r'^[Dd]omains', b)
+            ]
+            if non_special:
+                fq = _clean_text(non_special[-1])[:180]
+
+        studies = studies_list[:3] if studies_list else None
+        metrics = metrics_r[:3] if metrics_r else None
+        domains = domains_list[:6] if domains_list else None
+        footer_quote = fq
+
     sections.append({
         "section_title":    title,
         "layout":           layout,
@@ -517,4 +695,13 @@ def _push_section(sections: list, current: dict, topic: str) -> None:
         "col_headers":      col_headers,
         "study_design":     study_design,
         "findings":         findings,
+        # Rich premium layout fields
+        "definition":       definition,
+        "concepts":         concepts,
+        "footer":           footer,
+        "components":       components,
+        "right_panels":     right_panels,
+        "studies":          studies,
+        "domains":          domains,
+        "footer_quote":     footer_quote,
     })
