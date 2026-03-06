@@ -322,6 +322,124 @@ def extract_brand(url: str) -> BrandProfile:
     return brand
 
 
+def generate_ai_brand_guideline(
+    topic: str = "",
+    company_name: str = "",
+    industry: str = "",
+) -> BrandProfile:
+    """Generate a premium brand guideline using LLM when no brand domain is provided.
+
+    Returns a BrandProfile with professional colors, fonts, and voice
+    suited to the content topic and industry.
+    """
+    prompt = f"""You are a world-class brand designer (think Pentagram, Wolff Olins).
+Generate a premium, professional brand guideline for a presentation.
+
+Context:
+- Topic / content: {topic or 'Business strategy & insights'}
+- Company / org name: {company_name or 'Not specified'}
+- Industry: {industry or 'Professional services'}
+
+Rules:
+- Colors must be sophisticated, NOT generic (no #FF0000, #0000FF)
+- Dark primary (navy/charcoal) + one vivid accent + one neutral
+- Fonts should be modern and professional (Calibri, Roboto, Helvetica Neue, Inter, Montserrat, etc.)
+- Brand voice should match the topic
+
+Return ONLY valid JSON, no markdown, no explanation:
+{{
+  "company_name": "string (derive from topic if not given)",
+  "primary_color": "#hex (dark navy/charcoal for backgrounds)",
+  "secondary_color": "#hex (vivid accent for highlights)",
+  "accent_color": "#hex (complementary accent)",
+  "background_color": "#hex (slide background, very dark)",
+  "text_color": "#hex (primary text, near-white)",
+  "all_colors": ["#hex", "#hex", "#hex", "#hex", "#hex"],
+  "heading_font": "font name",
+  "body_font": "font name",
+  "brand_voice": "professional|technical|confident|authoritative",
+  "industry": "string",
+  "tagline": "short evocative tagline"
+}}"""
+
+    result = None
+
+    # Try Anthropic first
+    try:
+        import anthropic as _anthropic
+        from agentic_cxo.config import settings
+        if settings.llm.anthropic_api_key:
+            client = _anthropic.Anthropic(api_key=settings.llm.anthropic_api_key)
+            resp = client.messages.create(
+                model=settings.llm.anthropic_model or "claude-haiku-4-5-20251001",
+                max_tokens=512,
+                messages=[{"role": "user", "content": prompt}],
+            )
+            result = resp.content[0].text.strip()
+    except Exception as e:
+        logger.debug("Anthropic brand generation failed: %s", e)
+
+    # Fallback to OpenAI
+    if not result:
+        try:
+            import openai as _openai
+            from agentic_cxo.config import settings
+            if settings.llm.api_key:
+                client = _openai.OpenAI(api_key=settings.llm.api_key)
+                resp = client.chat.completions.create(
+                    model="gpt-4o-mini",
+                    max_tokens=512,
+                    messages=[{"role": "user", "content": prompt}],
+                )
+                result = resp.choices[0].message.content.strip()
+        except Exception as e:
+            logger.debug("OpenAI brand generation failed: %s", e)
+
+    if result:
+        try:
+            # Strip markdown code fences if present
+            clean = re.sub(r"```(?:json)?\s*", "", result).strip().rstrip("`")
+            data = json.loads(clean)
+            brand = BrandProfile(
+                domain="ai-generated",
+                company_name=data.get("company_name", company_name or "Research & Insights"),
+                tagline=data.get("tagline", ""),
+                primary_color=data.get("primary_color", "#0F172A"),
+                secondary_color=data.get("secondary_color", "#F59E0B"),
+                accent_color=data.get("accent_color", "#06B6D4"),
+                background_color=data.get("background_color", "#0B0F1A"),
+                text_color=data.get("text_color", "#F8F9FA"),
+                all_colors=data.get("all_colors", []),
+                heading_font=data.get("heading_font", "Calibri"),
+                body_font=data.get("body_font", "Calibri"),
+                brand_voice=data.get("brand_voice", "professional"),
+                industry=data.get("industry", industry or ""),
+                extracted_at=datetime.now(timezone.utc).isoformat(),
+            )
+            logger.info("Generated AI brand guideline for: %s", topic[:60])
+            return brand
+        except Exception as e:
+            logger.warning("Failed to parse AI brand JSON: %s", e)
+
+    # Final hardcoded fallback — premium dark navy + gold
+    logger.info("Using premium default brand (no LLM available)")
+    return BrandProfile(
+        domain="default-premium",
+        company_name=company_name or "Research & Insights",
+        primary_color="#0F172A",
+        secondary_color="#F59E0B",
+        accent_color="#06B6D4",
+        background_color="#0B0F1A",
+        text_color="#F8F9FA",
+        all_colors=["#0F172A", "#F59E0B", "#06B6D4", "#10B981", "#EF4444", "#8B5CF6"],
+        heading_font="Calibri",
+        body_font="Calibri",
+        brand_voice="professional",
+        industry=industry or "",
+        extracted_at=datetime.now(timezone.utc).isoformat(),
+    )
+
+
 class BrandIntelligenceTool(BaseTool):
     """Crawls websites to extract brand identity automatically."""
 

@@ -268,18 +268,26 @@ def _section_cat_label(slide, right_x, top_y, category, color, font):
 # ── Section category derivation ─────────────────────────────────
 
 _CAT_KEYWORDS = [
-    (["neuroscience", "brain", "neural", "cortex", "hippocampus"], "NEUROSCIENCE"),
-    (["landmark research", "study", "mit", "stanford", "harvard", "ucl"], "LANDMARK RESEARCH"),
-    (["global", "market", "adoption", "scale", "statistic"], "THE SCALE OF ADOPTION"),
-    (["cognitive debt", "hidden cost", "debt"], "COGNITIVE DEBT"),
-    (["critical thinking", "evidence", "decline", "atrophy"], "CRITICAL THINKING"),
-    (["vulnerable", "developing", "risk group", "youth", "age"], "HIGHEST RISK GROUPS"),
-    (["trade-off", "efficiency", "vs cognition", "benefit"], "RISK / BENEFIT ANALYSIS"),
-    (["recommendation", "strategic", "strategy", "implement"], "RECOMMENDATIONS"),
-    (["source", "reference", "citation"], "SOURCES & REFERENCES"),
-    (["executive", "summary", "overview"], "EXECUTIVE SUMMARY"),
-    (["understanding", "definition", "what is", "introduction"], "UNDERSTANDING THE TECHNOLOGY"),
-    (["responsible", "integration", "balance", "neuroscience of"], "RESPONSIBLE AI"),
+    (["neuroscience", "brain", "neural", "cortex", "hippocampus", "cognitive", "psychology"], "NEUROSCIENCE"),
+    (["landmark research", "study", "mit", "stanford", "harvard", "ucl", "longitudinal", "lab 20"], "LANDMARK RESEARCH"),
+    (["global", "market", "adoption", "scale", "statistic", "growth", "forecast", "revenue", "valuation"], "MARKET DATA"),
+    (["hidden cost", "debt", "accumulation", "compounding", "silent", "unseen"], "HIDDEN COSTS"),
+    (["evidence", "decline", "atrophy", "critical thinking", "finding"], "KEY EVIDENCE"),
+    (["vulnerable", "developing", "risk group", "youth", "age group", "most at risk"], "RISK GROUPS"),
+    (["trade-off", "efficiency", "benefit", "advantage", "vs ", "comparison", "pro", "con"], "BENEFITS & RISKS"),
+    (["recommendation", "strategic", "strategy", "implement", "action plan", "next step", "roadmap"], "RECOMMENDATIONS"),
+    (["source", "reference", "citation", "bibliography", "appendix", "further reading"], "SOURCES & REFERENCES"),
+    (["executive", "summary", "overview", "abstract", "highlight", "key takeaway"], "EXECUTIVE SUMMARY"),
+    (["understanding", "definition", "what is", "introduction", "background", "context", "explain"], "KEY CONCEPTS"),
+    (["framework", "integration", "balance", "approach", "methodology", "model", "architecture"], "FRAMEWORK"),
+    (["impact", "effect", "consequence", "implication", "outcome", "result"], "IMPACT ANALYSIS"),
+    (["financial", "revenue", "cost", "profit", "margin", "budget", "investment", "roi"], "FINANCIAL ANALYSIS"),
+    (["risk", "threat", "vulnerability", "exposure", "danger", "challenge"], "RISK ASSESSMENT"),
+    (["competitive", "competitor", "landscape", "positioning", "benchmark", "industry"], "COMPETITIVE INTELLIGENCE"),
+    (["team", "talent", "hire", "culture", "people", "workforce", "employee"], "PEOPLE & CULTURE"),
+    (["technology", "digital", "platform", "software", "infrastructure", "data", "ai", "automation"], "TECHNOLOGY"),
+    (["customer", "user", "audience", "segment", "persona", "behavior", "journey"], "CUSTOMER INSIGHTS"),
+    (["timeline", "milestone", "phase", "roadmap", "schedule", "plan", "quarter"], "TIMELINE"),
 ]
 
 def _derive_section_cat(title: str, layout: str) -> str:
@@ -291,18 +299,28 @@ def _derive_section_cat(title: str, layout: str) -> str:
         "data_metrics": "KEY METRICS",
         "warning_callout": "CRITICAL FINDINGS",
         "comparison_table": "COMPARATIVE ANALYSIS",
-        "benefits_risks": "RISK / BENEFIT ANALYSIS",
+        "benefits_risks": "BENEFITS & RISKS",
         "recommendations": "RECOMMENDATIONS",
         "research_study": "LANDMARK RESEARCH",
         "research_citations": "EVIDENCE & RESEARCH",
-        "concept_cards": "UNDERSTANDING THE TECHNOLOGY",
+        "concept_cards": "KEY CONCEPTS",
         "anatomy_diagram": "SYSTEM BREAKDOWN",
-        "definition_boxes": "UNDERSTANDING THE TECHNOLOGY",
+        "definition_boxes": "KEY CONCEPTS",
         "two_column_info": "KEY CONCEPTS",
         "executive": "EXECUTIVE SUMMARY",
         "sources": "SOURCES & REFERENCES",
+        "bottom_line": "CONCLUSION",
+        "quote": "EXPERT PERSPECTIVE",
     }
-    return layout_defaults.get(layout, "RESEARCH & INSIGHTS")
+    if layout in layout_defaults:
+        return layout_defaults[layout]
+    # Dynamic fallback: derive from the most meaningful words in the title
+    stop = {"the", "and", "for", "with", "from", "this", "that", "will", "have",
+            "been", "into", "how", "why", "what", "our", "its", "are", "was"}
+    words = [w for w in title.split() if len(w) > 3 and w.lower() not in stop]
+    if words:
+        return " ".join(w.upper() for w in words[:3])
+    return "RESEARCH & INSIGHTS"
 
 
 # ── Main entry ─────────────────────────────────────────────────
@@ -481,18 +499,20 @@ def generate_pptx(
     if auto_agenda:
         sn += 1
         s = prs.slides.add_slide(blank)
-        set_bg(s, OFFWH)
-        _rect(s, 0, 0, 0.08, 7.5, SEC)
-        _textbox(s, 0.55, 0.45, 5, 0.75, "Agenda", 32, TDARK, True, font=h_font)
-        _rect(s, 0.55, 1.28, 2.2, 0.05, SEC)
-        y = 1.55
+        set_bg(s, DARK)
+        _rect(s, 0, 0, 13.333, 0.06, SEC)
+        _textbox(s, 9.3, 0.14, 3.7, 0.28, brand_label, 8, DGRAY, False, PP_ALIGN.RIGHT, b_font)
+        _textbox(s, 0.5, 0.14, 5, 0.28, "AGENDA", 8, MGRAY, True, font=h_font)
+        _textbox(s, 0.55, 0.45, 5, 0.72, "Agenda", 32, WHITE, True, font=h_font)
+        _rect(s, 0.55, 1.24, 2.2, 0.04, GOLD)
+        y = 1.48
         for i, sec in enumerate(sections):
             if y > 6.5:
                 break
-            _textbox(s, 0.55, y, 0.75, 0.42, f"{i+1:02d}", 24, SEC, True, font=h_font)
-            _textbox(s, 1.5, y + 0.04, 11, 0.38, _clean(sec.get("title", "")), 17, TBODY, font=b_font)
+            _textbox(s, 0.55, y, 0.75, 0.42, f"{i+1:02d}", 24, GOLD, True, font=h_font)
+            _textbox(s, 1.5, y + 0.04, 11, 0.38, _clean(sec.get("title", "")), 17, MGRAY, font=b_font)
             y += 0.52
-        _page_num(s, sn, total, MGRAY)
+        _page_num(s, sn, total, DGRAY)
 
     # ── CONTENT SLIDES ───────────────────────────────────────────
     for idx, sec in enumerate(sections):
@@ -764,7 +784,7 @@ def generate_pptx(
         # ── anatomy_diagram ──────────────────────────────────────
         # Component breakdown: left = labeled list w/color bars, right = 2 effect panels
         elif stype == "anatomy_diagram":
-            hdr_light(sec_cat)
+            hdr_dark(sec_cat)
             components   = sec.get("components") or []
             right_panels = sec.get("right_panels") or []
 
@@ -772,7 +792,7 @@ def generate_pptx(
             n_comps = min(len(components), 5)
 
             # Left panel background
-            _rect(s, 0.35, 1.35, 5.75, 5.85, OFFWH)
+            _rect(s, 0.35, 1.35, 5.75, 5.85, DARK3)
 
             # Left: numbered component list with color bars + sub-functions
             if n_comps > 0:
@@ -790,16 +810,16 @@ def generate_pptx(
                     _textbox(s, 0.58, cy + 0.06, 0.44, 0.34,
                              str(ci + 1), 16, WHITE, True, PP_ALIGN.CENTER, h_font)
                     # Component name
-                    _textbox(s, 1.1, cy + 0.04, 4.72, 0.38, name, 13, TDARK, True, font=h_font)
+                    _textbox(s, 1.1, cy + 0.04, 4.72, 0.38, name, 13, WHITE, True, font=h_font)
                     # Function sub-items
                     for fi, func in enumerate(funcs[:2]):
                         fy = cy + 0.44 + fi * (slot_h * 0.35)
                         if fy + 0.24 < cy + slot_h - 0.1:
                             _textbox(s, 1.1, fy, 4.72, 0.28,
-                                     f"\u25B8  {_clean(str(func))[:65]}", 10, TBODY, False, font=b_font)
+                                     f"\u25B8  {_clean(str(func))[:65]}", 10, MGRAY, False, font=b_font)
 
             # Vertical divider
-            _rect(s, 6.2, 1.35, 0.04, 5.85, LGRAY)
+            _rect(s, 6.2, 1.35, 0.04, 5.85, DGRAY)
 
             # Right: 2 info panels
             panel_colors = [ORNG, RGBColor(0x33, 0x70, 0xC0)]
@@ -809,21 +829,21 @@ def generate_pptx(
                 pc = panel_colors[pi % len(panel_colors)]
                 hdr_txt  = _clean(str(panel.get("header", f"Key Finding {pi+1}")))[:50]
                 body_txt = _clean(str(panel.get("body", "")))[:320]
-                _info_box(s, 6.4, py, 6.65, ph, hdr_txt, body_txt, pc, TBODY, OFFWH, h_font, b_font)
+                _info_box(s, 6.4, py, 6.65, ph, hdr_txt, body_txt, pc, MGRAY, DARK2, h_font, b_font)
                 py += ph + 0.22
-            _page_num(s, sn, total, MGRAY)
+            _page_num(s, sn, total, DGRAY)
 
         # ── research_citations ───────────────────────────────────
         # Evidence slide: study list + negative metrics + domain chips
         elif stype == "research_citations":
-            hdr_light(sec_cat)
+            hdr_dark(sec_cat)
             studies      = sec.get("studies") or []
             metrics_list = sec.get("metrics") or []
             domains      = sec.get("domains") or []
             footer_quote = _clean(str(sec.get("footer_quote") or ""))
 
             # Left: evidence base panel (0.4 to 4.1)
-            _rect(s, 0.4, 1.38, 3.55, 5.35, RGBColor(0xF8, 0xF9, 0xFA))
+            _rect(s, 0.4, 1.38, 3.55, 5.35, DARK3)
             _rect(s, 0.4, 1.38, 3.55, 0.38, PRI)
             _textbox(s, 0.55, 1.44, 3.2, 0.28, "EVIDENCE BASE", 10, WHITE, True, font=h_font)
             sy = 1.85
@@ -831,9 +851,9 @@ def generate_pptx(
                 name   = _clean(str(study.get("name", "")))[:55]
                 detail = _clean(str(study.get("detail", "")))[:160]
                 _rect(s, 0.4, sy, 0.05, 1.05, SEC)
-                _textbox(s, 0.6, sy + 0.04, 3.2, 0.34, name, 13, TDARK, True, font=h_font)
+                _textbox(s, 0.6, sy + 0.04, 3.2, 0.34, name, 13, WHITE, True, font=h_font)
                 if detail:
-                    _textbox(s, 0.6, sy + 0.38, 3.2, 0.6, detail, 10, TBODY, False, font=b_font)
+                    _textbox(s, 0.6, sy + 0.38, 3.2, 0.6, detail, 10, MGRAY, False, font=b_font)
                 sy += 1.2
 
             # Center: stacked metric boxes (4.25 to 7.0)
@@ -856,14 +876,14 @@ def generate_pptx(
 
             # Right: key finding text (7.1 to 12.93)
             right_bullets = [b for b in bullets if not re.search(r'\(\d{4}\)', b)][:4]
-            _rect(s, 7.1, 1.38, 5.7, 5.35, OFFWH)
+            _rect(s, 7.1, 1.38, 5.7, 5.35, DARK3)
             _rect(s, 7.1, 1.38, 5.7, 0.38, SEC)
             _textbox(s, 7.25, 1.43, 5.3, 0.28, "KEY FINDINGS", 10, WHITE, True, font=h_font)
             rb_y = 1.9
             for rb in right_bullets:
                 _rect(s, 7.1, rb_y, 0.05, 0.52, GOLD)
                 _textbox(s, 7.28, rb_y + 0.04, 5.35, 0.52,
-                         _clean(str(rb))[:140], 12, TBODY, False, font=b_font)
+                         _clean(str(rb))[:140], 12, MGRAY, False, font=b_font)
                 rb_y += 0.65
 
             # Domain chip row
@@ -919,7 +939,7 @@ def generate_pptx(
 
         # ── two_column_info ─────────────────────────────────────
         elif stype == "two_column_info":
-            hdr_light(sec_cat)
+            hdr_dark(sec_cat)
             colon_bullets = [b for b in bullets if ":" in b and len(b.split(":", 1)[0]) < 35]
             accent_colors = [PRI, SEC, ORNG, GREEN, PURP, CYAN]
 
@@ -933,9 +953,9 @@ def generate_pptx(
                 num_m = re.search(r'(\d+[%$xX+]|-\d+%)', cb)
                 nv = num_m.group(1) if num_m else ""
                 _rect(s, 0.4, y, 0.06, 0.78, ac)
-                _textbox(s, 0.6, y, 3.4, 0.36, lbl, 14, TDARK, True, font=h_font)
+                _textbox(s, 0.6, y, 3.4, 0.36, lbl, 14, WHITE, True, font=h_font)
                 if desc:
-                    _textbox(s, 0.6, y + 0.35, 5.5, 0.42, desc[:110], 11, TBODY, False, font=b_font)
+                    _textbox(s, 0.6, y + 0.35, 5.5, 0.42, desc[:110], 11, MGRAY, False, font=b_font)
                 if nv:
                     nc = RED if nv.startswith('-') else SEC
                     _textbox(s, 5.4, y, 1.5, 0.78, nv, 28, nc, True, PP_ALIGN.CENTER, h_font)
@@ -948,12 +968,12 @@ def generate_pptx(
             if len(info_bullets) >= 1:
                 _info_box(s, 7.15, 1.4, 5.8, 2.35,
                           info_bullets[0].split(":")[0] if ":" in info_bullets[0] else "Key Finding",
-                          info_bullets[0], ORNG, TBODY, OFFWH, h_font, b_font)
+                          info_bullets[0], ORNG, MGRAY, DARK2, h_font, b_font)
             if len(info_bullets) >= 2:
                 _info_box(s, 7.15, 3.88, 5.8, 2.35,
-                          info_bullets[1].split(":")[0] if ":" in info_bullets[1] else "Neural Impact",
-                          info_bullets[1], RED, TBODY, OFFWH, h_font, b_font)
-            _page_num(s, sn, total, MGRAY)
+                          info_bullets[1].split(":")[0] if ":" in info_bullets[1] else "Key Impact",
+                          info_bullets[1], RED, MGRAY, DARK2, h_font, b_font)
+            _page_num(s, sn, total, DGRAY)
 
         # ── warning_callout ─────────────────────────────────────
         elif stype == "warning_callout":
@@ -996,13 +1016,13 @@ def generate_pptx(
                              11, DGRAY, False, font=b_font)
             else:
                 # Standard warning
-                hdr_light(sec_cat)
-                _rect(s, 0.4, 1.38, 12.5, 1.8, RGBColor(0xFF, 0xF3, 0xE0))
+                hdr_dark(sec_cat)
+                _rect(s, 0.4, 1.38, 12.5, 1.8, RGBColor(0x2D, 0x18, 0x00))
                 _rect(s, 0.4, 1.38, 0.08, 1.8, ORNG)
                 _textbox(s, 0.65, 1.48, 0.95, 0.5, "⚠", 28, ORNG, True, font=h_font)
                 _textbox(s, 1.62, 1.48, 11.0, 0.38, "KEY FINDING", 11, ORNG, True, font=h_font)
                 _textbox(s, 1.62, 1.88, 11.0, 1.15,
-                         _clean(str(warn))[:350], 14, TDARK, False, font=b_font)
+                         _clean(str(warn))[:350], 14, WHITE, False, font=b_font)
                 # Support boxes
                 if support:
                     n = min(len(support[:4]), 4)
@@ -1023,23 +1043,23 @@ def generate_pptx(
                 mid = max(len(bullets) // 2, 1)
                 benefits = bullets[:mid]
                 risks    = bullets[mid:] if mid < len(bullets) else bullets[:1]
-            hdr_light(sec_cat)
+            hdr_dark(sec_cat)
             # Column header bars
             _rect(s, 0.4, 1.38, 6.0, 0.5, GREEN)
             _textbox(s, 0.6, 1.42, 5.7, 0.38, "✓  POTENTIAL BENEFITS", 13, WHITE, True, font=h_font)
             _rect(s, 6.9, 1.38, 6.0, 0.5, RED)
-            _textbox(s, 7.1, 1.42, 5.7, 0.38, "✗  COGNITIVE RISKS", 13, WHITE, True, font=h_font)
+            _textbox(s, 7.1, 1.42, 5.7, 0.38, "✗  RISKS & CONCERNS", 13, WHITE, True, font=h_font)
             # Benefits
             yb = 1.98
             for b in benefits[:5]:
                 _rect(s, 0.4, yb, 0.06, 0.48, GREEN)
-                _textbox(s, 0.62, yb, 5.8, 0.52, _clean(str(b))[:140], 13, TBODY, False, font=b_font)
+                _textbox(s, 0.62, yb, 5.8, 0.52, _clean(str(b))[:140], 13, MGRAY, False, font=b_font)
                 yb += 0.58
             # Risks
             yr = 1.98
             for r in risks[:5]:
                 _rect(s, 6.9, yr, 0.06, 0.48, RED)
-                _textbox(s, 7.12, yr, 5.8, 0.52, _clean(str(r))[:140], 13, TBODY, False, font=b_font)
+                _textbox(s, 7.12, yr, 5.8, 0.52, _clean(str(r))[:140], 13, MGRAY, False, font=b_font)
                 yr += 0.58
             # Assessment footer — derive from content, not hardcoded
             assessment_note = ""
@@ -1068,10 +1088,10 @@ def generate_pptx(
                 left  = bullets[:mid]
                 right = bullets[mid:]
                 rows  = [[l, r] for l, r in zip(left, right)]
-            hdr_light(sec_cat)
+            hdr_dark(sec_cat)
             # Column headers
-            h0c = GREEN if any(k in str(headers[0]).lower() for k in ["benefit", "positive", "pro"]) else PRI
-            h1c = RED   if any(k in str(headers[1]).lower() for k in ["risk", "cost", "con", "negative"]) else SEC
+            h0c = GREEN if any(k in str(headers[0]).lower() for k in ["benefit", "positive", "pro", "before"]) else PRI
+            h1c = RED   if any(k in str(headers[1]).lower() for k in ["risk", "cost", "con", "negative", "after"]) else SEC
             _rect(s, 0.4, 1.38, 6.1, 0.5, h0c)
             _textbox(s, 0.6, 1.43, 5.8, 0.38, str(headers[0])[:40], 13, WHITE, True, font=h_font)
             _rect(s, 6.9, 1.38, 6.1, 0.5, h1c)
@@ -1080,20 +1100,19 @@ def generate_pptx(
             y = 1.95
             for ri, row in enumerate(rows[:6]):
                 if len(row) >= 2:
-                    rbg = RGBColor(0xF8, 0xF9, 0xFA) if ri % 2 == 0 else WHITE
+                    rbg = DARK3 if ri % 2 == 0 else DARK2
                     _rect(s, 0.4, y, 12.6, 0.55, rbg)
-                    _rect(s, 6.87, y, 0.03, 0.55, LGRAY)
+                    _rect(s, 6.87, y, 0.03, 0.55, DGRAY)
                     _textbox(s, 0.6, y + 0.06, 6.0, 0.45,
-                             _clean(str(row[0]))[:100], 13, TBODY, False, font=b_font)
+                             _clean(str(row[0]))[:100], 13, MGRAY, False, font=b_font)
                     _textbox(s, 7.1, y + 0.06, 6.0, 0.45,
-                             _clean(str(row[1]))[:100], 13, TBODY, False, font=b_font)
+                             _clean(str(row[1]))[:100], 13, MGRAY, False, font=b_font)
                 y += 0.57
-            _page_num(s, sn, total, MGRAY)
+            _page_num(s, sn, total, DGRAY)
 
         # ── recommendations ─────────────────────────────────────
         elif stype == "recommendations":
-            hdr_light(sec_cat)
-            _rect(s, 0, 6.9, 13.333, 0.6, DARK)
+            hdr_dark(sec_cat)
             items = bullets[:4]
             nc_list = [PRI, SEC, GREEN, ORNG]
             cat_labels = ["INDIVIDUALLY", "ORGANIZATIONS", "POLICY", "MEASUREMENT"]
@@ -1113,11 +1132,11 @@ def generate_pptx(
                     _textbox(s, gx + 0.04, gy + 0.34, 0.44, 0.44,
                              str(gi + 1), 21, WHITE, True, PP_ALIGN.CENTER, h_font)
                     _textbox(s, gx + 0.68, gy + 0.33, 5.7, 0.5,
-                             heading, 15, TDARK, True, font=h_font)
+                             heading, 15, WHITE, True, font=h_font)
                     if detail:
                         _textbox(s, gx + 0.68, gy + 0.86, 5.7, 1.85,
-                                 detail, 12, TBODY, False, font=b_font)
-                    _rect(s, gx, gy + 2.65, 6.1, 0.03, LGRAY)
+                                 detail, 12, MGRAY, False, font=b_font)
+                    _rect(s, gx, gy + 2.65, 6.1, 0.03, DGRAY)
             else:
                 y = 1.42
                 for i, b in enumerate(bullets[:5]):
@@ -1127,12 +1146,12 @@ def generate_pptx(
                     _textbox(s, 0.44, y + 0.06, 0.44, 0.4,
                              str(i + 1), 21, WHITE, True, PP_ALIGN.CENTER, h_font)
                     _textbox(s, 1.1, y + 0.06, 11.8, 0.42,
-                             parts[0].strip(), 16, TDARK, True, font=h_font)
+                             parts[0].strip(), 16, WHITE, True, font=h_font)
                     if len(parts) > 1:
                         _textbox(s, 1.1, y + 0.52, 11.8, 0.4,
-                                 parts[1].strip()[:140], 13, TBODY, False, font=b_font)
+                                 parts[1].strip()[:140], 13, MGRAY, False, font=b_font)
                     y += 1.06
-            _page_num(s, sn, total, MGRAY)
+            _page_num(s, sn, total, DGRAY)
 
         # ── executive ───────────────────────────────────────────
         elif stype == "executive":
@@ -1162,32 +1181,34 @@ def generate_pptx(
 
         # ── agenda ──────────────────────────────────────────────
         elif stype == "agenda":
-            set_bg(s, OFFWH)
-            _rect(s, 0, 0, 0.08, 7.5, SEC)
-            _textbox(s, 0.55, 0.45, 5, 0.75, sec_title, 30, TDARK, True, font=h_font)
-            _rect(s, 0.55, 1.28, 2.2, 0.05, SEC)
+            set_bg(s, DARK)
+            _rect(s, 0, 0, 13.333, 0.06, SEC)
+            _textbox(s, 9.3, 0.14, 3.7, 0.28, brand_label, 8, DGRAY, False, PP_ALIGN.RIGHT, b_font)
+            _textbox(s, 0.5, 0.14, 5, 0.28, "AGENDA", 8, MGRAY, True, font=h_font)
+            _textbox(s, 0.55, 0.45, 5, 0.72, sec_title, 30, WHITE, True, font=h_font)
+            _rect(s, 0.55, 1.24, 2.2, 0.04, GOLD)
             if bullets:
-                y = 1.55
+                y = 1.48
                 for i, b in enumerate(bullets[:12]):
-                    _textbox(s, 0.55, y, 0.75, 0.42, f"{i+1:02d}", 22, SEC, True, font=h_font)
-                    _textbox(s, 1.5, y + 0.04, 11, 0.38, _clean(b), 17, TBODY, font=b_font)
+                    _textbox(s, 0.55, y, 0.75, 0.42, f"{i+1:02d}", 22, GOLD, True, font=h_font)
+                    _textbox(s, 1.5, y + 0.04, 11, 0.38, _clean(b), 17, MGRAY, font=b_font)
                     y += 0.48
-            _page_num(s, sn, total, MGRAY)
+            _page_num(s, sn, total, DGRAY)
 
         # ── sources ─────────────────────────────────────────────
         elif stype == "sources":
-            set_bg(s, OFFWH)
+            set_bg(s, DARK)
             _rect(s, 0, 0, 13.333, 0.06, SEC)
-            _textbox(s, 9.3, 0.14, 3.7, 0.28, brand_label, 8, MGRAY, False, PP_ALIGN.RIGHT, b_font)
-            _textbox(s, 0.5, 0.14, 5, 0.28, sec_cat, 8, SEC, True, font=h_font)
-            _textbox(s, 0.5, 0.5, 10.5, 0.65, sec_title, 28, TDARK, True, font=h_font)
-            _rect(s, 0.5, 1.22, 2.0, 0.04, SEC)
+            _textbox(s, 9.3, 0.14, 3.7, 0.28, brand_label, 8, DGRAY, False, PP_ALIGN.RIGHT, b_font)
+            _textbox(s, 0.5, 0.14, 5, 0.28, sec_cat, 8, MGRAY, True, font=h_font)
+            _textbox(s, 0.5, 0.5, 10.5, 0.65, sec_title, 28, WHITE, True, font=h_font)
+            _rect(s, 0.5, 1.22, 2.0, 0.04, GOLD)
             y = 1.45
             for i, b in enumerate(bullets[:10]):
                 _rect(s, 0.4, y, 0.06, 0.38, SEC if i % 2 == 0 else GOLD)
-                _textbox(s, 0.65, y, 12.0, 0.42, _clean(b), 13, TBODY, False, font=b_font)
+                _textbox(s, 0.65, y, 12.0, 0.42, _clean(b), 13, MGRAY, False, font=b_font)
                 y += 0.48
-            _page_num(s, sn, total, MGRAY)
+            _page_num(s, sn, total, DGRAY)
 
         # ── quote ───────────────────────────────────────────────
         elif stype == "quote":
@@ -1250,12 +1271,12 @@ def generate_pptx(
 
         # ── two_column (fallback for 7+ bullets) ────────────────
         elif stype == "two_column":
-            hdr_light(sec_cat)
+            hdr_dark(sec_cat)
             mid = len(bullets) // 2
-            _bullet_block(s, 0.5, 1.42, 5.9, 5.4, bullets[:mid], 15, TBODY, b_font, 10, 8)
-            _rect(s, 6.65, 1.42, 0.03, 5.0, LGRAY)
-            _bullet_block(s, 6.9, 1.42, 5.9, 5.4, bullets[mid:], 15, TBODY, b_font, 10, 8)
-            _page_num(s, sn, total, MGRAY)
+            _bullet_block(s, 0.5, 1.42, 5.9, 5.4, bullets[:mid], 15, MGRAY, b_font, 10, 8)
+            _rect(s, 6.65, 1.42, 0.03, 5.0, DGRAY)
+            _bullet_block(s, 6.9, 1.42, 5.9, 5.4, bullets[mid:], 15, MGRAY, b_font, 10, 8)
+            _page_num(s, sn, total, DGRAY)
 
         # ── content_bullets (default) ───────────────────────────
         else:
@@ -1263,7 +1284,7 @@ def generate_pptx(
 
             if len(colon_b) >= 3:
                 # Labeled rows with colored accent chips
-                hdr_light(sec_cat)
+                hdr_dark(sec_cat)
                 ac_colors = [PRI, SEC, ORNG, GREEN, PURP, CYAN]
                 y = 1.42
                 for bi, cb in enumerate(colon_b[:6]):
@@ -1274,26 +1295,20 @@ def generate_pptx(
                     num_m = re.search(r'(\d+[%$xX+]|-\d+%)', cb)
                     nv = num_m.group(1) if num_m else ""
                     _rect(s, 0.4, y, 0.06, 0.82, ac)
-                    _textbox(s, 0.6, y, 3.5, 0.38, lbl, 14, TDARK, True, font=h_font)
+                    _textbox(s, 0.6, y, 3.5, 0.38, lbl, 14, WHITE, True, font=h_font)
                     if desc:
-                        _textbox(s, 0.6, y + 0.36, 5.8, 0.42, desc[:130], 12, TBODY, False, font=b_font)
+                        _textbox(s, 0.6, y + 0.36, 5.8, 0.42, desc[:130], 12, MGRAY, False, font=b_font)
                     if nv:
                         nc = RED if nv.startswith('-') else SEC
                         _textbox(s, 10.8, y, 2.2, 0.82, nv, 28, nc, True, PP_ALIGN.CENTER, h_font)
                     y += 0.92
-                _page_num(s, sn, total, MGRAY)
-
-            elif idx % 3 == 0:
-                # Dark variant for visual rhythm
-                hdr_dark(sec_cat)
-                _bullet_block(s, 0.5, 1.42, 12.0, 5.4, bullets, 17, MGRAY, b_font, 14, 8, "\u25B8")
                 _page_num(s, sn, total, DGRAY)
 
             else:
-                hdr_light(sec_cat)
-                _rect(s, 0, 0.06, 0.06, 7.44, GOLD if idx % 2 == 0 else SEC)
-                _bullet_block(s, 0.7, 1.42, 12.0, 5.4, bullets, 17, TBODY, b_font, 14, 8, "\u25B8")
-                _page_num(s, sn, total, MGRAY)
+                # Dark variant — consistent across all content_bullets
+                hdr_dark(sec_cat)
+                _bullet_block(s, 0.5, 1.42, 12.0, 5.4, bullets, 17, MGRAY, b_font, 14, 8, "\u25B8")
+                _page_num(s, sn, total, DGRAY)
 
     # ── CLOSING SLIDE ────────────────────────────────────────────
     if add_closing_slide:

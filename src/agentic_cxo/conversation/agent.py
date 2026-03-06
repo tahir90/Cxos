@@ -492,13 +492,25 @@ class CoFounderAgent:
         return ""
 
     def _extract_brand_from_conversation(self) -> str:
-        """Pull brand domain from recent conversation."""
-        recent = self.memory.recent(10)
+        """Pull brand domain or company name from recent conversation."""
+        recent = self.memory.recent(15)
+        brand_triggers = ("branding", "brand", "brand guidelines", "colors", "logo", "our style")
         for m in reversed(recent):
             content = (m.content or "").lower()
-            if "gmg" in content and ("branding" in content or "brand" in content or "gmg.com" in content):
-                return "gmg.com"
-            match = re.search(r"([a-z0-9-]+)\.(?:com|io|co)", content)
+            # Look for explicit domain mention near brand keywords
+            if any(t in content for t in brand_triggers):
+                # Domain pattern: word.tld
+                match = re.search(r"\b([a-z0-9][a-z0-9-]*[a-z0-9])\.(?:com|io|co\.uk|co|org|net|ai|app)\b", content)
+                if match:
+                    return match.group(0)
+                # Company name pattern: "<CompanyName> branding"
+                name_m = re.search(r"\b([A-Z][a-z0-9]+(?:\s+[A-Z][a-z0-9]+)*)\s+(?:brand|branding|style|colors?)", m.content or "")
+                if name_m:
+                    return name_m.group(1).lower().replace(" ", "") + ".com"
+        # Fallback: any domain in recent messages
+        for m in reversed(recent):
+            content = (m.content or "").lower()
+            match = re.search(r"\b([a-z0-9][a-z0-9-]*[a-z0-9])\.(?:com|io|co\.uk|co|org|net|ai|app)\b", content)
             if match:
                 return match.group(0)
         return ""

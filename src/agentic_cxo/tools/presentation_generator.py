@@ -10,7 +10,7 @@ from __future__ import annotations
 import logging
 from pathlib import Path
 
-from agentic_cxo.tools.brand_intelligence import BrandStore, BrandProfile
+from agentic_cxo.tools.brand_intelligence import BrandStore, BrandProfile, generate_ai_brand_guideline
 from agentic_cxo.tools.framework import BaseTool, ToolParam, ToolResult
 from agentic_cxo.tools.presentation import _parse_markdown_sections, generate_pptx
 
@@ -119,10 +119,36 @@ class PresentationGeneratorTool(BaseTool):
             progress_callback(f"Preparing presentation: {title[:40]}...")
 
         brand = None
+        brand_source = "default"
+
         if brand_domain:
-            brand = self._store.get(brand_domain.strip().replace("www.", ""))
+            # 1. Try cached brand for the given domain
+            domain_key = brand_domain.strip().replace("www.", "")
+            brand = self._store.get(domain_key)
+            if not brand:
+                # 2. Try to extract brand from website live
+                try:
+                    from agentic_cxo.tools.brand_intelligence import extract_brand
+                    brand = extract_brand(brand_domain if brand_domain.startswith("http") else f"https://{brand_domain}")
+                    if brand and (brand.primary_color or brand.company_name):
+                        self._store.store(brand)
+                        brand_source = f"extracted from {brand_domain}"
+                except Exception as e:
+                    logger.debug("Brand extraction failed for %s: %s", brand_domain, e)
         if not brand:
             brand = self._store.primary_brand
+            if brand:
+                brand_source = f"saved brand: {brand.company_name or brand.domain}"
+
+        # 3. If still no brand, generate one with LLM
+        if not brand:
+            brand = generate_ai_brand_guideline(
+                topic=title,
+                company_name="",
+                industry="",
+            )
+            brand_source = "AI-generated brand guideline"
+            logger.info("Using AI-generated brand guideline for presentation: %s", title[:60])
 
         cd = _cd_instance
         if brand and cd:
@@ -174,6 +200,7 @@ class PresentationGeneratorTool(BaseTool):
         if progress_callback:
             progress_callback(f"Created {total_slides}-slide presentation")
 
+        brand_name = (brand.company_name or brand.domain) if brand else None
         return ToolResult(
             self.name, True,
             data={
@@ -181,13 +208,14 @@ class PresentationGeneratorTool(BaseTool):
                 "slides_count": total_slides,
                 "path": str(pptx_path),
                 "url": static_path,
-                "brand_used": brand.company_name or brand.domain if brand else None,
+                "brand_used": brand_name,
+                "brand_source": brand_source,
                 "document_type": document_type,
             },
             summary=(
                 f"## Presentation Created: {title}\n\n"
                 f"**{total_slides} slides** with title, agenda, content, and closing slides.\n"
-                f"{'Brand: ' + (brand.company_name or brand.domain) + ' guidelines applied.' if brand else 'Default professional styling.'}\n\n"
+                f"Brand: {brand_name or 'AI-generated'} ({brand_source}).\n\n"
                 f"\U0001F4C4 **[Download PowerPoint]({static_path})**"
             ),
         )
