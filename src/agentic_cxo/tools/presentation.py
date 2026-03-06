@@ -424,7 +424,8 @@ def generate_pptx(
                 "footer_quote":     s.get("footer_quote"),
             }
             for s in slide_spec
-            if s.get("section_title") or s.get("bullets")
+            if (s.get("section_title") or s.get("bullets"))
+            and s.get("layout") not in ("title", "closing")
         ]
         if not sections:
             sections = [{"title": title, "body": "", "bullets": ["Key points"],
@@ -527,11 +528,15 @@ def generate_pptx(
             """Standard dark-slide header block."""
             set_bg(s, DARK)
             _rect(s, 0, 0, 13.333, 0.06, SEC)
-            _textbox(s, 9.3, 0.14, 3.7, 0.28, brand_label, 8, DGRAY,
+            # Brand badge — gold pill on top-left
+            _rect(s, 0.5, 0.1, 0.95, 0.22, GOLD)
+            _textbox(s, 0.5, 0.1, 0.95, 0.22, brand_label[:8], 7, DARK,
+                     True, PP_ALIGN.CENTER, h_font)
+            _textbox(s, 1.55, 0.14, 5, 0.22, category, 8, MGRAY, True, font=h_font)
+            _textbox(s, 9.3, 0.14, 3.7, 0.22, brand_label, 7, DGRAY,
                      False, PP_ALIGN.RIGHT, b_font)
-            _textbox(s, 0.5, 0.14, 5, 0.28, category, 8, MGRAY, True, font=h_font)
-            _textbox(s, 0.5, 0.5, 10.5, 0.72, sec_title, 30, WHITE, True, font=h_font)
-            _rect(s, 0.5, 1.28, 2.0, 0.04, GOLD)
+            _textbox(s, 0.5, 0.45, 10.5, 0.82, sec_title, 36, WHITE, True, font=h_font)
+            _rect(s, 0.5, 1.33, 2.0, 0.04, GOLD)
 
         def hdr_light(category: str):
             """Standard light-slide header block."""
@@ -1017,6 +1022,12 @@ def generate_pptx(
             else:
                 # Standard warning
                 hdr_dark(sec_cat)
+                # Red border around entire slide for dramatic impact
+                RED2 = RGBColor(0xDC, 0x26, 0x26)
+                _rect(s, 0, 0, 13.333, 0.04, RED2)       # top
+                _rect(s, 0, 7.46, 13.333, 0.04, RED2)    # bottom
+                _rect(s, 0, 0, 0.04, 7.5, RED2)          # left
+                _rect(s, 13.29, 0, 0.04, 7.5, RED2)      # right
                 _rect(s, 0.4, 1.38, 12.5, 1.8, RGBColor(0x2D, 0x18, 0x00))
                 _rect(s, 0.4, 1.38, 0.08, 1.8, ORNG)
                 _textbox(s, 0.65, 1.48, 0.95, 0.5, "⚠", 28, ORNG, True, font=h_font)
@@ -1214,12 +1225,13 @@ def generate_pptx(
         elif stype == "quote":
             hdr_dark(sec_cat)
             _textbox(s, 0.8, 1.5, 1.5, 1.5, "\u201C", 96, GOLD, True, font=h_font)
-            quote = bullets[0] if bullets else ""
+            quote = sec.get("quote") or (bullets[0] if bullets else "")
+            attribution = sec.get("quote_attribution") or (bullets[1] if len(bullets) > 1 else "")
             _textbox(s, 2.2, 2.2, 9.5, 2.5, _clean(quote), 24, WHITE, False, font=b_font,
                      line_spacing=36)
-            if len(bullets) > 1:
+            if attribution:
                 _textbox(s, 2.2, 5.0, 9.5, 0.5,
-                         f"\u2014 {_clean(bullets[1])}", 14, MGRAY, True, font=b_font)
+                         f"\u2014 {_clean(attribution)}", 14, MGRAY, True, font=b_font)
             _page_num(s, sn, total, DGRAY)
 
         # ── bottom_line ─────────────────────────────────────────
