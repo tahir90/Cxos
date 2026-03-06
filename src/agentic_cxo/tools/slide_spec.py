@@ -215,7 +215,7 @@ def generate_slide_spec(
                 lambda: _client.messages.create(
                     model=model,
                     max_tokens=8000,
-                    temperature=1,  # Anthropic uses 1 for deterministic JSON
+                    temperature=0.3,
                     system=system_msg,
                     messages=[{"role": "user", "content": prompt}],
                 )
