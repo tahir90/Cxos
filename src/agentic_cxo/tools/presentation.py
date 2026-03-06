@@ -1091,33 +1091,50 @@ def generate_pptx(
 
         # ── comparison_table ────────────────────────────────────
         elif stype == "comparison_table":
-            tbl = sec.get("table_data") or {}
+            tbl_raw = sec.get("table_data")
+            # table_data can be a list of rows or a dict with "headers"/"rows" keys
+            if isinstance(tbl_raw, list):
+                tbl = {}
+                raw_rows = tbl_raw
+            elif isinstance(tbl_raw, dict):
+                tbl = tbl_raw
+                raw_rows = tbl.get("rows", [])
+            else:
+                tbl = {}
+                raw_rows = []
             headers = tbl.get("headers") or sec.get("col_headers") or ["Before AI", "With Agentic AI"]
-            rows    = tbl.get("rows", [])
+            rows    = raw_rows
             if not rows and len(bullets) >= 2:
                 mid   = len(bullets) // 2
                 left  = bullets[:mid]
                 right = bullets[mid:]
                 rows  = [[l, r] for l, r in zip(left, right)]
             hdr_dark(sec_cat)
-            # Column headers
-            h0c = GREEN if any(k in str(headers[0]).lower() for k in ["benefit", "positive", "pro", "before"]) else PRI
-            h1c = RED   if any(k in str(headers[1]).lower() for k in ["risk", "cost", "con", "negative", "after"]) else SEC
-            _rect(s, 0.4, 1.38, 6.1, 0.5, h0c)
-            _textbox(s, 0.6, 1.43, 5.8, 0.38, str(headers[0])[:40], 13, WHITE, True, font=h_font)
-            _rect(s, 6.9, 1.38, 6.1, 0.5, h1c)
-            _textbox(s, 7.1, 1.43, 5.8, 0.38, str(headers[1])[:40], 13, WHITE, True, font=h_font)
+            # Dynamic N-column layout
+            ncols = max(len(headers), max((len(r) for r in rows), default=0))
+            ncols = min(max(ncols, 2), 5)
+            col_colors = [PRI, SEC, GREEN, ORNG, PURP]
+            table_w = 12.6
+            col_w = table_w / ncols
+            x0 = 0.4
+            for ci, hdr in enumerate(headers[:ncols]):
+                hc = col_colors[ci % len(col_colors)]
+                cx = x0 + ci * col_w
+                _rect(s, cx, 1.38, col_w - 0.05, 0.5, hc)
+                _textbox(s, cx + 0.1, 1.43, col_w - 0.15, 0.38,
+                         str(hdr)[:35], 12, WHITE, True, font=h_font)
             # Rows
             y = 1.95
             for ri, row in enumerate(rows[:6]):
-                if len(row) >= 2:
-                    rbg = DARK3 if ri % 2 == 0 else DARK2
-                    _rect(s, 0.4, y, 12.6, 0.55, rbg)
-                    _rect(s, 6.87, y, 0.03, 0.55, DGRAY)
-                    _textbox(s, 0.6, y + 0.06, 6.0, 0.45,
-                             _clean(str(row[0]))[:100], 13, MGRAY, False, font=b_font)
-                    _textbox(s, 7.1, y + 0.06, 6.0, 0.45,
-                             _clean(str(row[1]))[:100], 13, MGRAY, False, font=b_font)
+                rbg = DARK3 if ri % 2 == 0 else DARK2
+                _rect(s, x0, y, table_w, 0.55, rbg)
+                for ci in range(ncols):
+                    cx = x0 + ci * col_w
+                    cell = _clean(str(row[ci]))[:80] if ci < len(row) else ""
+                    if ci > 0:
+                        _rect(s, cx - 0.02, y, 0.03, 0.55, DGRAY)
+                    _textbox(s, cx + 0.1, y + 0.06, col_w - 0.15, 0.45,
+                             cell, 12, MGRAY, False, font=b_font)
                 y += 0.57
             _page_num(s, sn, total, DGRAY)
 
@@ -1135,7 +1152,7 @@ def generate_pptx(
                     btext = _clean(items[gi])
                     parts = btext.split(":", 1)
                     heading = parts[0].strip()[:55]
-                    detail  = parts[1].strip()[:240] if len(parts) > 1 else btext[:240]
+                    detail  = parts[1].strip()[:240] if len(parts) > 1 else ""
                     _textbox(s, gx, gy, 6.0, 0.28,
                              cat_labels[gi] if gi < len(cat_labels) else f"0{gi+1}",
                              8, MGRAY, True, font=h_font)
@@ -1327,20 +1344,31 @@ def generate_pptx(
         sn += 1
         s = prs.slides.add_slide(blank)
         set_bg(s, DARK)
+        # Top accent bar
         _rect(s, 0, 0, 13.333, 0.06, SEC)
-        _rect(s, 0, 7.0, 13.333, 0.5, DARK2)
-        # Decorative circle
-        circ = s.shapes.add_shape(9, Inches(8.5), Inches(0.5), Inches(5.0), Inches(5.0))
+        # Right gold accent column (mirrors title slide)
+        _rect(s, 10.4, 0.06, 2.933, 7.44, DARK2)
+        _rect(s, 10.4, 0.06, 0.06, 7.44, GOLD)
+        # Decorative circle (right panel)
+        circ = s.shapes.add_shape(9, Inches(10.8), Inches(1.2), Inches(2.3), Inches(2.3))
         circ.fill.solid()
-        circ.fill.fore_color.rgb = DARK2
+        circ.fill.fore_color.rgb = DARK3
         circ.line.fill.background()
-        _rect(s, 5.4, 3.5, 2.5, 0.06, GOLD)
-        _textbox(s, 0.8, 1.8, 7.5, 1.2, "Thank You", 48, WHITE, True, PP_ALIGN.LEFT, h_font)
-        _textbox(s, 0.8, 3.8, 7.5, 0.55,
+        # Brand badge
+        _rect(s, 0.6, 0.2, 1.1, 0.38, GOLD)
+        _textbox(s, 0.63, 0.24, 1.04, 0.3, brand_label[:8], 10, DARK,
+                 True, PP_ALIGN.CENTER, h_font)
+        # Main text
+        _textbox(s, 0.8, 1.4, 9.4, 1.6, "Thank You", 72, WHITE, True, PP_ALIGN.LEFT, h_font)
+        _rect(s, 0.8, 3.1, 3.0, 0.06, GOLD)
+        _textbox(s, 0.8, 3.28, 9.4, 0.55, title[:80], 16, MGRAY, False, PP_ALIGN.LEFT, b_font)
+        _textbox(s, 0.8, 4.0, 9.4, 0.4,
                  f"\u00A9{dt.datetime.now().year} {brand_label} | All rights reserved",
-                 14, MGRAY, False, PP_ALIGN.LEFT, b_font)
+                 11, DGRAY, False, PP_ALIGN.LEFT, b_font)
         if brand_domain:
-            _textbox(s, 0.8, 4.4, 7.5, 0.42, brand_domain, 13, DGRAY, False, font=b_font)
+            _textbox(s, 0.8, 4.46, 7.5, 0.36, brand_domain, 11, DGRAY, False, font=b_font)
+        # Bottom bar
+        _rect(s, 0, 7.0, 10.4, 0.5, DARK2)
         _page_num(s, sn, total, DGRAY)
 
     name = f"{'report' if document_type in ('report', 'pitch_deck') else 'presentation'}_{uuid.uuid4().hex[:8]}.pptx"
